@@ -362,8 +362,9 @@ function updateLocalDeepLink() {
 }
 
 function updateBrandShift() {
+  const brand = document.querySelector(".brand");
   const brandTitle = document.querySelector(".brand-title");
-  if (!brandTitle) return;
+  if (!brand || !brandTitle) return;
   const nav = document.querySelector(".sections") || document.querySelector(".controls");
   const topbar = document.querySelector(".topbar");
   const brandRect = brandTitle.getBoundingClientRect();
@@ -375,7 +376,7 @@ function updateBrandShift() {
   } else if (containerRect) {
     maxShift = Math.max(0, Math.floor(containerRect.right - brandRect.right - 16));
   }
-  brandTitle.style.setProperty("--brand-shift", `${maxShift}px`);
+  brand.style.setProperty("--brand-shift", `${maxShift}px`);
 }
 
 let localSearchTimer = null;
