@@ -99,7 +99,8 @@ a {
 
 .brand {
   display: inline-block;
-  animation: brandSlide 7s ease-in-out infinite;
+  color: var(--text);
+  animation: brandSlide 7s ease-in-out infinite, brandHue 22s linear infinite;
   will-change: transform;
 }
 
@@ -120,20 +121,26 @@ a {
 @keyframes brandSlide {
   0% {
     transform: translateX(0);
-    color: var(--text);
   }
   50% {
     transform: translateX(var(--brand-shift, 0px));
-    color: var(--accent-cyan);
   }
   100% {
     transform: translateX(0);
-    color: var(--text);
+  }
+}
+
+@keyframes brandHue {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-title {
+  .brand {
     animation: none;
   }
 }
