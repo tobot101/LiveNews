@@ -107,7 +107,7 @@ a {
   gap: 0;
   color: #2563eb;
   text-shadow: 0 2px 12px rgba(59, 130, 246, 0.35);
-  animation: brandSlide 3.3s ease-in-out infinite, brandHue 13s linear infinite;
+  animation: brandSlide 11.5s ease-in-out infinite, brandHue 13s linear infinite;
   will-change: transform, filter, color;
 }
 
