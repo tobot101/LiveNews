@@ -284,15 +284,19 @@ function bindControls() {
     });
   });
 
-  elements.loginBtn.addEventListener("click", () => {
-    state.isLoggedIn = !state.isLoggedIn;
-    updateLoginState();
-  });
+  if (elements.loginBtn) {
+    elements.loginBtn.addEventListener("click", () => {
+      state.isLoggedIn = !state.isLoggedIn;
+      updateLoginState();
+    });
+  }
 
-  elements.signupBtn.addEventListener("click", () => {
-    state.isLoggedIn = true;
-    updateLoginState();
-  });
+  if (elements.signupBtn) {
+    elements.signupBtn.addEventListener("click", () => {
+      state.isLoggedIn = true;
+      updateLoginState();
+    });
+  }
 
   elements.applyUpdates.addEventListener("click", () => {
     if (state.pendingData) {
@@ -305,15 +309,19 @@ function bindControls() {
 
 function updateLoginState() {
   if (state.isLoggedIn) {
-    elements.loginBtn.textContent = "Log out";
-    elements.communityPreview.textContent =
-      "You are logged in. Off refresh is now available.";
-    elements.refreshOff.disabled = false;
+    if (elements.loginBtn) elements.loginBtn.textContent = "Log out";
+    if (elements.communityPreview) {
+      elements.communityPreview.textContent =
+        "You are logged in. Off refresh is now available.";
+    }
+    if (elements.refreshOff) elements.refreshOff.disabled = false;
   } else {
-    elements.loginBtn.textContent = "Log in";
-    elements.communityPreview.textContent =
-      "Join local and global discussions with verified moderation.";
-    elements.refreshOff.disabled = true;
+    if (elements.loginBtn) elements.loginBtn.textContent = "Log in";
+    if (elements.communityPreview) {
+      elements.communityPreview.textContent =
+        "Join local and global discussions with verified moderation.";
+    }
+    if (elements.refreshOff) elements.refreshOff.disabled = true;
     if (state.refresh === "off") {
       state.refresh = "10";
       setRefreshUI("10");
