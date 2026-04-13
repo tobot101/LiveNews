@@ -283,22 +283,22 @@ a {
 .story-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
-  padding: 12px;
+  padding: 14px 16px;
   background: var(--surface-muted);
   border-radius: 12px;
   border: 1px solid var(--border);
 }
 
 .story-rank {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--accent-red);
 }
 
 .story-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -312,22 +312,24 @@ a {
 
 .news-feed .feed {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .feed-item {
   background: var(--surface-muted);
   border-radius: 12px;
   border: 1px solid var(--border);
-  padding: 12px 14px;
+  padding: 14px 16px;
 }
 
 .feed-title {
   font-weight: 600;
+  font-size: 16px;
+  line-height: 1.35;
 }
 
 .feed-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-top: 4px;
 }
@@ -433,8 +435,9 @@ a {
 }
 
 .local-summary {
-  margin-top: 6px;
-  font-size: 11px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--text-muted);
 }
 
