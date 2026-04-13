@@ -18,6 +18,7 @@ const elements = {
   feedList: document.getElementById("localFeedList"),
   limitControl: document.getElementById("localLimitControl"),
   feedTag: document.getElementById("localFeedTag"),
+  modeControl: document.getElementById("modeControl"),
 };
 
 function init() {
@@ -46,6 +47,9 @@ function applyTheme() {
   const now = new Date();
   const theme = stored === "auto" ? (shouldUseNightMode(now) ? "night" : "day") : stored;
   document.documentElement.setAttribute("data-theme", theme);
+  document.querySelectorAll("[data-mode]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === stored);
+  });
 }
 
 function shouldUseNightMode(date) {
@@ -125,6 +129,22 @@ function bindControls() {
       setLimitUI(value);
       localStorage.setItem("ln_local_limit", value);
       renderLocalFeed();
+    });
+  }
+
+  if (elements.modeControl) {
+    elements.modeControl.addEventListener("click", (event) => {
+      const target = event.target.closest("button");
+      if (!target) return;
+      const value = target.dataset.mode;
+      if (!value) return;
+      localStorage.setItem("ln_mode", value);
+      document.querySelectorAll("[data-mode]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === value);
+      });
+      const theme =
+        value === "auto" ? (shouldUseNightMode(new Date()) ? "night" : "day") : value;
+      document.documentElement.setAttribute("data-theme", theme);
     });
   }
 }
