@@ -84,8 +84,16 @@ function withinMaxAge(date) {
 function computeScore(source, publishedAt) {
   const hoursOld = Math.max(0, (Date.now() - publishedAt.getTime()) / 3600000);
   const freshness = Math.max(0, 1 - hoursOld / MAX_AGE_HOURS);
-  const weight = source.weight || 1;
-  return Math.round(freshness * 70 + weight * 30);
+  const weight = Number(source.weight || 1);
+  const weightScore = clamp((weight - 1) / 2, 0, 1);
+  const recencyBoost =
+    hoursOld <= 2 ? 1 : hoursOld <= 6 ? 0.6 : hoursOld <= 12 ? 0.3 : 0;
+  const composite = clamp(0.65 * freshness + 0.25 * weightScore + 0.1 * recencyBoost, 0, 1);
+  return Math.round(70 + 30 * composite);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function buildSummary(text) {
