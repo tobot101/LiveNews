@@ -32,13 +32,21 @@
         <div class="brand-title">LiveNews</div>
         <div class="brand-sub">Breaking Grid</div>
       </div>
-      <nav class="sections">
-        <a href="#">Top</a>
-        <a href="#">National</a>
-        <a href="#">Business</a>
-        <a href="#">Tech</a>
-        <a href="#">Sports</a>
-        <a href="#">Entertainment</a>
+      <nav class="sections" id="sectionNav" aria-label="News sections">
+        <button class="section-link active" type="button" data-category="Top" aria-pressed="true">
+          Top
+        </button>
+        <button class="section-link" type="button" data-category="National">National</button>
+        <button class="section-link" type="button" data-category="Business">Business</button>
+        <button class="section-link" type="button" data-category="Tech">Tech</button>
+        <button class="section-link" type="button" data-category="Sports">Sports</button>
+        <button class="section-link" type="button" data-category="Entertainment">
+          Entertainment
+        </button>
+        <button class="section-link" type="button" data-category="International">
+          International
+        </button>
+        <button class="section-link" type="button" data-category="Local">Local</button>
       </nav>
       <div class="controls">
         <div class="control" aria-label="Refresh">
@@ -75,16 +83,16 @@
 
         <section class="panel top-stories">
           <div class="panel-header">
-            <h2>Top Stories + Trending + Most Clicked</h2>
-            <span class="tag">Primary Focus</span>
+            <h2 id="topStoriesTitle">Top Stories + Trending + Most Clicked</h2>
+            <span class="tag" id="topStoriesTag">Primary Focus</span>
           </div>
           <ol class="story-list" id="topStories"></ol>
         </section>
 
         <section class="panel news-feed">
           <div class="panel-header">
-            <h2>Latest News Feed</h2>
-            <span class="tag">After Top Stories</span>
+            <h2 id="feedTitle">Latest News Feed</h2>
+            <span class="tag" id="feedTag">After Top Stories</span>
           </div>
           <div class="feed" id="newsFeed"></div>
         </section>

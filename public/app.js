@@ -6,6 +6,9 @@ const state = {
   isLoggedIn: false,
   gpcDetected: false,
   maxAgeHours: 48,
+  category: "Top",
+  currentTopStories: [],
+  currentFeed: [],
   currentItems: [],
   pendingData: null,
   seenMap: {},
@@ -18,10 +21,15 @@ const elements = {
   refreshControl: document.getElementById("refreshControl"),
   refreshOff: document.getElementById("refreshOff"),
   modeControl: document.getElementById("modeControl"),
+  sectionNav: document.getElementById("sectionNav"),
   lastUpdated: document.getElementById("lastUpdated"),
   timeZoneLabel: document.getElementById("timeZoneLabel"),
   topStories: document.getElementById("topStories"),
+  topStoriesTitle: document.getElementById("topStoriesTitle"),
+  topStoriesTag: document.getElementById("topStoriesTag"),
   newsFeed: document.getElementById("newsFeed"),
+  feedTitle: document.getElementById("feedTitle"),
+  feedTag: document.getElementById("feedTag"),
   updateNotice: document.getElementById("updateNotice"),
   updateNoticeText: document.getElementById("updateNoticeText"),
   applyUpdates: document.getElementById("applyUpdates"),
@@ -138,6 +146,13 @@ function bindControls() {
     applyTheme();
   });
 
+  elements.sectionNav.addEventListener("click", (event) => {
+    const target = event.target.closest("button[data-category]");
+    if (!target) return;
+    const category = target.dataset.category;
+    setCategory(category);
+  });
+
   elements.useLocation.addEventListener("click", () => {
     if (!state.cookiesEnabled) return;
     if (!navigator.geolocation) {
@@ -227,6 +242,16 @@ function setModeUI(value) {
   document.querySelectorAll("[data-mode]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === value);
   });
+}
+
+function setCategory(category) {
+  state.category = category;
+  document.querySelectorAll("[data-category]").forEach((btn) => {
+    const isActive = btn.dataset.category === category;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+  renderCurrent();
 }
 
 function applyTheme() {
@@ -332,6 +357,21 @@ function maybeApplyPending() {
   setUpdateNotice(false);
 }
 
+function updateSectionHeaders(category, topCount, feedCount) {
+  if (!elements.topStoriesTitle || !elements.feedTitle) return;
+  if (category === "Top") {
+    elements.topStoriesTitle.textContent = "Top Stories + Trending + Most Clicked";
+    elements.topStoriesTag.textContent = "Primary Focus";
+    elements.feedTitle.textContent = "Latest News Feed";
+    elements.feedTag.textContent = "After Top Stories";
+    return;
+  }
+  elements.topStoriesTitle.textContent = `${category} Top Stories`;
+  elements.topStoriesTag.textContent = `${topCount} stories`;
+  elements.feedTitle.textContent = `${category} News Feed`;
+  elements.feedTag.textContent = `${feedCount} stories`;
+}
+
 function shouldUseNightMode(date) {
   const hours = date.getHours();
   const minutes = date.getMinutes();
@@ -390,9 +430,22 @@ async function loadNews({ force = false } = {}) {
 }
 
 function applyNewsData(data) {
-  renderTopStories(data.topStories || []);
-  renderFeed(data.feed || []);
-  const combined = [...(data.topStories || []), ...(data.feed || [])];
+  state.currentTopStories = data.topStories || [];
+  state.currentFeed = data.feed || [];
+  renderCurrent();
+}
+
+function filterByCategory(items) {
+  if (state.category === "Top") return items;
+  return items.filter((item) => item.category === state.category);
+}
+
+function renderCurrent() {
+  const filteredTop = filterByCategory(state.currentTopStories);
+  const filteredFeed = filterByCategory(state.currentFeed);
+  renderTopStories(filteredTop);
+  renderFeed(filteredFeed);
+  const combined = [...filteredTop, ...filteredFeed];
   const deduped = new Map();
   combined.forEach((item) => {
     if (item && item.id && !deduped.has(item.id)) {
@@ -401,10 +454,18 @@ function applyNewsData(data) {
   });
   state.currentItems = Array.from(deduped.values());
   setUpdateNotice(false);
+  updateSectionHeaders(state.category, filteredTop.length, filteredFeed.length);
 }
 
 function renderTopStories(items) {
   elements.topStories.innerHTML = "";
+  if (!items.length) {
+    const empty = document.createElement("li");
+    empty.className = "story-item";
+    empty.innerHTML = `<div>No ${state.category} stories available yet.</div>`;
+    elements.topStories.appendChild(empty);
+    return;
+  }
   const sorted = [...items].sort((a, b) => (b.score || 0) - (a.score || 0));
   sorted.forEach((item, index) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
@@ -431,6 +492,13 @@ function renderTopStories(items) {
 
 function renderFeed(items) {
   elements.newsFeed.innerHTML = "";
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "feed-item";
+    empty.textContent = `No ${state.category} articles available yet.`;
+    elements.newsFeed.appendChild(empty);
+    return;
+  }
   items.forEach((item) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
     const sourceLabel = item.sourceName || item.source || "Source";
