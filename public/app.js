@@ -7,6 +7,7 @@ const CONSENT_DEFAULT = {
 const ANON_ID_DAYS = 90;
 const PROFILE_TTL_DAYS = 30;
 const ANALYTICS_TTL_DAYS = 30;
+const LOCAL_FEED_LIMIT = 6;
 
 const state = {
   consent: { ...CONSENT_DEFAULT },
@@ -19,6 +20,10 @@ const state = {
   gpcDetected: false,
   maxAgeHours: 48,
   category: "Top",
+  localPlace: null,
+  localFeed: [],
+  localLastFetched: 0,
+  localLoading: false,
   currentTopStories: [],
   currentFeed: [],
   currentItems: [],
@@ -71,7 +76,10 @@ const elements = {
   useLocation: document.getElementById("useLocation"),
   manualLocation: document.getElementById("manualLocation"),
   setLocation: document.getElementById("setLocation"),
+  localSuggestions: document.getElementById("localSuggestions"),
   localDisplay: document.getElementById("localDisplay"),
+  localFeed: document.getElementById("localFeed"),
+  localStatus: document.getElementById("localStatus"),
   localNote: document.getElementById("localNote"),
   loginBtn: document.getElementById("loginBtn"),
   signupBtn: document.getElementById("signupBtn"),
@@ -86,11 +94,13 @@ function init() {
   hydrateSeen();
   hydrateProfile();
   hydrateAnalytics();
+  hydrateLocalPlace();
   bindControls();
   updateTimeZoneLabel();
   updateLocalControls();
   updateLoginState();
   loadNews({ force: true });
+  loadLocalNews({ force: true });
   startRefreshTimer();
   startAnalyticsTracking();
 }
@@ -143,6 +153,24 @@ function hydrateFeedLimit() {
     state.feedLimit = stored;
   }
   setFeedLimitUI(state.feedLimit);
+}
+
+function hydrateLocalPlace() {
+  if (!state.consent.personalization) {
+    state.localPlace = null;
+    return;
+  }
+  const stored = localStorage.getItem("ln_local_place");
+  if (!stored) return;
+  try {
+    state.localPlace = JSON.parse(stored);
+    if (state.localPlace?.display) {
+      elements.manualLocation.value = state.localPlace.display;
+      elements.localDisplay.textContent = `Local hub: ${state.localPlace.display}`;
+    }
+  } catch {
+    state.localPlace = null;
+  }
 }
 
 function bindControls() {
@@ -224,8 +252,7 @@ function bindControls() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
-        elements.localDisplay.textContent =
-          `Local hub: ${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+        findNearestPlace(latitude, longitude);
       },
       () => {
         elements.localDisplay.textContent = "Local hub: location denied";
@@ -233,10 +260,25 @@ function bindControls() {
     );
   });
 
+  elements.manualLocation.addEventListener("input", (event) => {
+    const value = event.target.value.trim();
+    schedulePlaceSearch(value);
+  });
+
+  elements.manualLocation.addEventListener("blur", () => {
+    setTimeout(() => clearLocalSuggestions(), 150);
+  });
+
   elements.setLocation.addEventListener("click", () => {
     const value = elements.manualLocation.value.trim();
     if (!value) return;
-    elements.localDisplay.textContent = `Local hub: ${value}`;
+    setLocalPlace({
+      name: value,
+      display: value,
+      state: "",
+      stateName: "",
+      geoid: "",
+    });
   });
 
   elements.loginBtn.addEventListener("click", () => {
@@ -286,6 +328,92 @@ function updateLocalControls() {
     elements.useLocation.disabled = true;
     elements.localNote.textContent =
       "Enable personalization to use automatic location, or enter your county/city.";
+  }
+}
+
+let localSearchTimer = null;
+
+function schedulePlaceSearch(query) {
+  if (!elements.localSuggestions) return;
+  if (localSearchTimer) {
+    clearTimeout(localSearchTimer);
+  }
+  if (!query || query.length < 2) {
+    clearLocalSuggestions();
+    return;
+  }
+  localSearchTimer = setTimeout(() => {
+    fetchPlaceSuggestions(query);
+  }, 250);
+}
+
+async function fetchPlaceSuggestions(query) {
+  if (!elements.localSuggestions) return;
+  try {
+    const response = await fetch(`/api/places?q=${encodeURIComponent(query)}`);
+    const data = await response.json();
+    renderLocalSuggestions(data.results || []);
+  } catch (error) {
+    clearLocalSuggestions();
+  }
+}
+
+function renderLocalSuggestions(results) {
+  if (!elements.localSuggestions) return;
+  elements.localSuggestions.innerHTML = "";
+  if (!results.length) return;
+  results.slice(0, 8).forEach((place) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "local-suggestion";
+    button.innerHTML = `
+      <strong>${place.name}, ${place.state}</strong>
+      <span>${place.stateName || ""}</span>
+    `;
+    button.addEventListener("click", () => {
+      setLocalPlace(place);
+      elements.manualLocation.value = place.display || `${place.name}, ${place.state}`;
+      clearLocalSuggestions();
+    });
+    elements.localSuggestions.appendChild(button);
+  });
+}
+
+function clearLocalSuggestions() {
+  if (!elements.localSuggestions) return;
+  elements.localSuggestions.innerHTML = "";
+}
+
+function setLocalPlace(place) {
+  state.localPlace = place;
+  if (place?.display) {
+    elements.localDisplay.textContent = `Local hub: ${place.display}`;
+  } else if (place?.name) {
+    elements.localDisplay.textContent = `Local hub: ${place.name}`;
+  } else {
+    elements.localDisplay.textContent = "Local hub: not set";
+  }
+  if (state.consent.personalization) {
+    localStorage.setItem("ln_local_place", JSON.stringify(place));
+  } else {
+    localStorage.removeItem("ln_local_place");
+  }
+  loadLocalNews({ force: true });
+}
+
+async function findNearestPlace(lat, lon) {
+  try {
+    const response = await fetch(
+      `/api/places/nearest?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`
+    );
+    const data = await response.json();
+    if (data.place) {
+      setLocalPlace(data.place);
+    } else {
+      elements.localDisplay.textContent = "Local hub: location unavailable";
+    }
+  } catch (error) {
+    elements.localDisplay.textContent = "Local hub: location lookup failed";
   }
 }
 
@@ -411,6 +539,7 @@ function applyConsentEffects(personalizationChanged = false, analyticsChanged = 
       ensureAnonymousId();
       hydrateSeen();
       hydrateProfile();
+      hydrateLocalPlace();
     } else {
       clearAnonymousId();
       state.seenMap = {};
@@ -421,8 +550,18 @@ function applyConsentEffects(personalizationChanged = false, analyticsChanged = 
         keywords: {},
         updatedAt: Date.now(),
       };
+      state.localPlace = null;
+      if (elements.manualLocation) {
+        elements.manualLocation.value = "";
+      }
+      if (elements.localDisplay) {
+        elements.localDisplay.textContent = "Local hub: not set";
+      }
+      renderLocalFeed([]);
+      updateLocalStatus("Choose a city to see local stories.");
       localStorage.removeItem("ln_seen");
       localStorage.removeItem("ln_profile");
+      localStorage.removeItem("ln_local_place");
     }
   }
 
@@ -886,9 +1025,84 @@ async function loadNews({ force = false } = {}) {
     const updated = new Date(data.updatedAt || Date.now());
     elements.lastUpdated.textContent =
       `Last updated: ${updated.toLocaleTimeString()}`;
+    loadLocalNews();
   } catch (error) {
     elements.lastUpdated.textContent = "Last updated: offline";
+    updateLocalStatus("Local stories unavailable (offline).");
   }
+}
+
+async function loadLocalNews({ force = false } = {}) {
+  if (!elements.localFeed || !elements.localStatus) return;
+  if (!state.localPlace || !state.localPlace.name) {
+    renderLocalFeed([]);
+    updateLocalStatus("Choose a city to see local stories.");
+    return;
+  }
+  const now = Date.now();
+  const refreshMs = Number(state.refresh) * 60 * 1000 || 10 * 60 * 1000;
+  if (!force && now - state.localLastFetched < refreshMs) {
+    return;
+  }
+  if (state.localLoading) return;
+  state.localLoading = true;
+  updateLocalStatus("Loading local stories...");
+  try {
+    const params = new URLSearchParams({
+      city: state.localPlace.name,
+      state: state.localPlace.state || "",
+    });
+    const response = await fetch(`/api/local?${params.toString()}`);
+    const data = await response.json();
+    state.localFeed = data.items || [];
+    state.localLastFetched = Date.now();
+    renderLocalFeed(state.localFeed);
+    if (state.localFeed.length) {
+      updateLocalStatus(
+        `Showing ${Math.min(state.localFeed.length, LOCAL_FEED_LIMIT)} of ${state.localFeed.length} local updates.`
+      );
+    } else {
+      updateLocalStatus("No local updates in the last 48 hours.");
+    }
+  } catch (error) {
+    renderLocalFeed([]);
+    updateLocalStatus("Local stories unavailable right now.");
+  } finally {
+    state.localLoading = false;
+  }
+}
+
+function updateLocalStatus(message) {
+  if (!elements.localStatus) return;
+  elements.localStatus.textContent = message;
+}
+
+function renderLocalFeed(items) {
+  if (!elements.localFeed) return;
+  elements.localFeed.innerHTML = "";
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "local-item";
+    empty.textContent = "No local stories yet.";
+    elements.localFeed.appendChild(empty);
+    return;
+  }
+  const limited = items.slice(0, LOCAL_FEED_LIMIT);
+  limited.forEach((item) => {
+    const card = document.createElement("div");
+    card.className = "local-item";
+    const sourceLabel = item.sourceName || item.sourceDomain || "Source";
+    const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+    const titleHtml = item.link
+      ? `<a href=\"${item.link}\" target=\"_blank\" rel=\"noopener noreferrer\">${item.title}</a>`
+      : item.title;
+    card.innerHTML = `
+      <div class=\"feed-title\">${titleHtml}</div>
+      <div class=\"feed-meta\">${sourceLabel} • ${published}</div>
+      ${item.summary ? `<div class=\"local-summary\">${item.summary}</div>` : \"\"}
+    `;
+    elements.localFeed.appendChild(card);
+  });
 }
 
 function applyNewsData(data) {

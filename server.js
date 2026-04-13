@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 8080;
 
 const sourcesPath = path.join(__dirname, "data", "sources.json");
 const fallbackPath = path.join(__dirname, "data", "news.json");
+const placesPath = path.join(__dirname, "data", "us-places.json");
 
 const MAX_AGE_HOURS = Number(process.env.NEWS_MAX_AGE_HOURS || 48);
 const REFRESH_MINUTES = Number(process.env.NEWS_REFRESH_INTERVAL_MINUTES || 10);
@@ -30,6 +31,14 @@ const cache = {
   sourceErrors: [],
 };
 
+let placesIndex = [];
+let placesMeta = {
+  source: "",
+  sourceUrl: "",
+  totalPlaces: 0,
+};
+const localCache = new Map();
+
 function loadSources() {
   const raw = fs.readFileSync(sourcesPath, "utf8");
   return JSON.parse(raw).sources || [];
@@ -38,6 +47,25 @@ function loadSources() {
 function loadFallback() {
   const raw = fs.readFileSync(fallbackPath, "utf8");
   return JSON.parse(raw);
+}
+
+function loadPlaces() {
+  try {
+    const raw = fs.readFileSync(placesPath, "utf8");
+    const parsed = JSON.parse(raw);
+    placesMeta = {
+      source: parsed.source || "",
+      sourceUrl: parsed.sourceUrl || "",
+      totalPlaces: parsed.totalPlaces || 0,
+    };
+    placesIndex = (parsed.places || []).map((place) => ({
+      ...place,
+      search: `${place.display} ${place.officialName} ${place.stateName}`.toLowerCase(),
+    }));
+  } catch (error) {
+    placesIndex = [];
+    placesMeta = { source: "", sourceUrl: "", totalPlaces: 0 };
+  }
 }
 
 function parseDate(value) {
@@ -58,6 +86,65 @@ function computeScore(source, publishedAt) {
   const freshness = Math.max(0, 1 - hoursOld / MAX_AGE_HOURS);
   const weight = source.weight || 1;
   return Math.round(freshness * 70 + weight * 30);
+}
+
+function buildSummary(text) {
+  if (!text) return "";
+  const clean = String(text)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return "";
+  const sentences = clean.split(/(?<=[.!?])\s+/);
+  const summary = sentences.slice(0, 2).join(" ").trim();
+  return summary.slice(0, 220);
+}
+
+function parseSourceFromTitle(title) {
+  if (!title) return { title: "", sourceName: "" };
+  const parts = String(title).split(" - ");
+  if (parts.length >= 2) {
+    return {
+      title: parts.slice(0, -1).join(" - ").trim(),
+      sourceName: parts[parts.length - 1].trim(),
+    };
+  }
+  return { title: String(title).trim(), sourceName: "" };
+}
+
+function getDomain(link) {
+  try {
+    const url = new URL(link);
+    return url.hostname.replace(/^www\\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function findNearestPlace(lat, lon) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const place of placesIndex) {
+    if (place.lat == null || place.lon == null) continue;
+    const distance = haversineKm(lat, lon, place.lat, place.lon);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = place;
+    }
+  }
+  if (!best) return null;
+  const { search, ...rest } = best;
+  return { place: rest, distanceKm: Math.round(bestDistance * 10) / 10 };
 }
 
 function diversifyBySource(items, { maxPerSource = 0, limit } = {}) {
@@ -128,6 +215,49 @@ function normalizeItem(source, item) {
     category: source.category || "Top",
     score: computeScore(source, publishedAt),
   };
+}
+
+function normalizeLocalItem(item) {
+  const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
+  if (!publishedAt || !withinMaxAge(publishedAt)) return null;
+  const link = item.link || item.guid;
+  if (!link) return null;
+  const parsed = parseSourceFromTitle(item.title || "");
+  const title = parsed.title;
+  if (!title) return null;
+  const sourceName = parsed.sourceName || item.creator || getDomain(link) || "Source";
+  return {
+    id: crypto.createHash("sha1").update(link).digest("hex"),
+    title,
+    link,
+    publishedAt: publishedAt.toISOString(),
+    sourceName,
+    sourceDomain: getDomain(link),
+    category: "Local",
+    score: computeScore({ weight: 1 }, publishedAt),
+    summary: buildSummary(item.contentSnippet || item.content || ""),
+  };
+}
+
+async function fetchLocalNews(city, state) {
+  const key = `${city}|${state}`.toLowerCase();
+  const cached = localCache.get(key);
+  const now = Date.now();
+  if (cached && now - cached.fetchedAt < REFRESH_MINUTES * 60 * 1000) {
+    return cached.payload;
+  }
+  const query = [city, state].filter(Boolean).join(" ");
+  const feedUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+  const feed = await parser.parseURL(feedUrl);
+  const items = Array.isArray(feed.items) ? feed.items : [];
+  const normalized = items.map(normalizeLocalItem).filter(Boolean);
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    items: normalized,
+    query,
+  };
+  localCache.set(key, { fetchedAt: now, payload });
+  return payload;
 }
 
 async function fetchSource(source) {
@@ -206,6 +336,55 @@ app.get("/api/news", (req, res) => {
   });
 });
 
+app.get("/api/places", (req, res) => {
+  const query = String(req.query.q || "").trim().toLowerCase();
+  const limit = Math.min(Number(req.query.limit || 20), 50);
+  if (!query || query.length < 2) {
+    return res.json({ results: [], totalPlaces: placesMeta.totalPlaces });
+  }
+  const matches = placesIndex
+    .filter((place) => place.search.includes(query))
+    .slice(0, limit)
+    .map(({ search, ...rest }) => rest);
+  res.json({
+    results: matches,
+    totalPlaces: placesMeta.totalPlaces,
+    source: placesMeta.source,
+    sourceUrl: placesMeta.sourceUrl,
+  });
+});
+
+app.get("/api/places/nearest", (req, res) => {
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return res.status(400).json({ error: "Invalid coordinates." });
+  }
+  const result = findNearestPlace(lat, lon);
+  if (!result) {
+    return res.json({ place: null });
+  }
+  res.json(result);
+});
+
+app.get("/api/local", async (req, res) => {
+  const city = String(req.query.city || "").trim();
+  const state = String(req.query.state || "").trim();
+  if (!city) {
+    return res.json({ updatedAt: new Date().toISOString(), items: [] });
+  }
+  try {
+    const payload = await fetchLocalNews(city, state);
+    res.json(payload);
+  } catch (error) {
+    res.json({
+      updatedAt: new Date().toISOString(),
+      items: [],
+      error: error.message,
+    });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
@@ -216,6 +395,7 @@ app.get("/api/health", (req, res) => {
 
 refreshNewsSafely();
 setInterval(refreshNewsSafely, REFRESH_MINUTES * 60 * 1000);
+loadPlaces();
 
 app.listen(PORT, () => {
   console.log(`Running on ${PORT}`);
