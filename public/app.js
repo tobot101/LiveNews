@@ -1094,12 +1094,12 @@ function renderLocalFeed(items) {
     const sourceLabel = item.sourceName || item.sourceDomain || "Source";
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
     const titleHtml = item.link
-      ? `<a href=\"${item.link}\" target=\"_blank\" rel=\"noopener noreferrer\">${item.title}</a>`
+      ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
       : item.title;
     card.innerHTML = `
-      <div class=\"feed-title\">${titleHtml}</div>
-      <div class=\"feed-meta\">${sourceLabel} • ${published}</div>
-      ${item.summary ? `<div class=\"local-summary\">${item.summary}</div>` : \"\"}
+      <div class="feed-title">${titleHtml}</div>
+      <div class="feed-meta">${sourceLabel} • ${published}</div>
+      ${item.summary ? `<div class="local-summary">${item.summary}</div>` : ""}
     `;
     elements.localFeed.appendChild(card);
   });
