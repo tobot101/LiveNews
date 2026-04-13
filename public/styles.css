@@ -151,6 +151,16 @@ a {
   color: var(--text-muted);
 }
 
+.category-bar {
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: var(--surface-muted);
+}
+
 .section-link {
   background: transparent;
   border: none;

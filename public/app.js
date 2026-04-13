@@ -207,16 +207,18 @@ function bindControls() {
     openConsentModal();
   });
 
-  elements.refreshControl.addEventListener("click", (event) => {
-    const target = event.target.closest("button");
-    if (!target) return;
-    const value = target.dataset.refresh;
-    if (value === "off" && !state.isLoggedIn) return;
-    setRefreshUI(value);
-    state.refresh = value;
-    localStorage.setItem("ln_refresh", value);
-    startRefreshTimer();
-  });
+  if (elements.refreshControl) {
+    elements.refreshControl.addEventListener("click", (event) => {
+      const target = event.target.closest("button");
+      if (!target) return;
+      const value = target.dataset.refresh;
+      if (value === "off" && !state.isLoggedIn) return;
+      setRefreshUI(value);
+      state.refresh = value;
+      localStorage.setItem("ln_refresh", value);
+      startRefreshTimer();
+    });
+  }
 
   if (elements.feedLimitControl) {
     elements.feedLimitControl.addEventListener("click", (event) => {
@@ -300,13 +302,15 @@ function bindControls() {
     });
   }
 
-  elements.applyUpdates.addEventListener("click", () => {
-    if (state.pendingData) {
-      applyNewsData(state.pendingData);
-      state.pendingData = null;
-      setUpdateNotice(false);
-    }
-  });
+  if (elements.applyUpdates) {
+    elements.applyUpdates.addEventListener("click", () => {
+      if (state.pendingData) {
+        applyNewsData(state.pendingData);
+        state.pendingData = null;
+        setUpdateNotice(false);
+      }
+    });
+  }
 }
 
 function updateLoginState() {
