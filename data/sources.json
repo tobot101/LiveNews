@@ -1,0 +1,67 @@
+{
+  "sources": [
+    {
+      "id": "bbc-top",
+      "name": "BBC News",
+      "attribution": "BBC News",
+      "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml",
+      "homepage": "https://www.bbc.co.uk/news",
+      "category": "Top",
+      "weight": 1.2
+    },
+    {
+      "id": "bbc-world",
+      "name": "BBC News",
+      "attribution": "BBC News",
+      "feedUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "homepage": "https://www.bbc.co.uk/news/world",
+      "category": "International",
+      "weight": 1.1
+    },
+    {
+      "id": "bbc-business",
+      "name": "BBC News",
+      "attribution": "BBC News",
+      "feedUrl": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "homepage": "https://www.bbc.co.uk/news/business",
+      "category": "Business",
+      "weight": 1.05
+    },
+    {
+      "id": "bbc-tech",
+      "name": "BBC News",
+      "attribution": "BBC News",
+      "feedUrl": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "homepage": "https://www.bbc.co.uk/news/technology",
+      "category": "Tech",
+      "weight": 1.0
+    },
+    {
+      "id": "bbc-arts",
+      "name": "BBC News",
+      "attribution": "BBC News",
+      "feedUrl": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+      "homepage": "https://www.bbc.co.uk/news/entertainment_and_arts",
+      "category": "Entertainment",
+      "weight": 0.95
+    },
+    {
+      "id": "pbs-headlines",
+      "name": "PBS NewsHour",
+      "attribution": "PBS NewsHour",
+      "feedUrl": "https://www.pbs.org/newshour/feeds/rss/headlines",
+      "homepage": "https://www.pbs.org/newshour/",
+      "category": "National",
+      "weight": 1.1
+    },
+    {
+      "id": "pbs-politics",
+      "name": "PBS NewsHour",
+      "attribution": "PBS NewsHour",
+      "feedUrl": "https://www.pbs.org/newshour/feeds/rss/politics",
+      "homepage": "https://www.pbs.org/newshour/politics",
+      "category": "National",
+      "weight": 1.0
+    }
+  ]
+}

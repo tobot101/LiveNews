@@ -267,13 +267,18 @@ function renderTopStories(items) {
   elements.topStories.innerHTML = "";
   const sorted = [...items].sort((a, b) => (b.score || 0) - (a.score || 0));
   sorted.forEach((item, index) => {
+    const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+    const sourceLabel = item.sourceName || item.source || "Source";
+    const titleHtml = item.link
+      ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
+      : item.title;
     const li = document.createElement("li");
     li.className = "story-item";
     li.innerHTML = `
       <div class="story-rank">${index + 1}</div>
       <div>
-        <div class="feed-title">${item.title}</div>
-        <div class="story-meta">${item.source} • ${item.category}</div>
+        <div class="feed-title">${titleHtml}</div>
+        <div class="story-meta">${sourceLabel} • ${item.category} • ${published}</div>
       </div>
       <div class="score-pill">Score ${item.score}</div>
     `;
@@ -284,14 +289,25 @@ function renderTopStories(items) {
 function renderFeed(items) {
   elements.newsFeed.innerHTML = "";
   items.forEach((item) => {
+    const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+    const sourceLabel = item.sourceName || item.source || "Source";
+    const titleHtml = item.link
+      ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
+      : item.title;
     const card = document.createElement("div");
     card.className = "feed-item";
     card.innerHTML = `
-      <div class="feed-title">${item.title}</div>
-      <div class="feed-meta">${item.source} • ${item.category}</div>
+      <div class="feed-title">${titleHtml}</div>
+      <div class="feed-meta">${sourceLabel} • ${item.category} • ${published}</div>
     `;
     elements.newsFeed.appendChild(card);
   });
+}
+
+function formatTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString();
 }
 
 init();

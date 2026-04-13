@@ -19,3 +19,9 @@ Then open `http://localhost:8080`.
 - Main column for Top/Trending/Most Clicked, followed by feed.
 - Right rail for Local News + Community Hub + Sponsor slot.
 - Opt-in cookie consent modal and GPC-aware behavior.
+- Live RSS ingestion from verified sources (BBC News, PBS NewsHour) with 48-hour cutoff.
+
+## News ingestion settings
+- `NEWS_MAX_AGE_HOURS` (default: 48)
+- `NEWS_REFRESH_INTERVAL_MINUTES` (default: 10)
+- Update `data/sources.json` to add or remove official RSS sources.
