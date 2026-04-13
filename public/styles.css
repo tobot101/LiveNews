@@ -105,6 +105,16 @@ a {
 
 .brand-title {
   display: block;
+  transition: color 0.3s ease;
+}
+
+.brand-sub {
+  transition: color 0.3s ease;
+}
+
+.brand:hover .brand-title,
+.brand:hover .brand-sub {
+  color: var(--accent-cyan);
 }
 
 @keyframes brandSlide {
