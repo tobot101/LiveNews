@@ -86,34 +86,34 @@ a {
 }
 
 .brand-title {
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  display: inline-block;
-  animation: brandFloat 6s ease-in-out infinite;
-  will-change: transform, color;
+  line-height: 1.1;
 }
 
 .brand-sub {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
-@keyframes brandFloat {
+.brand {
+  display: inline-block;
+  animation: brandSlide 7s ease-in-out infinite;
+  will-change: transform;
+}
+
+.brand-title {
+  display: block;
+}
+
+@keyframes brandSlide {
   0% {
     transform: translateX(0);
     color: var(--text);
   }
-  25% {
-    transform: translateX(-6px);
-    color: var(--accent-cyan);
-  }
   50% {
-    transform: translateX(0);
-    color: var(--accent-red);
-  }
-  75% {
-    transform: translateX(6px);
+    transform: translateX(var(--brand-shift, 0px));
     color: var(--accent-cyan);
   }
   100% {

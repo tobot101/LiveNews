@@ -101,6 +101,8 @@ function init() {
   updateLocalControls();
   updateLocalDeepLink();
   updateLoginState();
+  updateBrandShift();
+  window.addEventListener("resize", updateBrandShift);
   loadNews({ force: true });
   loadLocalNews({ force: true });
   startRefreshTimer();
@@ -357,6 +359,23 @@ function updateLocalDeepLink() {
     elements.localDeepDive.href = "/local.html";
     elements.localDeepDive.classList.remove("disabled");
   }
+}
+
+function updateBrandShift() {
+  const brandTitle = document.querySelector(".brand-title");
+  if (!brandTitle) return;
+  const nav = document.querySelector(".sections") || document.querySelector(".controls");
+  const topbar = document.querySelector(".topbar");
+  const brandRect = brandTitle.getBoundingClientRect();
+  const limitRect = nav ? nav.getBoundingClientRect() : null;
+  const containerRect = topbar ? topbar.getBoundingClientRect() : null;
+  let maxShift = 0;
+  if (limitRect) {
+    maxShift = Math.max(0, Math.floor(limitRect.left - brandRect.right - 16));
+  } else if (containerRect) {
+    maxShift = Math.max(0, Math.floor(containerRect.right - brandRect.right - 16));
+  }
+  brandTitle.style.setProperty("--brand-shift", `${maxShift}px`);
 }
 
 let localSearchTimer = null;

@@ -26,6 +26,8 @@ function init() {
   hydrateLimit();
   hydrateFromQuery();
   hydrateFromStorage();
+  updateBrandShift();
+  window.addEventListener("resize", updateBrandShift);
   if (state.place) {
     loadLocalFeed({ force: true });
   }
@@ -53,6 +55,23 @@ function shouldUseNightMode(date) {
   const nightStart = 19 * 60 + 30;
   const nightEnd = 5 * 60 + 30;
   return current >= nightStart || current <= nightEnd;
+}
+
+function updateBrandShift() {
+  const brandTitle = document.querySelector(".brand-title");
+  if (!brandTitle) return;
+  const nav = document.querySelector(".sections") || document.querySelector(".controls");
+  const topbar = document.querySelector(".topbar");
+  const brandRect = brandTitle.getBoundingClientRect();
+  const limitRect = nav ? nav.getBoundingClientRect() : null;
+  const containerRect = topbar ? topbar.getBoundingClientRect() : null;
+  let maxShift = 0;
+  if (limitRect) {
+    maxShift = Math.max(0, Math.floor(limitRect.left - brandRect.right - 16));
+  } else if (containerRect) {
+    maxShift = Math.max(0, Math.floor(containerRect.right - brandRect.right - 16));
+  }
+  brandTitle.style.setProperty("--brand-shift", `${maxShift}px`);
 }
 
 function bindControls() {
