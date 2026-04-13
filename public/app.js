@@ -369,10 +369,10 @@ function updateBrandShift() {
   const brand = document.querySelector(".brand");
   const brandTitle = document.querySelector(".brand-title");
   if (!brand || !brandTitle) return;
-  const nav = document.querySelector(".sections") || document.querySelector(".controls");
   const topbar = document.querySelector(".topbar");
+  const limit = topbar ? topbar.querySelector(".controls") : null;
   const brandRect = brand.getBoundingClientRect();
-  const limitRect = nav ? nav.getBoundingClientRect() : null;
+  const limitRect = limit ? limit.getBoundingClientRect() : null;
   const containerRect = topbar ? topbar.getBoundingClientRect() : null;
   let maxShift = 0;
   if (limitRect) {
