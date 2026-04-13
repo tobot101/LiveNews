@@ -1023,7 +1023,7 @@ function updateSectionHeaders(category, topCount, feedCount, feedTotal = feedCou
   const feedNote =
     feedTotal > feedCount ? `Showing ${feedCount} of ${feedTotal}` : `${feedCount} stories`;
   if (category === "Top") {
-    elements.topStoriesTitle.textContent = "Top Stories + Trending + Most Clicked";
+    elements.topStoriesTitle.textContent = "Top Stories";
     elements.topStoriesTag.textContent = "Primary Focus";
     elements.feedTitle.textContent = "Latest News Feed";
     elements.feedTag.textContent = `After Top Stories • ${feedNote}`;
