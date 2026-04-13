@@ -165,6 +165,60 @@ a {
   margin-bottom: 12px;
 }
 
+.feed-header {
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.feed-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feed-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feed-subnote {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.feed-section {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.feed-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+.feed-section-count {
+  background: var(--chip);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.feed-section-list {
+  display: grid;
+  gap: 12px;
+}
+
 .tag {
   background: var(--chip);
   color: var(--text-muted);

@@ -151,10 +151,21 @@
         </section>
 
         <section class="panel news-feed">
-          <div class="panel-header">
-            <h2 id="feedTitle">Latest News Feed</h2>
-            <span class="tag" id="feedTag">After Top Stories</span>
+          <div class="panel-header feed-header">
+            <div class="feed-meta">
+              <h2 id="feedTitle">Latest News Feed</h2>
+              <span class="tag" id="feedTag">After Top Stories</span>
+            </div>
+            <div class="feed-controls">
+              <span class="control-label">Show</span>
+              <div class="segmented" id="feedLimitControl">
+                <button class="seg" data-feed-limit="30">30</button>
+                <button class="seg active" data-feed-limit="50">50</button>
+                <button class="seg" data-feed-limit="100">100</button>
+              </div>
+            </div>
           </div>
+          <div class="feed-subnote" id="feedLayoutNote">Grouped by time</div>
           <div class="feed" id="newsFeed"></div>
         </section>
       </section>

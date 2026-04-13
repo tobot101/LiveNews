@@ -24,6 +24,7 @@ Then open `http://localhost:8080`.
 - Source diversity: top stories and feed are interleaved so one outlet doesn’t dominate the list.
 - Granular cookie preferences for functional, personalization, and analytics, with easy opt-out and GPC support.
 - Personalization uses an anonymous first-party ID cookie and on-device reading history; analytics stays on-device and prunes data regularly.
+- News feed includes a user toggle to show 30/50/100 items, grouped by time buckets for easier scanning.
 
 ## Source usage notes
 - TechCrunch RSS terms allow display with attribution + link and no ads; do not add ads if TechCrunch feeds remain active.
@@ -32,4 +33,5 @@ Then open `http://localhost:8080`.
 ## News ingestion settings
 - `NEWS_MAX_AGE_HOURS` (default: 48)
 - `NEWS_REFRESH_INTERVAL_MINUTES` (default: 10)
+- `NEWS_FEED_LIMIT` (default: 120)
 - Update `data/sources.json` to add or remove official RSS sources.

@@ -12,6 +12,7 @@ const fallbackPath = path.join(__dirname, "data", "news.json");
 
 const MAX_AGE_HOURS = Number(process.env.NEWS_MAX_AGE_HOURS || 48);
 const REFRESH_MINUTES = Number(process.env.NEWS_REFRESH_INTERVAL_MINUTES || 10);
+const FEED_LIMIT = Number(process.env.NEWS_FEED_LIMIT || 120);
 
 const parser = new Parser({
   timeout: 10000,
@@ -170,7 +171,7 @@ async function refreshNews() {
 
   cache.items = items;
   cache.topStories = diversifyBySource(ranked, { maxPerSource: 2, limit: 12 });
-  cache.feed = diversifyBySource(recent, { maxPerSource: 4 });
+  cache.feed = diversifyBySource(recent, { maxPerSource: 0, limit: FEED_LIMIT });
   cache.lastUpdated = new Date().toISOString();
   cache.lastFetched = new Date().toISOString();
   cache.sourceErrors = errors;

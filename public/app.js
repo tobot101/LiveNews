@@ -14,6 +14,7 @@ const state = {
   mode: "auto",
   refresh: "10",
   refreshTimer: null,
+  feedLimit: "50",
   isLoggedIn: false,
   gpcDetected: false,
   maxAgeHours: 48,
@@ -53,6 +54,7 @@ const elements = {
   gpcNotice: document.getElementById("gpcNotice"),
   refreshControl: document.getElementById("refreshControl"),
   refreshOff: document.getElementById("refreshOff"),
+  feedLimitControl: document.getElementById("feedLimitControl"),
   modeControl: document.getElementById("modeControl"),
   sectionNav: document.getElementById("sectionNav"),
   lastUpdated: document.getElementById("lastUpdated"),
@@ -80,6 +82,7 @@ function init() {
   hydrateConsent();
   hydrateMode();
   hydrateRefresh();
+  hydrateFeedLimit();
   hydrateSeen();
   hydrateProfile();
   hydrateAnalytics();
@@ -134,6 +137,14 @@ function hydrateRefresh() {
   setRefreshUI(state.refresh);
 }
 
+function hydrateFeedLimit() {
+  const stored = localStorage.getItem("ln_feed_limit");
+  if (stored) {
+    state.feedLimit = stored;
+  }
+  setFeedLimitUI(state.feedLimit);
+}
+
 function bindControls() {
   elements.consentAcceptAll.addEventListener("click", () => {
     const consent = {
@@ -173,6 +184,19 @@ function bindControls() {
     localStorage.setItem("ln_refresh", value);
     startRefreshTimer();
   });
+
+  if (elements.feedLimitControl) {
+    elements.feedLimitControl.addEventListener("click", (event) => {
+      const target = event.target.closest("button");
+      if (!target) return;
+      const value = target.dataset.feedLimit;
+      if (!value) return;
+      state.feedLimit = value;
+      localStorage.setItem("ln_feed_limit", value);
+      setFeedLimitUI(value);
+      renderCurrent();
+    });
+  }
 
   elements.modeControl.addEventListener("click", (event) => {
     const target = event.target.closest("button");
@@ -273,6 +297,12 @@ function updateTimeZoneLabel() {
 function setRefreshUI(value) {
   document.querySelectorAll("[data-refresh]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.refresh === value);
+  });
+}
+
+function setFeedLimitUI(value) {
+  document.querySelectorAll("[data-feed-limit]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.feedLimit === value);
   });
 }
 
@@ -792,19 +822,21 @@ function maybeApplyPending() {
   setUpdateNotice(false);
 }
 
-function updateSectionHeaders(category, topCount, feedCount) {
+function updateSectionHeaders(category, topCount, feedCount, feedTotal = feedCount) {
   if (!elements.topStoriesTitle || !elements.feedTitle) return;
+  const feedNote =
+    feedTotal > feedCount ? `Showing ${feedCount} of ${feedTotal}` : `${feedCount} stories`;
   if (category === "Top") {
     elements.topStoriesTitle.textContent = "Top Stories + Trending + Most Clicked";
     elements.topStoriesTag.textContent = "Primary Focus";
     elements.feedTitle.textContent = "Latest News Feed";
-    elements.feedTag.textContent = "After Top Stories";
+    elements.feedTag.textContent = `After Top Stories • ${feedNote}`;
     return;
   }
   elements.topStoriesTitle.textContent = `${category} Top Stories`;
   elements.topStoriesTag.textContent = `${topCount} stories`;
   elements.feedTitle.textContent = `${category} News Feed`;
-  elements.feedTag.textContent = `${feedCount} stories`;
+  elements.feedTag.textContent = feedNote;
 }
 
 function shouldUseNightMode(date) {
@@ -889,9 +921,12 @@ function renderCurrent() {
   if (state.consent.personalization) {
     filteredFeed = personalizeFeed(filteredFeed);
   }
+  const feedTotal = filteredFeed.length;
+  const feedLimit = Number(state.feedLimit) || 50;
+  const limitedFeed = filteredFeed.slice(0, feedLimit);
   renderTopStories(filteredTop);
-  renderFeed(filteredFeed);
-  const combined = [...filteredTop, ...filteredFeed];
+  renderFeed(limitedFeed);
+  const combined = [...filteredTop, ...limitedFeed];
   const deduped = new Map();
   combined.forEach((item) => {
     if (item && item.id && !deduped.has(item.id)) {
@@ -900,7 +935,7 @@ function renderCurrent() {
   });
   state.currentItems = Array.from(deduped.values());
   setUpdateNotice(false);
-  updateSectionHeaders(state.category, filteredTop.length, filteredFeed.length);
+  updateSectionHeaders(state.category, filteredTop.length, limitedFeed.length, feedTotal);
 }
 
 function renderTopStories(items) {
@@ -945,23 +980,76 @@ function renderFeed(items) {
     elements.newsFeed.appendChild(empty);
     return;
   }
-  items.forEach((item) => {
-    const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-    const sourceLabel = item.sourceName || item.source || "Source";
-    const titleHtml = item.link
-      ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
-      : item.title;
-    const card = document.createElement("div");
-    card.className = "feed-item";
-    card.dataset.articleId = item.id;
-    card.innerHTML = `
-      <div class="feed-title">${titleHtml}</div>
-      <div class="feed-meta">${sourceLabel} • ${item.category} • ${published}</div>
+  const groups = groupFeedByAge(items);
+  groups.forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "feed-section";
+    const header = document.createElement("div");
+    header.className = "feed-section-title";
+    header.innerHTML = `
+      <span>${group.label}</span>
+      <span class="feed-section-count">${group.items.length}</span>
     `;
-    elements.newsFeed.appendChild(card);
-    card.addEventListener("click", () => markSeenById(item.id));
+    const list = document.createElement("div");
+    list.className = "feed-section-list";
+    group.items.forEach((item) => {
+      const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+      const sourceLabel = item.sourceName || item.source || "Source";
+      const titleHtml = item.link
+        ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
+        : item.title;
+      const card = document.createElement("div");
+      card.className = "feed-item";
+      card.dataset.articleId = item.id;
+      card.innerHTML = `
+        <div class="feed-title">${titleHtml}</div>
+        <div class="feed-meta">${sourceLabel} • ${item.category} • ${published}</div>
+      `;
+      list.appendChild(card);
+      card.addEventListener("click", () => markSeenById(item.id));
+    });
+    section.appendChild(header);
+    section.appendChild(list);
+    elements.newsFeed.appendChild(section);
   });
   observeSeen();
+}
+
+function groupFeedByAge(items) {
+  const groups = [
+    { id: "0-3", label: "Just in (0–3h)", min: 0, max: 3, items: [] },
+    { id: "3-12", label: "Earlier today (3–12h)", min: 3, max: 12, items: [] },
+    { id: "12-24", label: "Last 24 hours", min: 12, max: 24, items: [] },
+    { id: "24-48", label: "Yesterday (24–48h)", min: 24, max: 48, items: [] },
+  ];
+  const undated = { id: "unknown", label: "Undated", items: [] };
+
+  items.forEach((item) => {
+    const ageHours = getAgeHours(item.publishedAt);
+    if (!Number.isFinite(ageHours)) {
+      undated.items.push(item);
+      return;
+    }
+    const group = groups.find((bucket) => ageHours >= bucket.min && ageHours < bucket.max);
+    if (group) {
+      group.items.push(item);
+      return;
+    }
+    undated.items.push(item);
+  });
+
+  const result = groups.filter((group) => group.items.length > 0);
+  if (undated.items.length > 0) {
+    result.push(undated);
+  }
+  return result;
+}
+
+function getAgeHours(publishedAt) {
+  if (!publishedAt) return Infinity;
+  const date = new Date(publishedAt);
+  if (Number.isNaN(date.getTime())) return Infinity;
+  return (Date.now() - date.getTime()) / 3600000;
 }
 
 function formatTime(value) {
