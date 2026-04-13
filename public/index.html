@@ -15,14 +15,75 @@
   <body>
     <div class="consent-modal" id="consentModal" aria-hidden="true">
       <div class="consent-card" role="dialog" aria-labelledby="consentTitle">
-        <h2 id="consentTitle">Your privacy, your choice</h2>
+        <h2 id="consentTitle">Cookie settings</h2>
         <p>
-          We use cookies for personalization, analytics, and ads. Opt-in only.
-          If Global Privacy Control is detected, personalization stays off.
+          Choose how LiveNews uses cookies. We only collect what you allow, and you can
+          change this anytime.
         </p>
+        <div class="consent-note" id="gpcNotice" hidden>
+          Global Privacy Control detected. Non-essential cookies are disabled.
+        </div>
+
+        <div class="consent-list">
+          <div class="consent-row">
+            <div>
+              <h3>Functional (required)</h3>
+              <p>Stores your theme, refresh, and cookie settings on this device.</p>
+            </div>
+            <label class="switch" aria-label="Functional cookies required">
+              <input type="checkbox" checked disabled />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="consent-row">
+            <div>
+              <h3>Personalization</h3>
+              <p>
+                Sets an anonymous ID cookie, remembers what you read, and reorders Top
+                Stories + Local hub for you.
+              </p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="consentPersonalization" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="consent-row">
+            <div>
+              <h3>Analytics</h3>
+              <p>
+                Counts page views, time on page, and scroll depth to improve the
+                experience. No third-party tracking.
+              </p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="consentAnalytics" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="consent-row">
+            <div>
+              <h3>Marketing</h3>
+              <p>Not used. This blog does not serve ads.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="consentMarketing" disabled />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
         <div class="consent-actions">
-          <button class="btn primary" id="consentAccept">Accept</button>
-          <button class="btn ghost" id="consentDecline">Decline</button>
+          <button class="btn ghost" id="consentRejectAll">Reject all</button>
+          <button class="btn" id="consentSave">Save choices</button>
+          <button class="btn primary" id="consentAcceptAll">Accept all</button>
+        </div>
+        <div class="consent-footnote">
+          You can update these choices anytime via “Cookie settings.” We prune old
+          preferences regularly and never sell your data.
         </div>
       </div>
     </div>
@@ -105,7 +166,7 @@
             <span class="tag">Location-aware</span>
           </div>
           <p class="panel-note" id="localNote">
-            Use my location when cookies are enabled, or enter your county/city.
+            Use my location when personalization is enabled, or enter your county/city.
           </p>
           <button class="btn" id="useLocation">Use my location</button>
           <div class="local-input">
@@ -134,21 +195,16 @@
           </div>
         </section>
 
-        <section class="panel sponsor-panel">
-          <div class="panel-header">
-            <h3>Sponsor</h3>
-            <span class="tag">300x250 or 300x600</span>
-          </div>
-          <div class="sponsor-slot">Ad space</div>
-        </section>
       </aside>
     </main>
 
     <footer class="footer">
       <div>LiveNews • Verified Radar • Local Hubs • Community</div>
       <div class="footer-note">
-        Sources: BBC News, PBS NewsHour. Articles shown from the last 48 hours only.
+        Sources: BBC News, PBS NewsHour, The Guardian, TechCrunch. Articles shown from
+        the last 48 hours only.
       </div>
+      <button class="btn ghost" id="cookieSettings">Cookie settings</button>
     </footer>
 
     <script src="app.js"></script>

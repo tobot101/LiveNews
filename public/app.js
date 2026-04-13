@@ -1,5 +1,16 @@
+const CONSENT_DEFAULT = {
+  functional: true,
+  personalization: false,
+  analytics: false,
+  marketing: false,
+};
+const ANON_ID_DAYS = 90;
+const PROFILE_TTL_DAYS = 30;
+const ANALYTICS_TTL_DAYS = 30;
+
 const state = {
-  cookiesEnabled: false,
+  consent: { ...CONSENT_DEFAULT },
+  consentSaved: false,
   mode: "auto",
   refresh: "10",
   refreshTimer: null,
@@ -12,12 +23,34 @@ const state = {
   currentItems: [],
   pendingData: null,
   seenMap: {},
+  profile: {
+    scores: {},
+    lastSeenByCategory: {},
+    streak: { category: null, count: 0 },
+    keywords: {},
+    updatedAt: Date.now(),
+  },
+  analytics: {
+    pageViews: 0,
+    articleViews: 0,
+    timeOnPageMs: 0,
+    maxScroll: 0,
+    lastStart: Date.now(),
+    categoryViews: {},
+    updatedAt: Date.now(),
+  },
 };
 
 const elements = {
   consentModal: document.getElementById("consentModal"),
-  consentAccept: document.getElementById("consentAccept"),
-  consentDecline: document.getElementById("consentDecline"),
+  consentAcceptAll: document.getElementById("consentAcceptAll"),
+  consentRejectAll: document.getElementById("consentRejectAll"),
+  consentSave: document.getElementById("consentSave"),
+  personalizationToggle: document.getElementById("consentPersonalization"),
+  analyticsToggle: document.getElementById("consentAnalytics"),
+  marketingToggle: document.getElementById("consentMarketing"),
+  cookieSettings: document.getElementById("cookieSettings"),
+  gpcNotice: document.getElementById("gpcNotice"),
   refreshControl: document.getElementById("refreshControl"),
   refreshOff: document.getElementById("refreshOff"),
   modeControl: document.getElementById("modeControl"),
@@ -48,77 +81,86 @@ function init() {
   hydrateMode();
   hydrateRefresh();
   hydrateSeen();
+  hydrateProfile();
+  hydrateAnalytics();
   bindControls();
   updateTimeZoneLabel();
   updateLocalControls();
   updateLoginState();
   loadNews({ force: true });
   startRefreshTimer();
+  startAnalyticsTracking();
 }
 
 function hydrateConsent() {
   state.gpcDetected = navigator.globalPrivacyControl === true;
-  if (state.gpcDetected) {
-    state.cookiesEnabled = false;
-    elements.consentModal.classList.remove("visible");
-    elements.consentModal.setAttribute("aria-hidden", "true");
-    elements.localNote.textContent =
-      "Global Privacy Control detected. Location and personalization remain off by default.";
-    return;
-  }
-
   const stored = localStorage.getItem("ln_consent");
-  if (stored === "accepted") {
-    state.cookiesEnabled = true;
-    elements.consentModal.classList.remove("visible");
-    elements.consentModal.setAttribute("aria-hidden", "true");
-    return;
+  if (stored) {
+    try {
+      state.consent = { ...CONSENT_DEFAULT, ...JSON.parse(stored) };
+      state.consentSaved = true;
+    } catch {
+      state.consent = { ...CONSENT_DEFAULT };
+    }
   }
 
-  elements.consentModal.classList.add("visible");
-  elements.consentModal.setAttribute("aria-hidden", "false");
+  if (state.gpcDetected) {
+    state.consent = { ...CONSENT_DEFAULT };
+  }
+
+  syncConsentUI();
+  applyConsentEffects();
+
+  if (!state.consentSaved) {
+    openConsentModal();
+  } else {
+    closeConsentModal();
+  }
 }
 
 function hydrateMode() {
   const stored = localStorage.getItem("ln_mode");
-  if (stored && state.cookiesEnabled) {
+  if (stored) {
     state.mode = stored;
   }
   applyTheme();
 }
 
 function hydrateRefresh() {
-  if (state.cookiesEnabled) {
-    const stored = localStorage.getItem("ln_refresh");
-    if (stored) {
-      state.refresh = stored;
-    }
+  const stored = localStorage.getItem("ln_refresh");
+  if (stored) {
+    state.refresh = stored;
   }
   setRefreshUI(state.refresh);
 }
 
 function bindControls() {
-  elements.consentAccept.addEventListener("click", () => {
-    state.cookiesEnabled = true;
-    localStorage.setItem("ln_consent", "accepted");
-    elements.consentModal.classList.remove("visible");
-    elements.consentModal.setAttribute("aria-hidden", "true");
-    hydrateSeen();
-    applyTheme();
-    updateLocalControls();
+  elements.consentAcceptAll.addEventListener("click", () => {
+    const consent = {
+      functional: true,
+      personalization: true,
+      analytics: true,
+      marketing: false,
+    };
+    applyConsent(consent, true);
   });
 
-  elements.consentDecline.addEventListener("click", () => {
-    state.cookiesEnabled = false;
-    localStorage.removeItem("ln_consent");
-    localStorage.removeItem("ln_mode");
-    localStorage.removeItem("ln_refresh");
-    localStorage.removeItem("ln_seen");
-    elements.consentModal.classList.remove("visible");
-    elements.consentModal.setAttribute("aria-hidden", "true");
-    state.seenMap = {};
-    applyTheme();
-    updateLocalControls();
+  elements.consentRejectAll.addEventListener("click", () => {
+    applyConsent({ ...CONSENT_DEFAULT }, true);
+  });
+
+  elements.consentSave.addEventListener("click", () => {
+    const consent = {
+      functional: true,
+      personalization: Boolean(elements.personalizationToggle.checked),
+      analytics: Boolean(elements.analyticsToggle.checked),
+      marketing: Boolean(elements.marketingToggle.checked),
+    };
+    applyConsent(consent, true);
+  });
+
+  elements.cookieSettings.addEventListener("click", () => {
+    openConsentModal();
   });
 
   elements.refreshControl.addEventListener("click", (event) => {
@@ -128,9 +170,7 @@ function bindControls() {
     if (value === "off" && !state.isLoggedIn) return;
     setRefreshUI(value);
     state.refresh = value;
-    if (state.cookiesEnabled) {
-      localStorage.setItem("ln_refresh", value);
-    }
+    localStorage.setItem("ln_refresh", value);
     startRefreshTimer();
   });
 
@@ -139,9 +179,7 @@ function bindControls() {
     if (!target) return;
     const value = target.dataset.mode;
     state.mode = value;
-    if (state.cookiesEnabled) {
-      localStorage.setItem("ln_mode", value);
-    }
+    localStorage.setItem("ln_mode", value);
     setModeUI(value);
     applyTheme();
   });
@@ -154,7 +192,7 @@ function bindControls() {
   });
 
   elements.useLocation.addEventListener("click", () => {
-    if (!state.cookiesEnabled) return;
+    if (!state.consent.personalization) return;
     if (!navigator.geolocation) {
       elements.localDisplay.textContent = "Local hub: geolocation unavailable";
       return;
@@ -216,14 +254,14 @@ function updateLoginState() {
 }
 
 function updateLocalControls() {
-  if (state.cookiesEnabled) {
+  if (state.consent.personalization) {
     elements.useLocation.disabled = false;
     elements.localNote.textContent =
-      "Use my location when cookies are enabled, or enter your county/city.";
+      "Use my location when personalization is enabled, or enter your county/city.";
   } else {
     elements.useLocation.disabled = true;
     elements.localNote.textContent =
-      "Enable cookies to use automatic location, or enter your county/city.";
+      "Enable personalization to use automatic location, or enter your county/city.";
   }
 }
 
@@ -265,8 +303,157 @@ function applyTheme() {
   setModeUI(state.mode);
 }
 
+function openConsentModal() {
+  elements.consentModal.classList.add("visible");
+  elements.consentModal.setAttribute("aria-hidden", "false");
+}
+
+function closeConsentModal() {
+  elements.consentModal.classList.remove("visible");
+  elements.consentModal.setAttribute("aria-hidden", "true");
+}
+
+function syncConsentUI() {
+  if (elements.personalizationToggle) {
+    elements.personalizationToggle.checked = state.consent.personalization;
+  }
+  if (elements.analyticsToggle) {
+    elements.analyticsToggle.checked = state.consent.analytics;
+  }
+  if (elements.marketingToggle) {
+    elements.marketingToggle.checked = state.consent.marketing;
+  }
+  if (elements.gpcNotice) {
+    elements.gpcNotice.hidden = !state.gpcDetected;
+  }
+
+  [elements.personalizationToggle, elements.analyticsToggle].forEach((toggle) => {
+    if (!toggle) return;
+    toggle.disabled = false;
+  });
+
+  if (elements.marketingToggle) {
+    elements.marketingToggle.disabled = true;
+  }
+
+  if (state.gpcDetected) {
+    [elements.personalizationToggle, elements.analyticsToggle, elements.marketingToggle].forEach(
+      (toggle) => {
+        if (!toggle) return;
+        toggle.checked = false;
+        toggle.disabled = true;
+      }
+    );
+  }
+}
+
+function applyConsent(consent, save) {
+  const nextConsent = { ...CONSENT_DEFAULT, ...consent };
+  if (state.gpcDetected) {
+    nextConsent.personalization = false;
+    nextConsent.analytics = false;
+    nextConsent.marketing = false;
+  }
+  const personalizationChanged =
+    state.consent.personalization !== nextConsent.personalization;
+  const analyticsChanged = state.consent.analytics !== nextConsent.analytics;
+
+  state.consent = nextConsent;
+  if (save) {
+    localStorage.setItem("ln_consent", JSON.stringify(state.consent));
+    state.consentSaved = true;
+    closeConsentModal();
+  }
+
+  syncConsentUI();
+  applyConsentEffects(personalizationChanged, analyticsChanged);
+}
+
+function applyConsentEffects(personalizationChanged = false, analyticsChanged = false) {
+  updateLocalControls();
+
+  if (state.consent.personalization) {
+    ensureAnonymousId();
+  }
+
+  if (personalizationChanged) {
+    if (state.consent.personalization) {
+      ensureAnonymousId();
+      hydrateSeen();
+      hydrateProfile();
+    } else {
+      clearAnonymousId();
+      state.seenMap = {};
+      state.profile = {
+        scores: {},
+        lastSeenByCategory: {},
+        streak: { category: null, count: 0 },
+        keywords: {},
+        updatedAt: Date.now(),
+      };
+      localStorage.removeItem("ln_seen");
+      localStorage.removeItem("ln_profile");
+    }
+  }
+
+  if (analyticsChanged) {
+    if (state.consent.analytics) {
+      hydrateAnalytics();
+      startAnalyticsTracking();
+    } else {
+      localStorage.removeItem("ln_analytics");
+      state.analytics = {
+        pageViews: 0,
+        articleViews: 0,
+        timeOnPageMs: 0,
+        maxScroll: 0,
+        lastStart: Date.now(),
+        categoryViews: {},
+        updatedAt: Date.now(),
+      };
+    }
+  }
+}
+
+function ensureAnonymousId() {
+  if (!state.consent.personalization) return null;
+  let id = getCookie("ln_uid");
+  if (!id) {
+    id = generateId();
+    setCookie("ln_uid", id, ANON_ID_DAYS);
+  }
+  return id;
+}
+
+function clearAnonymousId() {
+  deleteCookie("ln_uid");
+}
+
+function generateId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `ln_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+}
+
+function setCookie(name, value, days) {
+  const maxAge = days * 24 * 60 * 60;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${name}=${value}; Max-Age=${maxAge}; Path=/; SameSite=Lax${secure}`;
+}
+
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function deleteCookie(name) {
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax${secure}`;
+}
+
 function hydrateSeen() {
-  if (!state.cookiesEnabled) {
+  if (!state.consent.personalization) {
     state.seenMap = {};
     return;
   }
@@ -280,11 +467,250 @@ function hydrateSeen() {
   } catch {
     state.seenMap = {};
   }
+  pruneSeen();
+  saveSeen();
 }
 
 function saveSeen() {
-  if (!state.cookiesEnabled) return;
+  if (!state.consent.personalization) return;
   localStorage.setItem("ln_seen", JSON.stringify(state.seenMap));
+}
+
+function hydrateProfile() {
+  if (!state.consent.personalization) {
+    state.profile = {
+      scores: {},
+      lastSeenByCategory: {},
+      streak: { category: null, count: 0 },
+      keywords: {},
+      updatedAt: Date.now(),
+    };
+    return;
+  }
+  const raw = localStorage.getItem("ln_profile");
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    const updatedAt = Number(parsed.updatedAt || Date.now());
+    if (isExpired(updatedAt, PROFILE_TTL_DAYS)) {
+      localStorage.removeItem("ln_profile");
+      state.profile = {
+        scores: {},
+        lastSeenByCategory: {},
+        streak: { category: null, count: 0 },
+        keywords: {},
+        updatedAt: Date.now(),
+      };
+      return;
+    }
+    state.profile = {
+      scores: parsed.scores || {},
+      lastSeenByCategory: parsed.lastSeenByCategory || {},
+      streak: parsed.streak || { category: null, count: 0 },
+      keywords: parsed.keywords || {},
+      updatedAt,
+    };
+  } catch {
+    state.profile = {
+      scores: {},
+      lastSeenByCategory: {},
+      streak: { category: null, count: 0 },
+      keywords: {},
+      updatedAt: Date.now(),
+    };
+  }
+}
+
+function saveProfile() {
+  if (!state.consent.personalization) return;
+  state.profile.updatedAt = Date.now();
+  localStorage.setItem("ln_profile", JSON.stringify(state.profile));
+}
+
+function updateProfileFromItem(item) {
+  if (!state.consent.personalization) return;
+  const category = item.category || "Top";
+  const now = Date.now();
+
+  decayProfile(now);
+
+  state.profile.scores[category] = (state.profile.scores[category] || 0) + 1;
+  state.profile.lastSeenByCategory[category] = now;
+
+  if (state.profile.streak.category === category) {
+    state.profile.streak.count += 1;
+  } else {
+    state.profile.streak = { category, count: 1 };
+  }
+
+  if (state.profile.streak.count === 3) {
+    state.profile.scores[category] += 5;
+  }
+
+  const keywords = extractKeywords(item.title || "");
+  if (!state.profile.keywords) state.profile.keywords = {};
+  keywords.forEach((word) => {
+    state.profile.keywords[word] = (state.profile.keywords[word] || 0) + 1;
+  });
+
+  saveProfile();
+}
+
+function decayProfile(now) {
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  Object.entries(state.profile.lastSeenByCategory || {}).forEach(([category, ts]) => {
+    if (now - ts > weekMs) {
+      state.profile.scores[category] = Math.max(0, (state.profile.scores[category] || 0) * 0.7);
+      state.profile.lastSeenByCategory[category] = now;
+    }
+  });
+}
+
+function extractKeywords(text) {
+  const stopwords = new Set([
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "with",
+    "from",
+    "after",
+    "before",
+    "as",
+    "at",
+    "by",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "has",
+    "have",
+    "had",
+    "will",
+    "new",
+  ]);
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\\s]/g, "")
+    .split(/\\s+/)
+    .filter((word) => word.length > 3 && !stopwords.has(word))
+    .slice(0, 6);
+}
+
+function hydrateAnalytics() {
+  if (!state.consent.analytics) return;
+  const raw = localStorage.getItem("ln_analytics");
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    const updatedAt = Number(parsed.updatedAt || Date.now());
+    if (isExpired(updatedAt, ANALYTICS_TTL_DAYS)) {
+      localStorage.removeItem("ln_analytics");
+      state.analytics = {
+        pageViews: 0,
+        articleViews: 0,
+        timeOnPageMs: 0,
+        maxScroll: 0,
+        lastStart: Date.now(),
+        categoryViews: {},
+        updatedAt: Date.now(),
+      };
+      return;
+    }
+    state.analytics = {
+      pageViews: parsed.pageViews || 0,
+      articleViews: parsed.articleViews || 0,
+      timeOnPageMs: parsed.timeOnPageMs || 0,
+      maxScroll: parsed.maxScroll || 0,
+      lastStart: Date.now(),
+      categoryViews: parsed.categoryViews || {},
+      updatedAt,
+    };
+  } catch {
+    state.analytics = {
+      pageViews: 0,
+      articleViews: 0,
+      timeOnPageMs: 0,
+      maxScroll: 0,
+      lastStart: Date.now(),
+      categoryViews: {},
+      updatedAt: Date.now(),
+    };
+  }
+}
+
+function saveAnalytics() {
+  if (!state.consent.analytics) return;
+  state.analytics.updatedAt = Date.now();
+  localStorage.setItem("ln_analytics", JSON.stringify(state.analytics));
+}
+
+let analyticsBound = false;
+
+function startAnalyticsTracking() {
+  if (!state.consent.analytics) return;
+  if (!analyticsBound) {
+    analyticsBound = true;
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("beforeunload", flushAnalytics);
+  }
+  state.analytics.pageViews += 1;
+  state.analytics.lastStart = Date.now();
+  saveAnalytics();
+}
+
+function handleScroll() {
+  if (!state.consent.analytics) return;
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const height = document.documentElement.scrollHeight - window.innerHeight;
+  if (height <= 0) return;
+  const depth = Math.min(100, Math.round((scrollTop / height) * 100));
+  state.analytics.maxScroll = Math.max(state.analytics.maxScroll, depth);
+}
+
+function handleVisibility() {
+  if (!state.consent.analytics) return;
+  if (document.visibilityState === "hidden") {
+    flushAnalytics();
+  } else {
+    state.analytics.lastStart = Date.now();
+  }
+}
+
+function flushAnalytics() {
+  if (!state.consent.analytics) return;
+  const now = Date.now();
+  const delta = now - state.analytics.lastStart;
+  if (delta > 0) {
+    state.analytics.timeOnPageMs += delta;
+  }
+  state.analytics.lastStart = now;
+  saveAnalytics();
+}
+
+function recordAnalyticsEvent(item) {
+  if (!state.consent.analytics) return;
+  state.analytics.articleViews += 1;
+  if (item?.category) {
+    if (!state.analytics.categoryViews) state.analytics.categoryViews = {};
+    state.analytics.categoryViews[item.category] =
+      (state.analytics.categoryViews[item.category] || 0) + 1;
+  }
+  saveAnalytics();
+}
+
+function isExpired(updatedAt, maxDays) {
+  if (!updatedAt || !Number.isFinite(updatedAt)) return false;
+  const maxMs = maxDays * 24 * 60 * 60 * 1000;
+  return Date.now() - updatedAt > maxMs;
 }
 
 function pruneSeen() {
@@ -296,12 +722,21 @@ function pruneSeen() {
   });
 }
 
-function markSeen(id) {
+function markSeenById(id) {
   if (!id) return;
   state.seenMap[id] = Date.now();
   pruneSeen();
   saveSeen();
+  const item = getItemById(id);
+  if (item) {
+    updateProfileFromItem(item);
+    recordAnalyticsEvent(item);
+  }
   maybeApplyPending();
+}
+
+function getItemById(id) {
+  return state.currentItems.find((item) => item.id === id);
 }
 
 function currentIds() {
@@ -378,11 +813,6 @@ function shouldUseNightMode(date) {
   const current = hours * 60 + minutes;
   const nightStart = 19 * 60 + 30; // 7:30 PM
   const nightEnd = 5 * 60 + 30; // 5:30 AM
-
-  if (!state.cookiesEnabled) {
-    return current >= nightStart || current <= nightEnd;
-  }
-
   return current >= nightStart || current <= nightEnd;
 }
 
@@ -440,9 +870,25 @@ function filterByCategory(items) {
   return items.filter((item) => item.category === state.category);
 }
 
+function personalizeFeed(items) {
+  if (!items.length) return items;
+  return [...items].sort((a, b) => {
+    const scoreDiff = getCategoryScore(b.category) - getCategoryScore(a.category);
+    if (scoreDiff !== 0) return scoreDiff;
+    return new Date(b.publishedAt) - new Date(a.publishedAt);
+  });
+}
+
+function getCategoryScore(category) {
+  return state.profile.scores[category] || 0;
+}
+
 function renderCurrent() {
   const filteredTop = filterByCategory(state.currentTopStories);
-  const filteredFeed = filterByCategory(state.currentFeed);
+  let filteredFeed = filterByCategory(state.currentFeed);
+  if (state.consent.personalization) {
+    filteredFeed = personalizeFeed(filteredFeed);
+  }
   renderTopStories(filteredTop);
   renderFeed(filteredFeed);
   const combined = [...filteredTop, ...filteredFeed];
@@ -485,7 +931,7 @@ function renderTopStories(items) {
       <div class="score-pill">Score ${item.score}</div>
     `;
     elements.topStories.appendChild(li);
-    li.addEventListener("click", () => markSeen(item.id));
+    li.addEventListener("click", () => markSeenById(item.id));
   });
   observeSeen();
 }
@@ -513,7 +959,7 @@ function renderFeed(items) {
       <div class="feed-meta">${sourceLabel} • ${item.category} • ${published}</div>
     `;
     elements.newsFeed.appendChild(card);
-    card.addEventListener("click", () => markSeen(item.id));
+    card.addEventListener("click", () => markSeenById(item.id));
   });
   observeSeen();
 }
@@ -534,7 +980,7 @@ function observeSeen() {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
         const id = entry.target.dataset.articleId;
-        markSeen(id);
+        markSeenById(id);
       });
     },
     { threshold: 0.6 }
