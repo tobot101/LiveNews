@@ -20,6 +20,7 @@ Then open `http://localhost:8080`.
 - Right rail for Local News + Community Hub + Sponsor slot.
 - Opt-in cookie consent modal and GPC-aware behavior.
 - Live RSS ingestion from verified sources (BBC News, PBS NewsHour) with 48-hour cutoff.
+- Auto-refresh respects user visibility: updates only replace current items once they are seen or near the 48-hour limit.
 
 ## News ingestion settings
 - `NEWS_MAX_AGE_HOURS` (default: 48)

@@ -138,6 +138,7 @@ app.get("/api/news", (req, res) => {
     const fallback = loadFallback();
     return res.json({
       updatedAt: new Date().toISOString(),
+      maxAgeHours: MAX_AGE_HOURS,
       fallback: true,
       ...fallback,
     });
@@ -145,6 +146,7 @@ app.get("/api/news", (req, res) => {
 
   res.json({
     updatedAt: cache.lastUpdated,
+    maxAgeHours: MAX_AGE_HOURS,
     fallback: false,
     topStories: cache.topStories,
     feed: cache.feed,
