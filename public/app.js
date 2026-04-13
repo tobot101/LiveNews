@@ -371,7 +371,7 @@ function updateBrandShift() {
   if (!brand || !brandTitle) return;
   const nav = document.querySelector(".sections") || document.querySelector(".controls");
   const topbar = document.querySelector(".topbar");
-  const brandRect = brandTitle.getBoundingClientRect();
+  const brandRect = brand.getBoundingClientRect();
   const limitRect = nav ? nav.getBoundingClientRect() : null;
   const containerRect = topbar ? topbar.getBoundingClientRect() : null;
   let maxShift = 0;
@@ -472,7 +472,9 @@ async function findNearestPlace(lat, lon) {
 
 function updateTimeZoneLabel() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
-  elements.timeZoneLabel.textContent = `Time zone: ${tz}`;
+  if (elements.timeZoneLabel) {
+    elements.timeZoneLabel.textContent = `Time zone: ${tz}`;
+  }
 }
 
 function setRefreshUI(value) {
@@ -1067,8 +1069,10 @@ async function loadNews({ force = false } = {}) {
     }
     if (!hasUpdates(data)) {
       const updated = new Date(data.updatedAt || Date.now());
-      elements.lastUpdated.textContent =
-        `Last updated: ${updated.toLocaleTimeString()}`;
+      if (elements.lastUpdated) {
+        elements.lastUpdated.textContent =
+          `Last updated: ${updated.toLocaleTimeString()}`;
+      }
       return;
     }
     if (refreshAllowed()) {
@@ -1078,11 +1082,15 @@ async function loadNews({ force = false } = {}) {
       setUpdateNotice(true);
     }
     const updated = new Date(data.updatedAt || Date.now());
-    elements.lastUpdated.textContent =
-      `Last updated: ${updated.toLocaleTimeString()}`;
+    if (elements.lastUpdated) {
+      elements.lastUpdated.textContent =
+        `Last updated: ${updated.toLocaleTimeString()}`;
+    }
     loadLocalNews();
   } catch (error) {
-    elements.lastUpdated.textContent = "Last updated: offline";
+    if (elements.lastUpdated) {
+      elements.lastUpdated.textContent = "Last updated: offline";
+    }
     updateLocalStatus("Local stories unavailable (offline).");
   }
 }

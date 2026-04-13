@@ -63,7 +63,7 @@ function updateBrandShift() {
   if (!brand || !brandTitle) return;
   const nav = document.querySelector(".sections") || document.querySelector(".controls");
   const topbar = document.querySelector(".topbar");
-  const brandRect = brandTitle.getBoundingClientRect();
+  const brandRect = brand.getBoundingClientRect();
   const limitRect = nav ? nav.getBoundingClientRect() : null;
   const containerRect = topbar ? topbar.getBoundingClientRect() : null;
   let maxShift = 0;

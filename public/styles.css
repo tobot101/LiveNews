@@ -176,7 +176,6 @@ a {
   color: var(--text);
   border-bottom-color: var(--accent-cyan);
 }
-}
 
 .controls {
   display: flex;
