@@ -80,6 +80,7 @@ const elements = {
   localDisplay: document.getElementById("localDisplay"),
   localFeed: document.getElementById("localFeed"),
   localStatus: document.getElementById("localStatus"),
+  localDeepDive: document.getElementById("localDeepDive"),
   localNote: document.getElementById("localNote"),
   loginBtn: document.getElementById("loginBtn"),
   signupBtn: document.getElementById("signupBtn"),
@@ -98,6 +99,7 @@ function init() {
   bindControls();
   updateTimeZoneLabel();
   updateLocalControls();
+  updateLocalDeepLink();
   updateLoginState();
   loadNews({ force: true });
   loadLocalNews({ force: true });
@@ -171,6 +173,7 @@ function hydrateLocalPlace() {
   } catch {
     state.localPlace = null;
   }
+  updateLocalDeepLink();
 }
 
 function bindControls() {
@@ -331,6 +334,23 @@ function updateLocalControls() {
   }
 }
 
+function updateLocalDeepLink() {
+  if (!elements.localDeepDive) return;
+  if (state.localPlace && (state.localPlace.name || state.localPlace.display)) {
+    const city = state.localPlace.name || state.localPlace.display;
+    const stateCode = state.localPlace.state || "";
+    const params = new URLSearchParams({ city });
+    if (stateCode) {
+      params.set("state", stateCode);
+    }
+    elements.localDeepDive.href = `/local.html?${params.toString()}`;
+    elements.localDeepDive.classList.remove("disabled");
+  } else {
+    elements.localDeepDive.href = "/local.html";
+    elements.localDeepDive.classList.remove("disabled");
+  }
+}
+
 let localSearchTimer = null;
 
 function schedulePlaceSearch(query) {
@@ -399,6 +419,7 @@ function setLocalPlace(place) {
     localStorage.removeItem("ln_local_place");
   }
   loadLocalNews({ force: true });
+  updateLocalDeepLink();
 }
 
 async function findNearestPlace(lat, lon) {
@@ -564,6 +585,8 @@ function applyConsentEffects(personalizationChanged = false, analyticsChanged = 
       localStorage.removeItem("ln_local_place");
     }
   }
+
+  updateLocalDeepLink();
 
   if (analyticsChanged) {
     if (state.consent.analytics) {

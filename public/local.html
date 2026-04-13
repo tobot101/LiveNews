@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LiveNews Local Deep Dive</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title">LiveNews</div>
+        <div class="brand-sub">Local Deep Dive</div>
+      </div>
+      <div class="controls">
+        <a class="btn ghost" href="/">Back to home</a>
+      </div>
+    </header>
+
+    <main class="local-page">
+      <section class="panel">
+        <div class="local-page-header">
+          <div>
+            <h2>Local News Deep Dive</h2>
+            <p class="panel-note">
+              Pick a city to explore local coverage from the last 48 hours. Everything
+              links back to the original source.
+            </p>
+          </div>
+        </div>
+        <div class="local-page-controls">
+          <button class="btn" id="localPageUseLocation">Use my location</button>
+          <div class="local-input">
+            <input
+              type="text"
+              id="localPageInput"
+              placeholder="City or county"
+              aria-label="City or county"
+            />
+            <button class="btn ghost" id="localPageSet">Set</button>
+          </div>
+        </div>
+        <div class="local-suggestions" id="localPageSuggestions"></div>
+        <div class="local-display" id="localPageDisplay">Local hub: not set</div>
+        <div class="local-status" id="localPageStatus">Choose a city to get started.</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header feed-header">
+          <div class="feed-meta">
+            <h3 id="localFeedTitle">Local stories</h3>
+            <span class="tag" id="localFeedTag">--</span>
+          </div>
+          <div class="feed-controls">
+            <span class="control-label">Show</span>
+            <div class="segmented" id="localLimitControl">
+              <button class="seg active" data-local-limit="25">25</button>
+              <button class="seg" data-local-limit="50">50</button>
+            </div>
+          </div>
+        </div>
+        <div class="feed-subnote">Grouped by time • Always read the original source</div>
+        <div class="feed" id="localFeedList"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>LiveNews • Local Deep Dive</div>
+      <div class="footer-note">
+        Summaries are built from RSS descriptions. Full details live at the original
+        publisher.
+      </div>
+    </footer>
+
+    <script src="local.js"></script>
+  </body>
+</html>

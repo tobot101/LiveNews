@@ -27,6 +27,7 @@ Then open `http://localhost:8080`.
 - News feed includes a user toggle to show 30/50/100 items, grouped by time buckets for easier scanning.
 - Local hub includes a Census-based city picker (19,805 incorporated places; CDPs excluded) plus nearest-city lookup from geolocation.
 - Local stories are fetched by city query and always link back to the original source; short summaries come from the RSS description only.
+- Local News Deep Dive page lets readers open a full local feed and choose 25 or 50 stories.
 
 ## Source usage notes
 - TechCrunch RSS terms allow display with attribution + link and no ads; do not add ads if TechCrunch feeds remain active.

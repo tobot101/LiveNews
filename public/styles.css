@@ -421,6 +421,52 @@ a {
   color: var(--text-muted);
 }
 
+.local-deep {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.local-deep .btn {
+  justify-self: start;
+}
+
+.local-deep-note {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.local-page {
+  max-width: 1080px;
+  margin: 24px auto 48px;
+  padding: 0 32px;
+  display: grid;
+  gap: 20px;
+}
+
+.local-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.local-page-controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.local-page-controls .btn {
+  justify-self: start;
+}
+
 .community-actions {
   display: flex;
   gap: 8px;
