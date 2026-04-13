@@ -62,6 +62,78 @@
       "homepage": "https://www.pbs.org/newshour/politics",
       "category": "National",
       "weight": 1.0
+    },
+    {
+      "id": "guardian-top",
+      "name": "The Guardian",
+      "attribution": "The Guardian",
+      "feedUrl": "https://www.theguardian.com/international/rss",
+      "homepage": "https://www.theguardian.com/international",
+      "category": "Top",
+      "weight": 1.1
+    },
+    {
+      "id": "guardian-world",
+      "name": "The Guardian",
+      "attribution": "The Guardian",
+      "feedUrl": "https://www.theguardian.com/world/rss",
+      "homepage": "https://www.theguardian.com/world",
+      "category": "International",
+      "weight": 1.05
+    },
+    {
+      "id": "guardian-us",
+      "name": "The Guardian",
+      "attribution": "The Guardian",
+      "feedUrl": "https://www.theguardian.com/us-news/rss",
+      "homepage": "https://www.theguardian.com/us-news",
+      "category": "National",
+      "weight": 1.0
+    },
+    {
+      "id": "guardian-business",
+      "name": "The Guardian",
+      "attribution": "The Guardian",
+      "feedUrl": "https://www.theguardian.com/business/rss",
+      "homepage": "https://www.theguardian.com/business",
+      "category": "Business",
+      "weight": 1.0
+    },
+    {
+      "id": "guardian-tech",
+      "name": "The Guardian",
+      "attribution": "The Guardian",
+      "feedUrl": "https://www.theguardian.com/technology/rss",
+      "homepage": "https://www.theguardian.com/technology",
+      "category": "Tech",
+      "weight": 0.95
+    },
+    {
+      "id": "guardian-sport",
+      "name": "The Guardian",
+      "attribution": "The Guardian",
+      "feedUrl": "https://www.theguardian.com/sport/rss",
+      "homepage": "https://www.theguardian.com/sport",
+      "category": "Sports",
+      "weight": 0.95
+    },
+    {
+      "id": "guardian-culture",
+      "name": "The Guardian",
+      "attribution": "The Guardian",
+      "feedUrl": "https://www.theguardian.com/culture/rss",
+      "homepage": "https://www.theguardian.com/culture",
+      "category": "Entertainment",
+      "weight": 0.9
+    },
+    {
+      "id": "techcrunch-top",
+      "name": "TechCrunch",
+      "attribution": "TechCrunch",
+      "feedUrl": "https://techcrunch.com/feed/",
+      "homepage": "https://techcrunch.com/",
+      "category": "Tech",
+      "weight": 1.05
     }
   ]
 }

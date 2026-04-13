@@ -19,8 +19,13 @@ Then open `http://localhost:8080`.
 - Main column for Top/Trending/Most Clicked, followed by feed.
 - Right rail for Local News + Community Hub + Sponsor slot.
 - Opt-in cookie consent modal and GPC-aware behavior.
-- Live RSS ingestion from verified sources (BBC News, PBS NewsHour) with 48-hour cutoff.
+- Live RSS ingestion from verified sources (BBC News, PBS NewsHour, The Guardian, TechCrunch) with 48-hour cutoff.
 - Auto-refresh respects user visibility: updates only replace current items once they are seen or near the 48-hour limit.
+- Source diversity: top stories and feed are interleaved so one outlet doesn’t dominate the list.
+
+## Source usage notes
+- TechCrunch RSS terms allow display with attribution + link and no ads; do not add ads if TechCrunch feeds remain active.
+- The Guardian RSS help page states feeds are for personal, non-commercial use; keep this non-commercial unless you obtain permission.
 
 ## News ingestion settings
 - `NEWS_MAX_AGE_HOURS` (default: 48)

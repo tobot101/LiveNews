@@ -59,6 +59,56 @@ function computeScore(source, publishedAt) {
   return Math.round(freshness * 70 + weight * 30);
 }
 
+function diversifyBySource(items, { maxPerSource = 0, limit } = {}) {
+  if (!items.length) return [];
+  const groups = new Map();
+  items.forEach((item) => {
+    const key = item.sourceName || item.source || "Unknown";
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(item);
+  });
+
+  groups.forEach((list) => {
+    list.sort(
+      (a, b) =>
+        (b.score || 0) - (a.score || 0) ||
+        new Date(b.publishedAt) - new Date(a.publishedAt)
+    );
+  });
+
+  const sources = Array.from(groups.entries())
+    .sort(([, a], [, b]) => (b[0]?.score || 0) - (a[0]?.score || 0))
+    .map(([name]) => name);
+
+  const result = [];
+  const counts = new Map();
+  const maxItems = limit ?? items.length;
+
+  while (result.length < maxItems) {
+    let added = false;
+    for (const source of sources) {
+      if (result.length >= maxItems) break;
+      const list = groups.get(source);
+      if (!list || list.length === 0) continue;
+      const count = counts.get(source) || 0;
+      if (maxPerSource > 0 && count >= maxPerSource) {
+        const otherHasItems = sources.some(
+          (name) => name !== source && (groups.get(name) || []).length > 0
+        );
+        if (otherHasItems) continue;
+      }
+      result.push(list.shift());
+      counts.set(source, count + 1);
+      added = true;
+    }
+    if (!added) break;
+  }
+
+  return result;
+}
+
 function normalizeItem(source, item) {
   const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
   if (!publishedAt || !withinMaxAge(publishedAt)) return null;
@@ -113,13 +163,14 @@ async function refreshNews() {
   }
 
   const items = Array.from(deduped.values());
-  items.sort((a, b) => b.score - a.score);
-
-  cache.items = items;
-  cache.topStories = items.slice(0, 12);
-  cache.feed = [...items].sort(
+  const ranked = [...items].sort((a, b) => b.score - a.score);
+  const recent = [...items].sort(
     (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)
   );
+
+  cache.items = items;
+  cache.topStories = diversifyBySource(ranked, { maxPerSource: 2, limit: 12 });
+  cache.feed = diversifyBySource(recent, { maxPerSource: 4 });
   cache.lastUpdated = new Date().toISOString();
   cache.lastFetched = new Date().toISOString();
   cache.sourceErrors = errors;
