@@ -26,6 +26,29 @@ html[data-theme="night"] {
   --shadow: 0 24px 70px rgba(2, 6, 23, 0.6);
 }
 
+body.local-theme {
+  --bg: #f2f4f7;
+  --bg-accent: #f7f9fc;
+  --surface: #ffffff;
+  --surface-muted: #ffffff;
+  --border: #d9e0e8;
+  --text: #243041;
+  --text-muted: #5b6778;
+  --accent-red: #3b82f6;
+  --accent-cyan: #3b82f6;
+  --chip: #eef2f7;
+  --shadow: 0 16px 40px rgba(36, 48, 65, 0.08);
+  background: #f2f4f7;
+}
+
+body.local-theme a {
+  color: var(--accent-cyan);
+}
+
+body.local-theme a:hover {
+  color: #2f6fe0;
+}
+
 * {
   box-sizing: border-box;
 }
