@@ -100,7 +100,7 @@ a {
 .brand {
   display: inline-block;
   color: var(--text);
-  animation: brandSlide 7s ease-in-out infinite, brandHue 22s linear infinite;
+  animation: brandSlide 7s ease-in-out infinite, brandHue 13s linear infinite;
   will-change: transform;
 }
 
