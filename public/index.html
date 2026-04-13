@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LiveNews</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="consent-modal" id="consentModal" aria-hidden="true">
+      <div class="consent-card" role="dialog" aria-labelledby="consentTitle">
+        <h2 id="consentTitle">Your privacy, your choice</h2>
+        <p>
+          We use cookies for personalization, analytics, and ads. Opt-in only.
+          If Global Privacy Control is detected, personalization stays off.
+        </p>
+        <div class="consent-actions">
+          <button class="btn primary" id="consentAccept">Accept</button>
+          <button class="btn ghost" id="consentDecline">Decline</button>
+        </div>
+      </div>
+    </div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title">LiveNews</div>
+        <div class="brand-sub">Breaking Grid</div>
+      </div>
+      <nav class="sections">
+        <a href="#">Top</a>
+        <a href="#">National</a>
+        <a href="#">Business</a>
+        <a href="#">Tech</a>
+        <a href="#">Sports</a>
+        <a href="#">Entertainment</a>
+      </nav>
+      <div class="controls">
+        <div class="control" aria-label="Refresh">
+          <span class="control-label">Refresh</span>
+          <div class="segmented" id="refreshControl">
+            <button class="seg" data-refresh="3">3m</button>
+            <button class="seg active" data-refresh="10">10m</button>
+            <button class="seg" data-refresh="off" id="refreshOff">Off</button>
+          </div>
+        </div>
+        <div class="control" aria-label="Theme">
+          <span class="control-label">Mode</span>
+          <div class="segmented" id="modeControl">
+            <button class="seg active" data-mode="auto">Auto</button>
+            <button class="seg" data-mode="day">Day</button>
+            <button class="seg" data-mode="night">Night</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="main-col">
+        <div class="status-row">
+          <div class="status" id="lastUpdated" role="status" aria-live="polite">
+            Last updated: --
+          </div>
+          <div class="status" id="timeZoneLabel">Time zone: --</div>
+        </div>
+
+        <section class="panel top-stories">
+          <div class="panel-header">
+            <h2>Top Stories + Trending + Most Clicked</h2>
+            <span class="tag">Primary Focus</span>
+          </div>
+          <ol class="story-list" id="topStories"></ol>
+        </section>
+
+        <section class="panel news-feed">
+          <div class="panel-header">
+            <h2>Latest News Feed</h2>
+            <span class="tag">After Top Stories</span>
+          </div>
+          <div class="feed" id="newsFeed"></div>
+        </section>
+      </section>
+
+      <aside class="rail">
+        <section class="panel local-panel">
+          <div class="panel-header">
+            <h3>Local News</h3>
+            <span class="tag">Location-aware</span>
+          </div>
+          <p class="panel-note" id="localNote">
+            Use my location when cookies are enabled, or enter your county/city.
+          </p>
+          <button class="btn" id="useLocation">Use my location</button>
+          <div class="local-input">
+            <input
+              type="text"
+              id="manualLocation"
+              placeholder="County or city"
+              aria-label="County or city"
+            />
+            <button class="btn ghost" id="setLocation">Set</button>
+          </div>
+          <div class="local-display" id="localDisplay">Local hub: not set</div>
+        </section>
+
+        <section class="panel community-panel">
+          <div class="panel-header">
+            <h3>Community Hub</h3>
+            <span class="tag">Login required for Off</span>
+          </div>
+          <div class="community-actions">
+            <button class="btn primary" id="loginBtn">Log in</button>
+            <button class="btn ghost" id="signupBtn">Sign up</button>
+          </div>
+          <div class="community-preview" id="communityPreview">
+            Join local and global discussions with verified moderation.
+          </div>
+        </section>
+
+        <section class="panel sponsor-panel">
+          <div class="panel-header">
+            <h3>Sponsor</h3>
+            <span class="tag">300x250 or 300x600</span>
+          </div>
+          <div class="sponsor-slot">Ad space</div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <div>LiveNews • Verified Radar • Local Hubs • Community</div>
+      <div class="footer-note">Auto refresh respects your settings and accessibility preferences.</div>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
