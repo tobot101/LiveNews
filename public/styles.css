@@ -102,11 +102,41 @@ a {
 }
 
 .brand {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   color: #2563eb;
   text-shadow: 0 2px 12px rgba(59, 130, 246, 0.35);
   animation: brandSlide 7s ease-in-out infinite, brandHue 13s linear infinite;
   will-change: transform, filter, color;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.hamburger {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hamburger span {
+  width: 18px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 999px;
+  display: block;
 }
 
 .brand:hover .brand-title,
