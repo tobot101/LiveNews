@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #e9eef5;
   --bg-accent: #f5f7fb;
   --surface: #ffffff;
@@ -8,22 +9,35 @@
   --text-muted: #64748b;
   --accent-red: #ef4444;
   --accent-cyan: #0284c7;
+  --interactive-fill: #dc2626;
+  --interactive-ink: #ffffff;
+  --pill-bg: #0284c7;
+  --pill-ink: #00111f;
   --chip: #e2e8f0;
+  --brand-base: #2563eb;
+  --brand-glow: rgba(59, 130, 246, 0.35);
   --shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
 }
 
 html[data-theme="night"] {
-  --bg: #0b1220;
-  --bg-accent: #0f172a;
-  --surface: #0f172a;
-  --surface-muted: #111827;
-  --border: #1f2937;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --accent-red: #ef4444;
-  --accent-cyan: #22d3ee;
-  --chip: #111827;
-  --shadow: 0 24px 70px rgba(2, 6, 23, 0.6);
+  color-scheme: dark;
+  --bg: #070b11;
+  --bg-accent: #0d141d;
+  --surface: #101721;
+  --surface-muted: #141d29;
+  --border: #2a3647;
+  --text: #e4ebf5;
+  --text-muted: #a7b4c5;
+  --accent-red: #e38b8b;
+  --accent-cyan: #8fa7c9;
+  --interactive-fill: #8fa7c9;
+  --interactive-ink: #0a1220;
+  --pill-bg: #7ea7d8;
+  --pill-ink: #08111a;
+  --chip: #17212d;
+  --brand-base: #a9bcff;
+  --brand-glow: rgba(143, 167, 201, 0.22);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
 }
 
 body.local-theme {
@@ -36,9 +50,35 @@ body.local-theme {
   --text-muted: #5b6778;
   --accent-red: #3b82f6;
   --accent-cyan: #3b82f6;
+  --interactive-fill: #2563eb;
+  --interactive-ink: #ffffff;
+  --pill-bg: #3b82f6;
+  --pill-ink: #00111f;
   --chip: #eef2f7;
+  --brand-base: #2563eb;
+  --brand-glow: rgba(59, 130, 246, 0.28);
   --shadow: 0 16px 40px rgba(36, 48, 65, 0.08);
-  background: #f2f4f7;
+  background: radial-gradient(circle at top, var(--bg-accent), var(--bg));
+}
+
+html[data-theme="night"] body.local-theme {
+  --bg: #070b11;
+  --bg-accent: #0d141d;
+  --surface: #101721;
+  --surface-muted: #141d29;
+  --border: #2a3647;
+  --text: #e4ebf5;
+  --text-muted: #a7b4c5;
+  --accent-red: #e38b8b;
+  --accent-cyan: #8fa7c9;
+  --interactive-fill: #8fa7c9;
+  --interactive-ink: #0a1220;
+  --pill-bg: #7ea7d8;
+  --pill-ink: #08111a;
+  --chip: #17212d;
+  --brand-base: #a9bcff;
+  --brand-glow: rgba(143, 167, 201, 0.22);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
 }
 
 body.local-theme a {
@@ -46,7 +86,8 @@ body.local-theme a {
 }
 
 body.local-theme a:hover {
-  color: #2f6fe0;
+  color: var(--accent-cyan);
+  text-decoration: underline;
 }
 
 * {
@@ -70,6 +111,13 @@ h3 {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
 }
 
 .topbar {
@@ -103,8 +151,8 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 0;
-  color: #2563eb;
-  text-shadow: 0 2px 12px rgba(59, 130, 246, 0.35);
+  color: var(--brand-base);
+  text-shadow: 0 2px 12px var(--brand-glow);
   animation: brandSlide 11.5s ease-in-out infinite, brandHue 13s linear infinite;
   will-change: transform, filter, color;
 }
@@ -118,6 +166,10 @@ a {
 .brand:hover .brand-title,
 .brand:hover .brand-sub {
   color: var(--accent-cyan);
+}
+
+html[data-theme="night"] .brand {
+  animation: brandSlide 11.5s ease-in-out infinite, brandHueNight 13s linear infinite;
 }
 
 @keyframes brandSlide {
@@ -141,6 +193,18 @@ a {
   }
   100% {
     filter: hue-rotate(360deg) saturate(180%) brightness(115%);
+  }
+}
+
+@keyframes brandHueNight {
+  0% {
+    filter: hue-rotate(0deg) saturate(105%) brightness(102%);
+  }
+  50% {
+    filter: hue-rotate(180deg) saturate(120%) brightness(108%);
+  }
+  100% {
+    filter: hue-rotate(360deg) saturate(105%) brightness(102%);
   }
 }
 
@@ -366,8 +430,8 @@ a {
 }
 
 .score-pill {
-  background: var(--accent-cyan);
-  color: #00111f;
+  background: var(--pill-bg);
+  color: var(--pill-ink);
   padding: 4px 8px;
   border-radius: 999px;
   font-size: 11px;
@@ -418,9 +482,9 @@ a {
 }
 
 .btn.primary {
-  background: var(--accent-red);
-  border-color: var(--accent-red);
-  color: #fff;
+  background: var(--interactive-fill);
+  border-color: var(--interactive-fill);
+  color: var(--interactive-ink);
 }
 
 .btn.ghost {
@@ -440,6 +504,11 @@ a {
   border: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--text);
+}
+
+.local-input input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.82;
 }
 
 .local-display {
