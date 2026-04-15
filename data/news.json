@@ -39,6 +39,30 @@
       "category": "International",
       "score": 87,
       "publishedAt": "2026-04-12T11:40:00Z"
+    },
+    {
+      "id": "t6",
+      "title": "States expand severe weather response as travel disruptions grow",
+      "source": "National Desk",
+      "category": "National",
+      "score": 85,
+      "publishedAt": "2026-04-12T11:15:00Z"
+    },
+    {
+      "id": "t7",
+      "title": "Major media and tech firms reshape live coverage around AI tools",
+      "source": "Innovation Wire",
+      "category": "Tech",
+      "score": 84,
+      "publishedAt": "2026-04-12T10:50:00Z"
+    },
+    {
+      "id": "t8",
+      "title": "Regional cities push new housing plans as local demand climbs",
+      "source": "City Briefing",
+      "category": "Business",
+      "score": 82,
+      "publishedAt": "2026-04-12T10:20:00Z"
     }
   ],
   "feed": [

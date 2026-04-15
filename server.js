@@ -13,7 +13,90 @@ const placesPath = path.join(__dirname, "data", "us-places.json");
 
 const MAX_AGE_HOURS = Number(process.env.NEWS_MAX_AGE_HOURS || 48);
 const REFRESH_MINUTES = Number(process.env.NEWS_REFRESH_INTERVAL_MINUTES || 10);
-const FEED_LIMIT = Number(process.env.NEWS_FEED_LIMIT || 120);
+const TOP_STORIES_LIMIT = Number(process.env.NEWS_TOP_STORIES_LIMIT || 8);
+const FEED_LIMIT = Number(process.env.NEWS_FEED_LIMIT || 170);
+const LOCAL_POOL_LIMIT = Number(process.env.LOCAL_POOL_LIMIT || 60);
+const LOCAL_SOURCE_CAP = Number(process.env.LOCAL_SOURCE_CAP || 4);
+
+const EVENT_STOPWORDS = new Set([
+  "a",
+  "about",
+  "after",
+  "all",
+  "amid",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "been",
+  "being",
+  "but",
+  "by",
+  "can",
+  "day",
+  "for",
+  "from",
+  "gets",
+  "has",
+  "have",
+  "he",
+  "her",
+  "his",
+  "how",
+  "in",
+  "into",
+  "is",
+  "it",
+  "its",
+  "just",
+  "latest",
+  "live",
+  "more",
+  "new",
+  "news",
+  "now",
+  "of",
+  "on",
+  "over",
+  "says",
+  "say",
+  "she",
+  "still",
+  "than",
+  "that",
+  "the",
+  "their",
+  "them",
+  "they",
+  "this",
+  "to",
+  "up",
+  "was",
+  "were",
+  "what",
+  "when",
+  "which",
+  "who",
+  "why",
+  "will",
+  "with",
+  "you",
+]);
+
+const LOCAL_BLOCKED_DOMAINS = new Set([
+  "legacy.com",
+  "www.legacy.com",
+  "tributearchive.com",
+  "www.tributearchive.com",
+  "dignitymemorial.com",
+  "www.dignitymemorial.com",
+  "echovita.com",
+  "www.echovita.com",
+  "nationaltoday.com",
+  "www.nationaltoday.com",
+]);
 
 const parser = new Parser({
   timeout: 10000,
@@ -29,6 +112,8 @@ const cache = {
   lastUpdated: null,
   lastFetched: null,
   sourceErrors: [],
+  sourceMix: {},
+  configuredSources: 0,
 };
 
 let placesIndex = [];
@@ -81,31 +166,31 @@ function withinMaxAge(date) {
   return ageMs <= MAX_AGE_HOURS * 60 * 60 * 1000;
 }
 
-function computeScore(source, publishedAt) {
-  const hoursOld = Math.max(0, (Date.now() - publishedAt.getTime()) / 3600000);
-  const freshness = Math.max(0, 1 - hoursOld / MAX_AGE_HOURS);
-  const weight = Number(source.weight || 1);
-  const weightScore = clamp((weight - 1) / 2, 0, 1);
-  const recencyBoost =
-    hoursOld <= 2 ? 1 : hoursOld <= 6 ? 0.6 : hoursOld <= 12 ? 0.3 : 0;
-  const composite = clamp(0.65 * freshness + 0.25 * weightScore + 0.1 * recencyBoost, 0, 1);
-  return Math.round(70 + 30 * composite);
-}
-
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function buildSummary(text) {
+function computeBaseScore(source, publishedAt) {
+  const hoursOld = Math.max(0, (Date.now() - publishedAt.getTime()) / 3600000);
+  const freshness = Math.max(0, 1 - hoursOld / MAX_AGE_HOURS);
+  const weight = Number(source.weight || 1);
+  const weightScore = clamp((weight - 0.85) / 0.45, 0, 1);
+  const recencyBoost =
+    hoursOld <= 2 ? 1 : hoursOld <= 6 ? 0.7 : hoursOld <= 12 ? 0.35 : 0.1;
+  const composite = clamp(0.6 * freshness + 0.25 * weightScore + 0.15 * recencyBoost, 0, 1);
+  return Math.round(70 + 24 * composite);
+}
+
+function buildSummary(text, maxLength = 260) {
   if (!text) return "";
   const clean = String(text)
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!clean) return "";
-  const sentences = clean.split(/(?<=[.!?])\s+/);
-  const summary = sentences.slice(0, 2).join(" ").trim();
-  return summary.slice(0, 220);
+  const sentences = clean.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const summary = sentences.slice(0, 2).join(" ").trim() || clean;
+  return summary.slice(0, maxLength).trim();
 }
 
 function parseSourceFromTitle(title) {
@@ -123,10 +208,412 @@ function parseSourceFromTitle(title) {
 function getDomain(link) {
   try {
     const url = new URL(link);
-    return url.hostname.replace(/^www\\./, "");
+    return url.hostname.replace(/^www\./, "");
   } catch {
     return "";
   }
+}
+
+function tokenizeTitle(title) {
+  return String(title || "")
+    .toLowerCase()
+    .replace(/&amp;/g, " and ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !EVENT_STOPWORDS.has(word))
+    .slice(0, 12);
+}
+
+function compareTokenSets(tokensA, tokensB) {
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  if (setA.size === 0 || setB.size === 0) {
+    return { shared: 0, jaccard: 0, containment: 0, score: 0 };
+  }
+
+  let shared = 0;
+  for (const token of setA) {
+    if (setB.has(token)) shared += 1;
+  }
+
+  const union = new Set([...setA, ...setB]).size;
+  const jaccard = union ? shared / union : 0;
+  const containment = shared / Math.min(setA.size, setB.size);
+  const score = Math.max(jaccard, 0.65 * containment + 0.35 * jaccard);
+
+  return { shared, jaccard, containment, score };
+}
+
+function sameCalendarWindow(a, b) {
+  const diffHours = Math.abs(new Date(a.publishedAt) - new Date(b.publishedAt)) / 3600000;
+  return diffHours <= 30;
+}
+
+function shouldClusterTogether(item, clusterItem) {
+  if (!sameCalendarWindow(item, clusterItem)) return false;
+  const metrics = compareTokenSets(item.titleTokens || [], clusterItem.titleTokens || []);
+  return (
+    metrics.shared >= 5 ||
+    (metrics.shared >= 4 && metrics.containment >= 0.62) ||
+    (metrics.shared >= 3 && metrics.score >= 0.72)
+  );
+}
+
+function buildClusters(items) {
+  const clusters = [];
+  const sorted = [...items].sort(
+    (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt) || b.baseScore - a.baseScore
+  );
+
+  for (const item of sorted) {
+    let target = null;
+    let bestScore = 0;
+
+    for (const cluster of clusters) {
+      const sample = cluster.items.slice(0, 6);
+      for (const existing of sample) {
+        const metrics = compareTokenSets(item.titleTokens || [], existing.titleTokens || []);
+        const score = metrics.score;
+        if (!shouldClusterTogether(item, existing)) continue;
+        if (score > bestScore) {
+          bestScore = score;
+          target = cluster;
+        }
+      }
+    }
+
+    if (target) {
+      target.items.push(item);
+      continue;
+    }
+
+    clusters.push({ items: [item] });
+  }
+
+  return clusters.map(finalizeCluster);
+}
+
+function dominantCategory(items, fallbackCategory) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = item.category || fallbackCategory || "Top";
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || fallbackCategory || "Top";
+}
+
+function chooseLeadStory(items) {
+  return [...items].sort(
+    (a, b) =>
+      b.baseScore - a.baseScore ||
+      b.sourceWeight - a.sourceWeight ||
+      new Date(b.publishedAt) - new Date(a.publishedAt)
+  )[0];
+}
+
+function serializeSupportLink(item) {
+  return {
+    sourceName: item.sourceName,
+    link: item.link,
+    publishedAt: item.publishedAt,
+    category: item.category,
+  };
+}
+
+function finalizeCluster(cluster) {
+  const items = [...cluster.items].sort(
+    (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt) || b.baseScore - a.baseScore
+  );
+  const lead = chooseLeadStory(items);
+  const sourceNames = Array.from(new Set(items.map((item) => item.sourceName))).filter(Boolean);
+  const category = dominantCategory(items, lead.category);
+  const coverageBoost = Math.min(6, Math.max(0, sourceNames.length - 1) * 2);
+  const score = clamp(Math.round(lead.baseScore + coverageBoost), 70, 100);
+
+  return {
+    id: lead.id,
+    title: lead.title,
+    link: lead.link,
+    publishedAt: lead.publishedAt,
+    sourceName: lead.sourceName,
+    sourceUrl: lead.sourceUrl,
+    sourceDomain: lead.domain,
+    category,
+    score,
+    sourceCount: sourceNames.length,
+    relatedSources: sourceNames,
+    supportingLinks: items.slice(0, 6).map(serializeSupportLink),
+    summary: lead.summary || "",
+  };
+}
+
+function dedupeItems(items) {
+  const deduped = new Map();
+
+  for (const item of items) {
+    const titleKey = `${item.domain || "source"}:${String(item.title || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")}`;
+    const key = item.link || titleKey;
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, item);
+      continue;
+    }
+
+    const currentPublished = new Date(item.publishedAt).getTime();
+    const existingPublished = new Date(existing.publishedAt).getTime();
+    if (item.baseScore > existing.baseScore || currentPublished > existingPublished) {
+      deduped.set(key, item);
+    }
+  }
+
+  return Array.from(deduped.values());
+}
+
+function buildSourceMix(items) {
+  return items.reduce((acc, item) => {
+    const key = item.sourceName || "Unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function diversifyBySource(items, { maxPerSource = 0, limit } = {}) {
+  if (!items.length) return [];
+  const groups = new Map();
+
+  items.forEach((item) => {
+    const key = item.sourceName || "Unknown";
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(item);
+  });
+
+  groups.forEach((list) => {
+    list.sort(
+      (a, b) =>
+        (b.sourceCount || 1) - (a.sourceCount || 1) ||
+        (b.score || 0) - (a.score || 0) ||
+        new Date(b.publishedAt) - new Date(a.publishedAt)
+    );
+  });
+
+  const sources = Array.from(groups.keys()).sort((a, b) => {
+    const firstA = groups.get(a)?.[0];
+    const firstB = groups.get(b)?.[0];
+    return (
+      (firstB?.sourceCount || 1) - (firstA?.sourceCount || 1) ||
+      (firstB?.score || 0) - (firstA?.score || 0) ||
+      new Date(firstB?.publishedAt || 0) - new Date(firstA?.publishedAt || 0)
+    );
+  });
+
+  const result = [];
+  const counts = new Map();
+  const maxItems = limit ?? items.length;
+
+  while (result.length < maxItems) {
+    let added = false;
+
+    for (const source of sources) {
+      if (result.length >= maxItems) break;
+      const list = groups.get(source);
+      if (!list || list.length === 0) continue;
+      const currentCount = counts.get(source) || 0;
+      if (maxPerSource > 0 && currentCount >= maxPerSource) {
+        const otherHasItems = sources.some(
+          (name) => name !== source && (groups.get(name) || []).length > 0
+        );
+        if (otherHasItems) continue;
+      }
+      result.push(list.shift());
+      counts.set(source, currentCount + 1);
+      added = true;
+    }
+
+    if (!added) break;
+  }
+
+  return result;
+}
+
+function normalizeItem(source, item) {
+  const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
+  if (!publishedAt || !withinMaxAge(publishedAt)) return null;
+  const link = item.link || item.guid;
+  if (!link) return null;
+  const title = item.title ? String(item.title).trim() : "";
+  if (!title) return null;
+
+  return {
+    id: crypto.createHash("sha1").update(link).digest("hex"),
+    title,
+    link,
+    publishedAt: publishedAt.toISOString(),
+    sourceName: source.attribution || source.name,
+    sourceUrl: source.homepage,
+    sourceWeight: Number(source.weight || 1),
+    category: source.category || "Top",
+    domain: getDomain(link),
+    summary: buildSummary(item.contentSnippet || item.content || item.summary || ""),
+    baseScore: computeBaseScore(source, publishedAt),
+    titleTokens: tokenizeTitle(title),
+  };
+}
+
+function normalizeLocalItem(item) {
+  const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
+  if (!publishedAt || !withinMaxAge(publishedAt)) return null;
+  const link = item.link || item.guid;
+  if (!link) return null;
+  const parsed = parseSourceFromTitle(item.title || "");
+  const title = parsed.title;
+  if (!title) return null;
+  const sourceName = parsed.sourceName || item.creator || getDomain(link) || "Source";
+  if (isBlockedLocalItem({ title, sourceName, link })) return null;
+  const summary = buildSummary(item.contentSnippet || item.content || item.summary || "", 220);
+
+  return {
+    id: crypto.createHash("sha1").update(link).digest("hex"),
+    title,
+    link,
+    publishedAt: publishedAt.toISOString(),
+    sourceName,
+    sourceDomain: getDomain(link),
+    category: "Local",
+    sourceCount: 1,
+    relatedSources: [sourceName],
+    score: clamp(computeBaseScore({ weight: 1 }, publishedAt), 70, 100),
+    summary,
+  };
+}
+
+function isBlockedLocalItem({ title, sourceName, link }) {
+  const domain = getDomain(link);
+  if (LOCAL_BLOCKED_DOMAINS.has(domain)) return true;
+  const haystack = `${title} ${sourceName} ${link}`.toLowerCase();
+  return (
+    haystack.includes("legacy obituary") ||
+    haystack.includes("tribute archive") ||
+    haystack.includes("obituaries") ||
+    haystack.includes("obituary") ||
+    haystack.includes("funeral home") ||
+    haystack.includes("national today")
+  );
+}
+
+function buildLocalQueryVariants(city, state) {
+  const cleanedCity = String(city || "").trim();
+  const cleanedState = String(state || "").trim();
+  const variants = [
+    [cleanedCity, cleanedState].filter(Boolean).join(" "),
+    [cleanedCity, cleanedState, "local news"].filter(Boolean).join(" "),
+    `"${cleanedCity}" ${cleanedState}`.trim(),
+  ];
+  return Array.from(new Set(variants.map((value) => value.trim()).filter(Boolean)));
+}
+
+async function fetchLocalNews(city, state) {
+  const key = `${city}|${state}`.toLowerCase();
+  const cached = localCache.get(key);
+  const now = Date.now();
+  if (cached && now - cached.fetchedAt < REFRESH_MINUTES * 60 * 1000) {
+    return cached.payload;
+  }
+
+  const variants = buildLocalQueryVariants(city, state);
+  const feeds = await Promise.allSettled(
+    variants.map((query) => {
+      const feedUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+      return parser.parseURL(feedUrl);
+    })
+  );
+
+  const collected = [];
+  for (const result of feeds) {
+    if (result.status !== "fulfilled") continue;
+    const items = Array.isArray(result.value.items) ? result.value.items : [];
+    collected.push(...items.map(normalizeLocalItem).filter(Boolean));
+  }
+
+  const deduped = dedupeItems(collected);
+  const recent = deduped.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  const diversified = diversifyBySource(recent, {
+    maxPerSource: LOCAL_SOURCE_CAP,
+    limit: LOCAL_POOL_LIMIT,
+  });
+
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    items: diversified,
+    query: [city, state].filter(Boolean).join(", "),
+    variants,
+    sourceCount: new Set(diversified.map((item) => item.sourceName)).size,
+  };
+  localCache.set(key, { fetchedAt: now, payload });
+  return payload;
+}
+
+async function fetchSource(source) {
+  const feed = await parser.parseURL(source.feedUrl);
+  const items = Array.isArray(feed.items) ? feed.items : [];
+  return items.map((item) => normalizeItem(source, item)).filter(Boolean);
+}
+
+async function refreshNews() {
+  const sources = loadSources();
+  const collected = [];
+  const errors = [];
+
+  cache.configuredSources = sources.length;
+
+  for (const source of sources) {
+    try {
+      const items = await fetchSource(source);
+      collected.push(...items);
+    } catch (error) {
+      errors.push({
+        source: source.name,
+        feedUrl: source.feedUrl,
+        message: error.message,
+      });
+    }
+  }
+
+  const deduped = dedupeItems(collected);
+  const clustered = buildClusters(deduped);
+
+  const ranked = [...clustered].sort(
+    (a, b) =>
+      (b.sourceCount || 1) - (a.sourceCount || 1) ||
+      (b.score || 0) - (a.score || 0) ||
+      new Date(b.publishedAt) - new Date(a.publishedAt)
+  );
+  const recent = [...clustered].sort(
+    (a, b) =>
+      new Date(b.publishedAt) - new Date(a.publishedAt) ||
+      (b.sourceCount || 1) - (a.sourceCount || 1) ||
+      (b.score || 0) - (a.score || 0)
+  );
+
+  cache.items = clustered;
+  cache.topStories = diversifyBySource(ranked, { maxPerSource: 2, limit: TOP_STORIES_LIMIT });
+  cache.feed = diversifyBySource(recent, {
+    maxPerSource: Math.max(12, Math.ceil(FEED_LIMIT / 6)),
+    limit: FEED_LIMIT,
+  });
+  cache.lastUpdated = new Date().toISOString();
+  cache.lastFetched = new Date().toISOString();
+  cache.sourceErrors = errors;
+  cache.sourceMix = buildSourceMix(deduped);
+}
+
+function refreshNewsSafely() {
+  refreshNews().catch((error) => {
+    cache.sourceErrors = [{ source: "system", message: error.message }];
+  });
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -155,172 +642,6 @@ function findNearestPlace(lat, lon) {
   return { place: rest, distanceKm: Math.round(bestDistance * 10) / 10 };
 }
 
-function diversifyBySource(items, { maxPerSource = 0, limit } = {}) {
-  if (!items.length) return [];
-  const groups = new Map();
-  items.forEach((item) => {
-    const key = item.sourceName || item.source || "Unknown";
-    if (!groups.has(key)) {
-      groups.set(key, []);
-    }
-    groups.get(key).push(item);
-  });
-
-  groups.forEach((list) => {
-    list.sort(
-      (a, b) =>
-        (b.score || 0) - (a.score || 0) ||
-        new Date(b.publishedAt) - new Date(a.publishedAt)
-    );
-  });
-
-  const sources = Array.from(groups.entries())
-    .sort(([, a], [, b]) => (b[0]?.score || 0) - (a[0]?.score || 0))
-    .map(([name]) => name);
-
-  const result = [];
-  const counts = new Map();
-  const maxItems = limit ?? items.length;
-
-  while (result.length < maxItems) {
-    let added = false;
-    for (const source of sources) {
-      if (result.length >= maxItems) break;
-      const list = groups.get(source);
-      if (!list || list.length === 0) continue;
-      const count = counts.get(source) || 0;
-      if (maxPerSource > 0 && count >= maxPerSource) {
-        const otherHasItems = sources.some(
-          (name) => name !== source && (groups.get(name) || []).length > 0
-        );
-        if (otherHasItems) continue;
-      }
-      result.push(list.shift());
-      counts.set(source, count + 1);
-      added = true;
-    }
-    if (!added) break;
-  }
-
-  return result;
-}
-
-function normalizeItem(source, item) {
-  const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
-  if (!publishedAt || !withinMaxAge(publishedAt)) return null;
-  const link = item.link || item.guid;
-  if (!link) return null;
-  const title = item.title ? String(item.title).trim() : "";
-  if (!title) return null;
-
-  return {
-    id: crypto.createHash("sha1").update(link).digest("hex"),
-    title,
-    link,
-    publishedAt: publishedAt.toISOString(),
-    sourceName: source.attribution || source.name,
-    sourceUrl: source.homepage,
-    category: source.category || "Top",
-    score: computeScore(source, publishedAt),
-  };
-}
-
-function normalizeLocalItem(item) {
-  const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
-  if (!publishedAt || !withinMaxAge(publishedAt)) return null;
-  const link = item.link || item.guid;
-  if (!link) return null;
-  const parsed = parseSourceFromTitle(item.title || "");
-  const title = parsed.title;
-  if (!title) return null;
-  const sourceName = parsed.sourceName || item.creator || getDomain(link) || "Source";
-  return {
-    id: crypto.createHash("sha1").update(link).digest("hex"),
-    title,
-    link,
-    publishedAt: publishedAt.toISOString(),
-    sourceName,
-    sourceDomain: getDomain(link),
-    category: "Local",
-    score: computeScore({ weight: 1 }, publishedAt),
-    summary: buildSummary(item.contentSnippet || item.content || ""),
-  };
-}
-
-async function fetchLocalNews(city, state) {
-  const key = `${city}|${state}`.toLowerCase();
-  const cached = localCache.get(key);
-  const now = Date.now();
-  if (cached && now - cached.fetchedAt < REFRESH_MINUTES * 60 * 1000) {
-    return cached.payload;
-  }
-  const query = [city, state].filter(Boolean).join(" ");
-  const feedUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-  const feed = await parser.parseURL(feedUrl);
-  const items = Array.isArray(feed.items) ? feed.items : [];
-  const normalized = items.map(normalizeLocalItem).filter(Boolean);
-  const payload = {
-    updatedAt: new Date().toISOString(),
-    items: normalized,
-    query,
-  };
-  localCache.set(key, { fetchedAt: now, payload });
-  return payload;
-}
-
-async function fetchSource(source) {
-  const feed = await parser.parseURL(source.feedUrl);
-  const items = Array.isArray(feed.items) ? feed.items : [];
-  return items
-    .map((item) => normalizeItem(source, item))
-    .filter(Boolean);
-}
-
-async function refreshNews() {
-  const sources = loadSources();
-  const collected = [];
-  const errors = [];
-
-  for (const source of sources) {
-    try {
-      const items = await fetchSource(source);
-      collected.push(...items);
-    } catch (error) {
-      errors.push({
-        source: source.name,
-        feedUrl: source.feedUrl,
-        message: error.message,
-      });
-    }
-  }
-
-  const deduped = new Map();
-  for (const item of collected) {
-    if (!deduped.has(item.link)) {
-      deduped.set(item.link, item);
-    }
-  }
-
-  const items = Array.from(deduped.values());
-  const ranked = [...items].sort((a, b) => b.score - a.score);
-  const recent = [...items].sort(
-    (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)
-  );
-
-  cache.items = items;
-  cache.topStories = diversifyBySource(ranked, { maxPerSource: 2, limit: 12 });
-  cache.feed = diversifyBySource(recent, { maxPerSource: 0, limit: FEED_LIMIT });
-  cache.lastUpdated = new Date().toISOString();
-  cache.lastFetched = new Date().toISOString();
-  cache.sourceErrors = errors;
-}
-
-function refreshNewsSafely() {
-  refreshNews().catch((error) => {
-    cache.sourceErrors = [{ source: "system", message: error.message }];
-  });
-}
-
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/news", (req, res) => {
@@ -330,6 +651,10 @@ app.get("/api/news", (req, res) => {
       updatedAt: new Date().toISOString(),
       maxAgeHours: MAX_AGE_HOURS,
       fallback: true,
+      limits: {
+        topStories: TOP_STORIES_LIMIT,
+        feed: FEED_LIMIT,
+      },
       ...fallback,
     });
   }
@@ -338,9 +663,15 @@ app.get("/api/news", (req, res) => {
     updatedAt: cache.lastUpdated,
     maxAgeHours: MAX_AGE_HOURS,
     fallback: false,
+    limits: {
+      topStories: TOP_STORIES_LIMIT,
+      feed: FEED_LIMIT,
+    },
     topStories: cache.topStories,
     feed: cache.feed,
     sourceErrors: cache.sourceErrors,
+    sourceMix: cache.sourceMix,
+    configuredSources: cache.configuredSources,
   });
 });
 
@@ -397,7 +728,18 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     lastUpdated: cache.lastUpdated,
-    sources: cache.items.length,
+    stories: cache.items.length,
+    topStories: cache.topStories.length,
+    feedItems: cache.feed.length,
+    configuredSources: cache.configuredSources,
+    sourceErrors: cache.sourceErrors.length,
+    sourceMix: cache.sourceMix,
+    limits: {
+      topStories: TOP_STORIES_LIMIT,
+      feed: FEED_LIMIT,
+      maxAgeHours: MAX_AGE_HOURS,
+    },
+    places: placesMeta.totalPlaces,
   });
 });
 

@@ -7,7 +7,8 @@
       "feedUrl": "https://feeds.bbci.co.uk/news/rss.xml",
       "homepage": "https://www.bbc.co.uk/news",
       "category": "Top",
-      "weight": 1.2
+      "weight": 1.2,
+      "access": "official-rss"
     },
     {
       "id": "bbc-world",
@@ -16,7 +17,8 @@
       "feedUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
       "homepage": "https://www.bbc.co.uk/news/world",
       "category": "International",
-      "weight": 1.1
+      "weight": 1.1,
+      "access": "official-rss"
     },
     {
       "id": "bbc-business",
@@ -25,7 +27,8 @@
       "feedUrl": "https://feeds.bbci.co.uk/news/business/rss.xml",
       "homepage": "https://www.bbc.co.uk/news/business",
       "category": "Business",
-      "weight": 1.05
+      "weight": 1.05,
+      "access": "official-rss"
     },
     {
       "id": "bbc-tech",
@@ -34,7 +37,8 @@
       "feedUrl": "https://feeds.bbci.co.uk/news/technology/rss.xml",
       "homepage": "https://www.bbc.co.uk/news/technology",
       "category": "Tech",
-      "weight": 1.0
+      "weight": 1.0,
+      "access": "official-rss"
     },
     {
       "id": "bbc-arts",
@@ -43,7 +47,8 @@
       "feedUrl": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
       "homepage": "https://www.bbc.co.uk/news/entertainment_and_arts",
       "category": "Entertainment",
-      "weight": 0.95
+      "weight": 0.95,
+      "access": "official-rss"
     },
     {
       "id": "pbs-headlines",
@@ -52,7 +57,8 @@
       "feedUrl": "https://www.pbs.org/newshour/feeds/rss/headlines",
       "homepage": "https://www.pbs.org/newshour/",
       "category": "National",
-      "weight": 1.1
+      "weight": 1.1,
+      "access": "official-rss"
     },
     {
       "id": "pbs-politics",
@@ -61,7 +67,8 @@
       "feedUrl": "https://www.pbs.org/newshour/feeds/rss/politics",
       "homepage": "https://www.pbs.org/newshour/politics",
       "category": "National",
-      "weight": 1.0
+      "weight": 1.0,
+      "access": "official-rss"
     },
     {
       "id": "guardian-top",
@@ -70,7 +77,8 @@
       "feedUrl": "https://www.theguardian.com/international/rss",
       "homepage": "https://www.theguardian.com/international",
       "category": "Top",
-      "weight": 1.1
+      "weight": 1.1,
+      "access": "official-rss"
     },
     {
       "id": "guardian-world",
@@ -79,7 +87,8 @@
       "feedUrl": "https://www.theguardian.com/world/rss",
       "homepage": "https://www.theguardian.com/world",
       "category": "International",
-      "weight": 1.05
+      "weight": 1.05,
+      "access": "official-rss"
     },
     {
       "id": "guardian-us",
@@ -88,7 +97,8 @@
       "feedUrl": "https://www.theguardian.com/us-news/rss",
       "homepage": "https://www.theguardian.com/us-news",
       "category": "National",
-      "weight": 1.0
+      "weight": 1.0,
+      "access": "official-rss"
     },
     {
       "id": "guardian-business",
@@ -97,7 +107,8 @@
       "feedUrl": "https://www.theguardian.com/business/rss",
       "homepage": "https://www.theguardian.com/business",
       "category": "Business",
-      "weight": 1.0
+      "weight": 1.0,
+      "access": "official-rss"
     },
     {
       "id": "guardian-tech",
@@ -106,7 +117,8 @@
       "feedUrl": "https://www.theguardian.com/technology/rss",
       "homepage": "https://www.theguardian.com/technology",
       "category": "Tech",
-      "weight": 0.95
+      "weight": 0.95,
+      "access": "official-rss"
     },
     {
       "id": "guardian-sport",
@@ -115,7 +127,8 @@
       "feedUrl": "https://www.theguardian.com/sport/rss",
       "homepage": "https://www.theguardian.com/sport",
       "category": "Sports",
-      "weight": 0.95
+      "weight": 0.95,
+      "access": "official-rss"
     },
     {
       "id": "guardian-culture",
@@ -124,7 +137,8 @@
       "feedUrl": "https://www.theguardian.com/culture/rss",
       "homepage": "https://www.theguardian.com/culture",
       "category": "Entertainment",
-      "weight": 0.9
+      "weight": 0.9,
+      "access": "official-rss"
     },
     {
       "id": "techcrunch-top",
@@ -133,7 +147,228 @@
       "feedUrl": "https://techcrunch.com/feed/",
       "homepage": "https://techcrunch.com/",
       "category": "Tech",
-      "weight": 1.05
+      "weight": 1.05,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-top",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/topstories",
+      "homepage": "https://abcnews.go.com/",
+      "category": "Top",
+      "weight": 1.15,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-us",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/usheadlines",
+      "homepage": "https://abcnews.go.com/US",
+      "category": "National",
+      "weight": 1.05,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-politics",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/politicsheadlines",
+      "homepage": "https://abcnews.go.com/Politics",
+      "category": "National",
+      "weight": 1.02,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-international",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/internationalheadlines",
+      "homepage": "https://abcnews.go.com/International",
+      "category": "International",
+      "weight": 1.05,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-business",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/moneyheadlines",
+      "homepage": "https://abcnews.go.com/Business",
+      "category": "Business",
+      "weight": 1.0,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-tech",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/technologyheadlines",
+      "homepage": "https://abcnews.go.com/Technology",
+      "category": "Tech",
+      "weight": 1.0,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-entertainment",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/entertainmentheadlines",
+      "homepage": "https://abcnews.go.com/Entertainment",
+      "category": "Entertainment",
+      "weight": 0.95,
+      "access": "official-rss"
+    },
+    {
+      "id": "abc-sports",
+      "name": "ABC News",
+      "attribution": "ABC News",
+      "feedUrl": "https://feeds.abcnews.com/abcnews/sportsheadlines",
+      "homepage": "https://abcnews.go.com/Sports",
+      "category": "Sports",
+      "weight": 0.95,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-top",
+      "name": "CNN",
+      "attribution": "CNN",
+      "feedUrl": "http://rss.cnn.com/rss/cnn_topstories.rss",
+      "homepage": "https://www.cnn.com/",
+      "category": "Top",
+      "weight": 1.15,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-us",
+      "name": "CNN",
+      "attribution": "CNN",
+      "feedUrl": "http://rss.cnn.com/rss/cnn_us.rss",
+      "homepage": "https://www.cnn.com/us",
+      "category": "National",
+      "weight": 1.05,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-world",
+      "name": "CNN",
+      "attribution": "CNN",
+      "feedUrl": "http://rss.cnn.com/rss/cnn_world.rss",
+      "homepage": "https://www.cnn.com/world",
+      "category": "International",
+      "weight": 1.05,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-politics",
+      "name": "CNN",
+      "attribution": "CNN",
+      "feedUrl": "http://rss.cnn.com/rss/cnn_allpolitics.rss",
+      "homepage": "https://www.cnn.com/politics",
+      "category": "National",
+      "weight": 1.02,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-business",
+      "name": "CNN Business",
+      "attribution": "CNN Business",
+      "feedUrl": "http://rss.cnn.com/rss/money_latest.rss",
+      "homepage": "https://www.cnn.com/business",
+      "category": "Business",
+      "weight": 1.0,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-tech",
+      "name": "CNN",
+      "attribution": "CNN",
+      "feedUrl": "http://rss.cnn.com/rss/cnn_tech.rss",
+      "homepage": "https://www.cnn.com/business/tech",
+      "category": "Tech",
+      "weight": 1.0,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-entertainment",
+      "name": "CNN",
+      "attribution": "CNN",
+      "feedUrl": "http://rss.cnn.com/rss/cnn_showbiz.rss",
+      "homepage": "https://www.cnn.com/entertainment",
+      "category": "Entertainment",
+      "weight": 0.95,
+      "access": "official-rss"
+    },
+    {
+      "id": "cnn-sports",
+      "name": "CNN",
+      "attribution": "CNN",
+      "feedUrl": "http://rss.cnn.com/rss/edition_sport.rss",
+      "homepage": "https://www.cnn.com/sport",
+      "category": "Sports",
+      "weight": 0.95,
+      "access": "official-rss"
+    },
+    {
+      "id": "fox-top",
+      "name": "Fox News",
+      "attribution": "Fox News",
+      "feedUrl": "https://moxie.foxnews.com/google-publisher/latest.xml",
+      "homepage": "https://www.foxnews.com/",
+      "category": "Top",
+      "weight": 1.0,
+      "access": "official-rss"
+    },
+    {
+      "id": "fox-us",
+      "name": "Fox News",
+      "attribution": "Fox News",
+      "feedUrl": "https://moxie.foxnews.com/google-publisher/us.xml",
+      "homepage": "https://www.foxnews.com/us",
+      "category": "National",
+      "weight": 0.95,
+      "access": "official-rss"
+    },
+    {
+      "id": "fox-world",
+      "name": "Fox News",
+      "attribution": "Fox News",
+      "feedUrl": "https://moxie.foxnews.com/google-publisher/world.xml",
+      "homepage": "https://www.foxnews.com/world",
+      "category": "International",
+      "weight": 0.95,
+      "access": "official-rss"
+    },
+    {
+      "id": "fox-politics",
+      "name": "Fox News",
+      "attribution": "Fox News",
+      "feedUrl": "https://moxie.foxnews.com/google-publisher/politics.xml",
+      "homepage": "https://www.foxnews.com/politics",
+      "category": "National",
+      "weight": 0.95,
+      "access": "official-rss"
+    },
+    {
+      "id": "fox-tech",
+      "name": "Fox News",
+      "attribution": "Fox News",
+      "feedUrl": "https://moxie.foxnews.com/google-publisher/tech.xml",
+      "homepage": "https://www.foxnews.com/tech",
+      "category": "Tech",
+      "weight": 0.9,
+      "access": "official-rss"
+    },
+    {
+      "id": "fox-sports",
+      "name": "Fox News",
+      "attribution": "Fox News",
+      "feedUrl": "https://moxie.foxnews.com/google-publisher/sports.xml",
+      "homepage": "https://www.foxnews.com/sports",
+      "category": "Sports",
+      "weight": 0.9,
+      "access": "official-rss"
     }
   ]
 }

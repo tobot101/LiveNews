@@ -15,7 +15,7 @@ const state = {
   mode: "auto",
   refresh: "10",
   refreshTimer: null,
-  feedLimit: "50",
+  feedLimit: "100",
   isLoggedIn: false,
   gpcDetected: false,
   maxAgeHours: 48,
@@ -1024,13 +1024,13 @@ function updateSectionHeaders(category, topCount, feedCount, feedTotal = feedCou
     feedTotal > feedCount ? `Showing ${feedCount} of ${feedTotal}` : `${feedCount} stories`;
   if (category === "Top") {
     elements.topStoriesTitle.textContent = "Top Stories";
-    elements.topStoriesTag.textContent = "Primary Focus";
+    elements.topStoriesTag.textContent = "Cross-source radar";
     elements.feedTitle.textContent = "Latest News Feed";
     elements.feedTag.textContent = `After Top Stories • ${feedNote}`;
     return;
   }
   elements.topStoriesTitle.textContent = `${category} Top Stories`;
-  elements.topStoriesTag.textContent = `${topCount} stories`;
+  elements.topStoriesTag.textContent = `${topCount} selected`;
   elements.feedTitle.textContent = `${category} News Feed`;
   elements.feedTag.textContent = feedNote;
 }
@@ -1121,8 +1121,9 @@ async function loadLocalNews({ force = false } = {}) {
     state.localLastFetched = Date.now();
     renderLocalFeed(state.localFeed);
     if (state.localFeed.length) {
+      const sourceCount = Number(data.sourceCount || 0);
       updateLocalStatus(
-        `Showing ${Math.min(state.localFeed.length, LOCAL_FEED_LIMIT)} of ${state.localFeed.length} local updates.`
+        `Showing ${Math.min(state.localFeed.length, LOCAL_FEED_LIMIT)} of ${state.localFeed.length} local updates${sourceCount ? ` from ${sourceCount} sources` : ""}.`
       );
     } else {
       updateLocalStatus("No local updates in the last 48 hours.");
@@ -1179,6 +1180,24 @@ function filterByCategory(items) {
   return items.filter((item) => item.category === state.category);
 }
 
+function sortStoryPool(items) {
+  return [...items].sort((a, b) => {
+    const sourceDiff = Number(b.sourceCount || 1) - Number(a.sourceCount || 1);
+    if (sourceDiff !== 0) return sourceDiff;
+    const scoreDiff = Number(b.score || 0) - Number(a.score || 0);
+    if (scoreDiff !== 0) return scoreDiff;
+    return new Date(b.publishedAt) - new Date(a.publishedAt);
+  });
+}
+
+function buildCategoryTopStories() {
+  if (state.category === "Top") {
+    return sortStoryPool(state.currentTopStories).slice(0, 8);
+  }
+  const pool = sortStoryPool(filterByCategory(state.currentFeed));
+  return pool.slice(0, 8);
+}
+
 function personalizeFeed(items) {
   if (!items.length) return items;
   return [...items].sort((a, b) => {
@@ -1193,8 +1212,9 @@ function getCategoryScore(category) {
 }
 
 function renderCurrent() {
-  const filteredTop = filterByCategory(state.currentTopStories);
-  let filteredFeed = filterByCategory(state.currentFeed);
+  const filteredTop = buildCategoryTopStories();
+  const topIds = new Set(filteredTop.map((item) => item.id).filter(Boolean));
+  let filteredFeed = filterByCategory(state.currentFeed).filter((item) => !topIds.has(item.id));
   if (state.consent.personalization) {
     filteredFeed = personalizeFeed(filteredFeed);
   }
@@ -1224,10 +1244,10 @@ function renderTopStories(items) {
     elements.topStories.appendChild(empty);
     return;
   }
-  const sorted = [...items].sort((a, b) => (b.score || 0) - (a.score || 0));
+  const sorted = sortStoryPool(items);
   sorted.forEach((item, index) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-    const sourceLabel = item.sourceName || item.source || "Source";
+    const sourceLabel = formatSourceLabel(item);
     const titleHtml = item.link
       ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
       : item.title;
@@ -1271,7 +1291,7 @@ function renderFeed(items) {
     list.className = "feed-section-list";
     group.items.forEach((item) => {
       const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-      const sourceLabel = item.sourceName || item.source || "Source";
+      const sourceLabel = formatSourceLabel(item);
       const titleHtml = item.link
         ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
         : item.title;
@@ -1333,6 +1353,13 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString();
+}
+
+function formatSourceLabel(item) {
+  const primary = item.sourceName || item.source || "Source";
+  const count = Number(item.sourceCount || 1);
+  if (count <= 1) return primary;
+  return `${primary} + ${count - 1} more`;
 }
 
 let seenObserver = null;
