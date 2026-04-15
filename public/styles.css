@@ -300,6 +300,18 @@ html[data-theme="night"] .brand {
   padding: 24px 32px 40px;
 }
 
+.layout.layout-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.main-col {
+  min-width: 0;
+}
+
+.home-local-panel {
+  margin-bottom: 16px;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);

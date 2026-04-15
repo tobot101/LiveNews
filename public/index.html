@@ -107,9 +107,36 @@
       </div>
     </header>
 
-    <main class="layout">
+    <main class="layout layout-single">
       <section class="main-col">
-        
+        <section class="panel local-panel home-local-panel">
+          <div class="panel-header">
+            <h3>Local News</h3>
+            <span class="tag">Location-aware</span>
+          </div>
+          <p class="panel-note" id="localNote">
+            Use my location when personalization is enabled, or enter your county/city.
+          </p>
+          <button class="btn" id="useLocation">Use my location</button>
+          <div class="local-input">
+            <input
+              type="text"
+              id="manualLocation"
+              placeholder="County or city"
+              aria-label="County or city"
+            />
+            <button class="btn ghost" id="setLocation">Set</button>
+          </div>
+          <div class="local-suggestions" id="localSuggestions"></div>
+          <div class="local-display" id="localDisplay">Local hub: not set</div>
+          <div class="local-deep">
+            <a class="btn ghost" id="localDeepDive" href="/local.html">Full local coverage</a>
+            <div class="local-deep-note">
+              Choose a city to open a full page with all local stories and search more places.
+            </div>
+          </div>
+        </section>
+
       <nav class="sections category-bar" id="sectionNav" aria-label="News sections">
         <button class="section-link active" type="button" data-category="Top" aria-pressed="true">
           Top
@@ -154,39 +181,6 @@
           <div class="feed" id="newsFeed"></div>
         </section>
       </section>
-
-      <aside class="rail">
-        <section class="panel local-panel">
-          <div class="panel-header">
-            <h3>Local News</h3>
-            <span class="tag">Location-aware</span>
-          </div>
-          <p class="panel-note" id="localNote">
-            Use my location when personalization is enabled, or enter your county/city.
-          </p>
-          <button class="btn" id="useLocation">Use my location</button>
-          <div class="local-input">
-            <input
-              type="text"
-              id="manualLocation"
-              placeholder="County or city"
-              aria-label="County or city"
-            />
-            <button class="btn ghost" id="setLocation">Set</button>
-          </div>
-          <div class="local-suggestions" id="localSuggestions"></div>
-          <div class="local-display" id="localDisplay">Local hub: not set</div>
-          <div class="local-feed" id="localFeed"></div>
-          <div class="local-status" id="localStatus">
-            Local stories update every 10 minutes and only show the last 48 hours.
-          </div>
-          <div class="local-deep">
-            <a class="btn ghost" id="localDeepDive" href="/local.html">Full local coverage</a>
-            <div class="local-deep-note">Open a dedicated page to browse 25 or 50 stories.</div>
-          </div>
-        </section>
-
-      </aside>
     </main>
 
     <footer class="footer">

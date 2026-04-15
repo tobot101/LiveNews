@@ -104,7 +104,6 @@ function init() {
   updateBrandShift();
   window.addEventListener("resize", updateBrandShift);
   loadNews({ force: true });
-  loadLocalNews({ force: true });
   startRefreshTimer();
   startAnalyticsTracking();
 }
@@ -279,13 +278,15 @@ function bindControls() {
   elements.setLocation.addEventListener("click", () => {
     const value = elements.manualLocation.value.trim();
     if (!value) return;
-    setLocalPlace({
-      name: value,
-      display: value,
-      state: "",
-      stateName: "",
-      geoid: "",
-    });
+    setLocalPlace(buildManualPlace(value), { navigate: true });
+  });
+
+  elements.manualLocation.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const value = elements.manualLocation.value.trim();
+    if (!value) return;
+    setLocalPlace(buildManualPlace(value), { navigate: true });
   });
 
   if (elements.loginBtn) {
@@ -340,11 +341,11 @@ function updateLocalControls() {
   if (state.consent.personalization) {
     elements.useLocation.disabled = false;
     elements.localNote.textContent =
-      "Use my location when personalization is enabled, or enter your county/city.";
+      "Use my location when personalization is enabled, or enter your county/city to open the full local page.";
   } else {
     elements.useLocation.disabled = true;
     elements.localNote.textContent =
-      "Enable personalization to use automatic location, or enter your county/city.";
+      "Enable personalization to use automatic location, or enter your county/city to open the full local page.";
   }
 }
 
@@ -423,7 +424,7 @@ function renderLocalSuggestions(results) {
       <span>${place.stateName || ""}</span>
     `;
     button.addEventListener("click", () => {
-      setLocalPlace(place);
+      setLocalPlace(place, { navigate: true });
       elements.manualLocation.value = place.display || `${place.name}, ${place.state}`;
       clearLocalSuggestions();
     });
@@ -436,7 +437,40 @@ function clearLocalSuggestions() {
   elements.localSuggestions.innerHTML = "";
 }
 
-function setLocalPlace(place) {
+function buildManualPlace(value) {
+  const raw = String(value || "").trim();
+  const commaMatch = raw.match(/^(.*?),\s*([A-Za-z]{2})$/);
+  if (commaMatch) {
+    const name = commaMatch[1].trim();
+    const state = commaMatch[2].toUpperCase();
+    return {
+      name,
+      display: `${name}, ${state}`,
+      state,
+      stateName: "",
+      geoid: "",
+    };
+  }
+  return {
+    name: raw,
+    display: raw,
+    state: "",
+    stateName: "",
+    geoid: "",
+  };
+}
+
+function navigateToLocalPage(place) {
+  const city = place?.name || place?.display;
+  if (!city) return;
+  const params = new URLSearchParams({ city });
+  if (place?.state) {
+    params.set("state", place.state);
+  }
+  window.location.href = `/local.html?${params.toString()}`;
+}
+
+function setLocalPlace(place, { navigate = false } = {}) {
   state.localPlace = place;
   if (place?.display) {
     elements.localDisplay.textContent = `Local hub: ${place.display}`;
@@ -450,8 +484,10 @@ function setLocalPlace(place) {
   } else {
     localStorage.removeItem("ln_local_place");
   }
-  loadLocalNews({ force: true });
   updateLocalDeepLink();
+  if (navigate) {
+    navigateToLocalPage(place);
+  }
 }
 
 async function findNearestPlace(lat, lon) {
@@ -461,7 +497,7 @@ async function findNearestPlace(lat, lon) {
     );
     const data = await response.json();
     if (data.place) {
-      setLocalPlace(data.place);
+      setLocalPlace(data.place, { navigate: true });
     } else {
       elements.localDisplay.textContent = "Local hub: location unavailable";
     }
@@ -1086,12 +1122,10 @@ async function loadNews({ force = false } = {}) {
       elements.lastUpdated.textContent =
         `Last updated: ${updated.toLocaleTimeString()}`;
     }
-    loadLocalNews();
   } catch (error) {
     if (elements.lastUpdated) {
       elements.lastUpdated.textContent = "Last updated: offline";
     }
-    updateLocalStatus("Local stories unavailable (offline).");
   }
 }
 
