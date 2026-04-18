@@ -545,6 +545,52 @@ html[data-theme="night"] .brand {
   align-items: start;
 }
 
+.home-local-panel {
+  padding: 16px 18px;
+}
+
+.home-local-panel .panel-header {
+  margin-bottom: 10px;
+}
+
+.home-local-panel .panel-note {
+  font-size: 11px;
+}
+
+.home-local-panel .local-panel-grid {
+  grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.48fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.home-local-panel .local-tools {
+  gap: 9px;
+}
+
+.home-local-panel .local-actions-row {
+  gap: 8px;
+}
+
+.home-local-panel .btn {
+  padding: 7px 12px;
+  font-size: 11px;
+  border-radius: 9px;
+}
+
+.home-local-panel .local-input input {
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.home-local-panel .local-display {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.home-local-panel .local-deep-note {
+  font-size: 10px;
+}
+
 .local-tools {
   display: grid;
   gap: 12px;
@@ -658,10 +704,29 @@ html[data-theme="night"] .brand {
   margin-top: 14px;
 }
 
+.home-local-panel .local-featured {
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.home-local-panel .local-featured h4 {
+  font-size: 15px;
+}
+
+.home-local-panel .local-featured .panel-note {
+  font-size: 10px;
+}
+
 .local-city-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+}
+
+.home-local-panel .local-city-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .local-city-link {
@@ -704,6 +769,22 @@ html[data-theme="night"] .brand {
   flex: 0 0 auto;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.home-local-panel .local-city-link {
+  gap: 8px;
+  padding: 8px 9px;
+  min-height: 40px;
+  border-radius: 9px;
+}
+
+.home-local-panel .local-city-name {
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.home-local-panel .local-city-state {
+  font-size: 10px;
 }
 
 .local-deep {
@@ -925,6 +1006,10 @@ html[data-theme="night"] .brand {
   .local-city-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .home-local-panel .local-city-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -938,5 +1023,13 @@ html[data-theme="night"] .brand {
 
   .local-input input {
     width: 100%;
+  }
+
+  .home-local-panel {
+    padding: 16px;
+  }
+
+  .home-local-panel .local-city-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
