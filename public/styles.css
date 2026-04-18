@@ -150,16 +150,25 @@ input:focus-visible {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 12px;
   color: var(--brand-base);
   text-shadow: 0 2px 12px var(--brand-glow);
   animation: brandSlide 11.5s ease-in-out infinite, brandHue 13s linear infinite;
   will-change: transform, filter, color;
 }
 
+.brand-mark {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(37, 99, 235, 0.14));
+}
+
 .brand-text {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 
@@ -785,6 +794,15 @@ html[data-theme="night"] .brand {
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .brand {
+    gap: 10px;
+  }
+
+  .brand-mark {
+    width: 46px;
+    height: 46px;
   }
 
   .layout {
