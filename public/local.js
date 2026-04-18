@@ -1,4 +1,7 @@
 const LOCAL_LIMIT_DEFAULT = "25";
+const TOP_US_CITIES = Array.isArray(window.LIVE_NEWS_TOP_CITIES)
+  ? window.LIVE_NEWS_TOP_CITIES
+  : [];
 
 const state = {
   limit: LOCAL_LIMIT_DEFAULT,
@@ -18,6 +21,8 @@ const elements = {
   feedList: document.getElementById("localFeedList"),
   limitControl: document.getElementById("localLimitControl"),
   feedTag: document.getElementById("localFeedTag"),
+  feedTitle: document.getElementById("localFeedTitle"),
+  topCityGrid: document.getElementById("localPageTopCityGrid"),
   modeControl: document.getElementById("modeControl"),
 };
 
@@ -27,11 +32,9 @@ function init() {
   hydrateLimit();
   hydrateFromQuery();
   hydrateFromStorage();
+  renderTopCities();
   updateBrandShift();
   window.addEventListener("resize", updateBrandShift);
-  if (state.place) {
-    loadLocalFeed({ force: true });
-  }
 }
 
 function hydrateLimit() {
@@ -241,11 +244,54 @@ function clearSuggestions() {
   elements.suggestions.innerHTML = "";
 }
 
+function getPlaceLabel(place) {
+  if (!place) return "not set";
+  return place.display || place.name || "not set";
+}
+
+function buildLocalPageHref(place) {
+  const city = place?.name || place?.display;
+  if (!city) return "/local.html";
+  const params = new URLSearchParams({ city });
+  if (place?.state) {
+    params.set("state", place.state);
+  }
+  return `/local.html?${params.toString()}`;
+}
+
+function isSamePlace(a, b) {
+  if (!a || !b) return false;
+  return String(a.name || "").toLowerCase() === String(b.name || "").toLowerCase() &&
+    String(a.state || "").toLowerCase() === String(b.state || "").toLowerCase();
+}
+
+function renderTopCities() {
+  if (!elements.topCityGrid) return;
+  elements.topCityGrid.innerHTML = "";
+  TOP_US_CITIES.forEach((place) => {
+    const link = document.createElement("a");
+    link.className = "local-city-link";
+    if (isSamePlace(place, state.place)) {
+      link.classList.add("active");
+    }
+    link.href = buildLocalPageHref(place);
+    link.innerHTML = `
+      <span class="local-city-name">${place.name}</span>
+      <span class="local-city-state">${place.state}</span>
+    `;
+    link.addEventListener("click", () => {
+      if (personalizationAllowed()) {
+        localStorage.setItem("ln_local_place", JSON.stringify(place));
+      }
+    });
+    elements.topCityGrid.appendChild(link);
+  });
+}
+
 function setPlace(place) {
   state.place = place;
   if (elements.display) {
-    const label = place?.display || place?.name || "not set";
-    elements.display.textContent = `Local hub: ${label}`;
+    elements.display.textContent = `Selected city: ${getPlaceLabel(place)}`;
   }
   if (elements.input && place?.display) {
     elements.input.value = place.display;
@@ -253,6 +299,8 @@ function setPlace(place) {
   if (personalizationAllowed()) {
     localStorage.setItem("ln_local_place", JSON.stringify(place));
   }
+  history.replaceState(null, "", buildLocalPageHref(place));
+  renderTopCities();
   loadLocalFeed({ force: true });
 }
 
@@ -316,10 +364,15 @@ function renderLocalFeed() {
   const total = state.feed.length;
   const limit = Number(state.limit) || 25;
   const limited = state.feed.slice(0, limit);
+  const placeLabel = getPlaceLabel(state.place);
 
   if (elements.feedTag) {
     elements.feedTag.textContent =
       total > 0 ? `Showing ${limited.length} of ${total}` : "No updates";
+  }
+  if (elements.feedTitle) {
+    elements.feedTitle.textContent =
+      placeLabel === "not set" ? "Local stories" : `Local stories for ${placeLabel}`;
   }
 
   if (!limited.length) {
@@ -362,7 +415,7 @@ function renderLocalFeed() {
   });
 
   if (total > 0) {
-    updateStatus(`Showing ${limited.length} of ${total} stories.`);
+    updateStatus(`Showing ${limited.length} of ${total} stories for ${placeLabel}.`);
   }
 }
 

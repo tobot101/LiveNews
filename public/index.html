@@ -114,27 +114,48 @@
         <section class="panel local-panel home-local-panel">
           <div class="panel-header">
             <h3>Local News</h3>
-            <span class="tag">Location-aware</span>
+            <span class="tag">Top 30 U.S. cities</span>
           </div>
           <p class="panel-note" id="localNote">
-            Use my location when personalization is enabled, or enter your county/city.
+            Open a dedicated local page for one of the biggest U.S. cities, use your
+            location, or search another city.
           </p>
-          <button class="btn" id="useLocation">Use my location</button>
-          <div class="local-input">
-            <input
-              type="text"
-              id="manualLocation"
-              placeholder="County or city"
-              aria-label="County or city"
-            />
-            <button class="btn ghost" id="setLocation">Set</button>
-          </div>
-          <div class="local-suggestions" id="localSuggestions"></div>
-          <div class="local-display" id="localDisplay">Local hub: not set</div>
-          <div class="local-deep">
-            <a class="btn ghost" id="localDeepDive" href="/local.html">Full local coverage</a>
-            <div class="local-deep-note">
-              Choose a city to open a full page with all local stories and search more places.
+          <div class="local-panel-grid">
+            <div class="local-tools">
+              <div class="local-actions-row">
+                <button class="btn" id="useLocation">Use my location</button>
+                <a class="btn ghost" id="localDeepDive" href="/local.html">Open local page</a>
+              </div>
+              <div class="local-input-wrap">
+                <div class="local-input">
+                  <input
+                    type="text"
+                    id="manualLocation"
+                    placeholder="Search any U.S. city or county"
+                    aria-label="Search any U.S. city or county"
+                  />
+                  <button class="btn ghost" id="setLocation">Set</button>
+                </div>
+                <div class="local-suggestions" id="localSuggestions"></div>
+              </div>
+              <div class="local-display" id="localDisplay">Selected city: not set</div>
+              <div class="local-deep">
+                <div class="local-deep-note">
+                  Every city opens a dedicated local page with 25 or 50 recent stories
+                  when available.
+                </div>
+              </div>
+            </div>
+            <div class="local-featured">
+              <div class="local-featured-head">
+                <div>
+                  <h4>Browse top U.S. cities</h4>
+                  <p class="panel-note">
+                    Click any city to open its own local browsing page.
+                  </p>
+                </div>
+              </div>
+              <div class="local-city-grid" id="topCityGrid"></div>
             </div>
           </div>
         </section>
@@ -194,6 +215,7 @@
       <button class="btn ghost" id="cookieSettings">Cookie settings</button>
     </footer>
 
+    <script src="top-cities.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

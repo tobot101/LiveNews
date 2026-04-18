@@ -41,26 +41,41 @@
           <div>
             <h2>Local News Deep Dive</h2>
             <p class="panel-note">
-              Pick a city to explore local coverage from the last 48 hours. Everything
-              links back to the original source.
+              Pick a city to explore local coverage from the last 48 hours. Use one of
+              the featured major cities or search another city below.
             </p>
           </div>
         </div>
         <div class="local-page-controls">
-          <button class="btn" id="localPageUseLocation">Use my location</button>
-          <div class="local-input">
-            <input
-              type="text"
-              id="localPageInput"
-              placeholder="City or county"
-              aria-label="City or county"
-            />
-            <button class="btn ghost" id="localPageSet">Set</button>
+          <div class="local-actions-row">
+            <button class="btn" id="localPageUseLocation">Use my location</button>
+          </div>
+          <div class="local-input-wrap">
+            <div class="local-input">
+              <input
+                type="text"
+                id="localPageInput"
+                placeholder="Search any U.S. city or county"
+                aria-label="Search any U.S. city or county"
+              />
+              <button class="btn ghost" id="localPageSet">Set</button>
+            </div>
+            <div class="local-suggestions" id="localPageSuggestions"></div>
           </div>
         </div>
-        <div class="local-suggestions" id="localPageSuggestions"></div>
-        <div class="local-display" id="localPageDisplay">Local hub: not set</div>
+        <div class="local-display" id="localPageDisplay">Selected city: not set</div>
         <div class="local-status" id="localPageStatus">Choose a city to get started.</div>
+        <div class="local-featured local-featured-page">
+          <div class="local-featured-head">
+            <div>
+              <h3>Browse top U.S. cities</h3>
+              <p class="panel-note">
+                Switch to one of the 30 biggest U.S. cities with one click.
+              </p>
+            </div>
+          </div>
+          <div class="local-city-grid" id="localPageTopCityGrid"></div>
+        </div>
       </section>
 
       <section class="panel">
@@ -90,6 +105,7 @@
       </div>
     </footer>
 
+    <script src="top-cities.js"></script>
     <script src="local.js"></script>
   </body>
 </html>

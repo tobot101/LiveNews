@@ -117,6 +117,7 @@ const cache = {
 };
 
 let placesIndex = [];
+const stateNameByCode = new Map();
 let placesMeta = {
   source: "",
   sourceUrl: "",
@@ -138,17 +139,24 @@ function loadPlaces() {
   try {
     const raw = fs.readFileSync(placesPath, "utf8");
     const parsed = JSON.parse(raw);
+    stateNameByCode.clear();
     placesMeta = {
       source: parsed.source || "",
       sourceUrl: parsed.sourceUrl || "",
       totalPlaces: parsed.totalPlaces || 0,
     };
-    placesIndex = (parsed.places || []).map((place) => ({
-      ...place,
-      search: `${place.display} ${place.officialName} ${place.stateName}`.toLowerCase(),
-    }));
+    placesIndex = (parsed.places || []).map((place) => {
+      if (place.state && place.stateName && !stateNameByCode.has(place.state)) {
+        stateNameByCode.set(place.state, place.stateName);
+      }
+      return {
+        ...place,
+        search: `${place.display} ${place.officialName} ${place.stateName}`.toLowerCase(),
+      };
+    });
   } catch (error) {
     placesIndex = [];
+    stateNameByCode.clear();
     placesMeta = { source: "", sourceUrl: "", totalPlaces: 0 };
   }
 }
@@ -507,12 +515,16 @@ function isBlockedLocalItem({ title, sourceName, link }) {
 function buildLocalQueryVariants(city, state) {
   const cleanedCity = String(city || "").trim();
   const cleanedState = String(state || "").trim();
-  const variants = [
+  const stateName = stateNameByCode.get(cleanedState) || "";
+  const baseVariants = [
     [cleanedCity, cleanedState].filter(Boolean).join(" "),
     [cleanedCity, cleanedState, "local news"].filter(Boolean).join(" "),
+    [cleanedCity, stateName, "local news"].filter(Boolean).join(" "),
     `"${cleanedCity}" ${cleanedState}`.trim(),
-  ];
-  return Array.from(new Set(variants.map((value) => value.trim()).filter(Boolean)));
+    `"${cleanedCity}" ${stateName}`.trim(),
+  ].map((value) => value.trim()).filter(Boolean);
+  const withRecency = baseVariants.slice(0, 4).map((value) => `${value} when:2d`);
+  return Array.from(new Set([...baseVariants, ...withRecency]));
 }
 
 async function fetchLocalNews(city, state) {

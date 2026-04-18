@@ -8,6 +8,9 @@ const ANON_ID_DAYS = 90;
 const PROFILE_TTL_DAYS = 30;
 const ANALYTICS_TTL_DAYS = 30;
 const LOCAL_FEED_LIMIT = 6;
+const TOP_US_CITIES = Array.isArray(window.LIVE_NEWS_TOP_CITIES)
+  ? window.LIVE_NEWS_TOP_CITIES
+  : [];
 
 const state = {
   consent: { ...CONSENT_DEFAULT },
@@ -78,6 +81,7 @@ const elements = {
   setLocation: document.getElementById("setLocation"),
   localSuggestions: document.getElementById("localSuggestions"),
   localDisplay: document.getElementById("localDisplay"),
+  topCityGrid: document.getElementById("topCityGrid"),
   localFeed: document.getElementById("localFeed"),
   localStatus: document.getElementById("localStatus"),
   localDeepDive: document.getElementById("localDeepDive"),
@@ -97,6 +101,7 @@ function init() {
   hydrateAnalytics();
   hydrateLocalPlace();
   bindControls();
+  renderTopCities();
   updateTimeZoneLabel();
   updateLocalControls();
   updateLocalDeepLink();
@@ -167,10 +172,10 @@ function hydrateLocalPlace() {
   if (!stored) return;
   try {
     state.localPlace = JSON.parse(stored);
-    if (state.localPlace?.display) {
+    if (state.localPlace?.display && elements.manualLocation) {
       elements.manualLocation.value = state.localPlace.display;
-      elements.localDisplay.textContent = `Local hub: ${state.localPlace.display}`;
     }
+    syncLocalDisplay(state.localPlace);
   } catch {
     state.localPlace = null;
   }
@@ -252,7 +257,7 @@ function bindControls() {
   elements.useLocation.addEventListener("click", () => {
     if (!state.consent.personalization) return;
     if (!navigator.geolocation) {
-      elements.localDisplay.textContent = "Local hub: geolocation unavailable";
+      elements.localDisplay.textContent = "Selected city: geolocation unavailable";
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -261,7 +266,7 @@ function bindControls() {
         findNearestPlace(latitude, longitude);
       },
       () => {
-        elements.localDisplay.textContent = "Local hub: location denied";
+        elements.localDisplay.textContent = "Selected city: location denied";
       }
     );
   });
@@ -341,24 +346,18 @@ function updateLocalControls() {
   if (state.consent.personalization) {
     elements.useLocation.disabled = false;
     elements.localNote.textContent =
-      "Use my location when personalization is enabled, or enter your county/city to open the full local page.";
+      "Pick one of the top cities, use my location, or search another city to open its dedicated local page.";
   } else {
     elements.useLocation.disabled = true;
     elements.localNote.textContent =
-      "Enable personalization to use automatic location, or enter your county/city to open the full local page.";
+      "Pick one of the top cities or search another city. Enable personalization only if you want automatic location.";
   }
 }
 
 function updateLocalDeepLink() {
   if (!elements.localDeepDive) return;
   if (state.localPlace && (state.localPlace.name || state.localPlace.display)) {
-    const city = state.localPlace.name || state.localPlace.display;
-    const stateCode = state.localPlace.state || "";
-    const params = new URLSearchParams({ city });
-    if (stateCode) {
-      params.set("state", stateCode);
-    }
-    elements.localDeepDive.href = `/local.html?${params.toString()}`;
+    elements.localDeepDive.href = buildLocalPageHref(state.localPlace);
     elements.localDeepDive.classList.remove("disabled");
   } else {
     elements.localDeepDive.href = "/local.html";
@@ -437,6 +436,16 @@ function clearLocalSuggestions() {
   elements.localSuggestions.innerHTML = "";
 }
 
+function getLocalPlaceLabel(place) {
+  if (!place) return "not set";
+  return place.display || place.name || "not set";
+}
+
+function syncLocalDisplay(place) {
+  if (!elements.localDisplay) return;
+  elements.localDisplay.textContent = `Selected city: ${getLocalPlaceLabel(place)}`;
+}
+
 function buildManualPlace(value) {
   const raw = String(value || "").trim();
   const commaMatch = raw.match(/^(.*?),\s*([A-Za-z]{2})$/);
@@ -460,31 +469,61 @@ function buildManualPlace(value) {
   };
 }
 
-function navigateToLocalPage(place) {
+function buildLocalPageHref(place) {
   const city = place?.name || place?.display;
-  if (!city) return;
+  if (!city) return "/local.html";
   const params = new URLSearchParams({ city });
   if (place?.state) {
     params.set("state", place.state);
   }
-  window.location.href = `/local.html?${params.toString()}`;
+  return `/local.html?${params.toString()}`;
+}
+
+function navigateToLocalPage(place) {
+  const city = place?.name || place?.display;
+  if (!city) return;
+  window.location.href = buildLocalPageHref(place);
+}
+
+function isSamePlace(a, b) {
+  if (!a || !b) return false;
+  return String(a.name || "").toLowerCase() === String(b.name || "").toLowerCase() &&
+    String(a.state || "").toLowerCase() === String(b.state || "").toLowerCase();
+}
+
+function renderTopCities() {
+  if (!elements.topCityGrid) return;
+  elements.topCityGrid.innerHTML = "";
+  TOP_US_CITIES.forEach((place) => {
+    const link = document.createElement("a");
+    link.className = "local-city-link";
+    if (isSamePlace(place, state.localPlace)) {
+      link.classList.add("active");
+    }
+    link.href = buildLocalPageHref(place);
+    link.innerHTML = `
+      <span class="local-city-name">${place.name}</span>
+      <span class="local-city-state">${place.state}</span>
+    `;
+    link.addEventListener("click", () => {
+      if (state.consent.personalization) {
+        localStorage.setItem("ln_local_place", JSON.stringify(place));
+      }
+    });
+    elements.topCityGrid.appendChild(link);
+  });
 }
 
 function setLocalPlace(place, { navigate = false } = {}) {
   state.localPlace = place;
-  if (place?.display) {
-    elements.localDisplay.textContent = `Local hub: ${place.display}`;
-  } else if (place?.name) {
-    elements.localDisplay.textContent = `Local hub: ${place.name}`;
-  } else {
-    elements.localDisplay.textContent = "Local hub: not set";
-  }
+  syncLocalDisplay(place);
   if (state.consent.personalization) {
     localStorage.setItem("ln_local_place", JSON.stringify(place));
   } else {
     localStorage.removeItem("ln_local_place");
   }
   updateLocalDeepLink();
+  renderTopCities();
   if (navigate) {
     navigateToLocalPage(place);
   }
@@ -499,10 +538,12 @@ async function findNearestPlace(lat, lon) {
     if (data.place) {
       setLocalPlace(data.place, { navigate: true });
     } else {
-      elements.localDisplay.textContent = "Local hub: location unavailable";
+      elements.localDisplay.textContent = "Selected city: no nearby city found";
     }
   } catch (error) {
-    elements.localDisplay.textContent = "Local hub: location lookup failed";
+    if (elements.localDisplay) {
+      elements.localDisplay.textContent = "Selected city: location lookup failed";
+    }
   }
 }
 
@@ -645,9 +686,7 @@ function applyConsentEffects(personalizationChanged = false, analyticsChanged = 
       if (elements.manualLocation) {
         elements.manualLocation.value = "";
       }
-      if (elements.localDisplay) {
-        elements.localDisplay.textContent = "Local hub: not set";
-      }
+      syncLocalDisplay(null);
       renderLocalFeed([]);
       updateLocalStatus("Choose a city to see local stories.");
       localStorage.removeItem("ln_seen");
@@ -657,6 +696,7 @@ function applyConsentEffects(personalizationChanged = false, analyticsChanged = 
   }
 
   updateLocalDeepLink();
+  renderTopCities();
 
   if (analyticsChanged) {
     if (state.consent.analytics) {
