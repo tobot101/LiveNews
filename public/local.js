@@ -74,7 +74,9 @@ function updateBrandShift() {
   const limitRect = limit ? limit.getBoundingClientRect() : null;
   const containerRect = topbar ? topbar.getBoundingClientRect() : null;
   let maxShift = 0;
-  if (limitRect) {
+  const controlsShareRow =
+    limitRect && Math.abs(limitRect.top - brandRect.top) < Math.max(brandRect.height, 40);
+  if (limitRect && controlsShareRow) {
     maxShift = Math.max(0, Math.floor(limitRect.left - brandRect.right - 16));
   } else if (containerRect) {
     maxShift = Math.max(0, Math.floor(containerRect.right - brandRect.right - 16));

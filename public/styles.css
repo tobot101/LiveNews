@@ -1062,6 +1062,7 @@ html[data-theme="night"] .brand {
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+    padding: 16px 20px;
   }
 
   .brand {
@@ -1079,9 +1080,14 @@ html[data-theme="night"] .brand {
 
   .controls {
     flex-wrap: wrap;
+    width: 100%;
   }
 
   .local-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-local-panel .local-panel-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1095,6 +1101,23 @@ html[data-theme="night"] .brand {
 }
 
 @media (max-width: 720px) {
+  .topbar {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .controls {
+    gap: 12px;
+  }
+
+  .control {
+    width: 100%;
+  }
+
+  .segmented {
+    max-width: 100%;
+  }
+
   .local-city-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1116,7 +1139,15 @@ html[data-theme="night"] .brand {
     padding: 16px;
   }
 
+  .home-local-panel .local-panel-grid {
+    gap: 10px;
+  }
+
   .home-local-panel .local-city-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-local-panel .local-featured {
+    padding: 10px;
   }
 }
