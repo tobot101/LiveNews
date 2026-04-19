@@ -7,7 +7,7 @@ const CONSENT_DEFAULT = {
 const ANON_ID_DAYS = 90;
 const PROFILE_TTL_DAYS = 30;
 const ANALYTICS_TTL_DAYS = 30;
-const LOCAL_FEED_LIMIT = 6;
+const LOCAL_PREVIEW_LIMIT = 3;
 const TOP_US_CITIES = Array.isArray(window.LIVE_NEWS_TOP_CITIES)
   ? window.LIVE_NEWS_TOP_CITIES
   : [];
@@ -82,6 +82,7 @@ const elements = {
   localSuggestions: document.getElementById("localSuggestions"),
   localDisplay: document.getElementById("localDisplay"),
   topCityGrid: document.getElementById("topCityGrid"),
+  localPreviewTitle: document.getElementById("localPreviewTitle"),
   localFeed: document.getElementById("localFeed"),
   localStatus: document.getElementById("localStatus"),
   localDeepDive: document.getElementById("localDeepDive"),
@@ -109,6 +110,7 @@ function init() {
   updateBrandShift();
   window.addEventListener("resize", updateBrandShift);
   loadNews({ force: true });
+  loadLocalNews({ force: true });
   startRefreshTimer();
   startAnalyticsTracking();
 }
@@ -176,6 +178,7 @@ function hydrateLocalPlace() {
       elements.manualLocation.value = state.localPlace.display;
     }
     syncLocalDisplay(state.localPlace);
+    syncLocalPreviewTitle(state.localPlace);
   } catch {
     state.localPlace = null;
   }
@@ -283,7 +286,7 @@ function bindControls() {
   elements.setLocation.addEventListener("click", () => {
     const value = elements.manualLocation.value.trim();
     if (!value) return;
-    setLocalPlace(buildManualPlace(value), { navigate: true });
+    setLocalPlace(buildManualPlace(value));
   });
 
   elements.manualLocation.addEventListener("keydown", (event) => {
@@ -291,7 +294,7 @@ function bindControls() {
     event.preventDefault();
     const value = elements.manualLocation.value.trim();
     if (!value) return;
-    setLocalPlace(buildManualPlace(value), { navigate: true });
+    setLocalPlace(buildManualPlace(value));
   });
 
   if (elements.loginBtn) {
@@ -346,11 +349,11 @@ function updateLocalControls() {
   if (state.consent.personalization) {
     elements.useLocation.disabled = false;
     elements.localNote.textContent =
-      "Pick one of the top cities, use my location, or search another city to open its dedicated local page.";
+      "Pick one of the top cities, use my location, or search another city to preview local coverage before opening the full page.";
   } else {
     elements.useLocation.disabled = true;
     elements.localNote.textContent =
-      "Pick one of the top cities or search another city. Enable personalization only if you want automatic location.";
+      "Pick one of the top cities or search another city to preview local coverage. Enable personalization only if you want automatic location.";
   }
 }
 
@@ -361,7 +364,7 @@ function updateLocalDeepLink() {
     elements.localDeepDive.classList.remove("disabled");
   } else {
     elements.localDeepDive.href = "/local.html";
-    elements.localDeepDive.classList.remove("disabled");
+    elements.localDeepDive.classList.add("disabled");
   }
 }
 
@@ -423,7 +426,7 @@ function renderLocalSuggestions(results) {
       <span>${place.stateName || ""}</span>
     `;
     button.addEventListener("click", () => {
-      setLocalPlace(place, { navigate: true });
+      setLocalPlace(place);
       elements.manualLocation.value = place.display || `${place.name}, ${place.state}`;
       clearLocalSuggestions();
     });
@@ -444,6 +447,13 @@ function getLocalPlaceLabel(place) {
 function syncLocalDisplay(place) {
   if (!elements.localDisplay) return;
   elements.localDisplay.textContent = `Selected city: ${getLocalPlaceLabel(place)}`;
+}
+
+function syncLocalPreviewTitle(place) {
+  if (!elements.localPreviewTitle) return;
+  const label = getLocalPlaceLabel(place);
+  elements.localPreviewTitle.textContent =
+    label === "not set" ? "Quick preview" : `${label} preview`;
 }
 
 function buildManualPlace(value) {
@@ -495,38 +505,37 @@ function renderTopCities() {
   if (!elements.topCityGrid) return;
   elements.topCityGrid.innerHTML = "";
   TOP_US_CITIES.forEach((place) => {
-    const link = document.createElement("a");
+    const link = document.createElement("button");
+    link.type = "button";
     link.className = "local-city-link";
     if (isSamePlace(place, state.localPlace)) {
       link.classList.add("active");
     }
-    link.href = buildLocalPageHref(place);
     link.innerHTML = `
       <span class="local-city-name">${place.name}</span>
       <span class="local-city-state">${place.state}</span>
     `;
-    link.addEventListener("click", () => {
-      if (state.consent.personalization) {
-        localStorage.setItem("ln_local_place", JSON.stringify(place));
-      }
-    });
+    link.addEventListener("click", () => setLocalPlace(place));
     elements.topCityGrid.appendChild(link);
   });
 }
 
-function setLocalPlace(place, { navigate = false } = {}) {
+function setLocalPlace(place) {
   state.localPlace = place;
   syncLocalDisplay(place);
+  syncLocalPreviewTitle(place);
+  if (elements.manualLocation && place?.display) {
+    elements.manualLocation.value = place.display;
+  }
   if (state.consent.personalization) {
     localStorage.setItem("ln_local_place", JSON.stringify(place));
   } else {
     localStorage.removeItem("ln_local_place");
   }
+  state.localLastFetched = 0;
   updateLocalDeepLink();
   renderTopCities();
-  if (navigate) {
-    navigateToLocalPage(place);
-  }
+  loadLocalNews({ force: true });
 }
 
 async function findNearestPlace(lat, lon) {
@@ -536,7 +545,7 @@ async function findNearestPlace(lat, lon) {
     );
     const data = await response.json();
     if (data.place) {
-      setLocalPlace(data.place, { navigate: true });
+      setLocalPlace(data.place);
     } else {
       elements.localDisplay.textContent = "Selected city: no nearby city found";
     }
@@ -687,8 +696,11 @@ function applyConsentEffects(personalizationChanged = false, analyticsChanged = 
         elements.manualLocation.value = "";
       }
       syncLocalDisplay(null);
+      syncLocalPreviewTitle(null);
+      state.localFeed = [];
+      state.localLastFetched = 0;
       renderLocalFeed([]);
-      updateLocalStatus("Choose a city to see local stories.");
+      updateLocalStatus("Select a city to preview local stories before opening the full page.");
       localStorage.removeItem("ln_seen");
       localStorage.removeItem("ln_profile");
       localStorage.removeItem("ln_local_place");
@@ -1172,10 +1184,12 @@ async function loadNews({ force = false } = {}) {
 async function loadLocalNews({ force = false } = {}) {
   if (!elements.localFeed || !elements.localStatus) return;
   if (!state.localPlace || !state.localPlace.name) {
+    syncLocalPreviewTitle(null);
     renderLocalFeed([]);
-    updateLocalStatus("Choose a city to see local stories.");
+    updateLocalStatus("Select a city to preview local stories before opening the full page.");
     return;
   }
+  syncLocalPreviewTitle(state.localPlace);
   const now = Date.now();
   const refreshMs = Number(state.refresh) * 60 * 1000 || 10 * 60 * 1000;
   if (!force && now - state.localLastFetched < refreshMs) {
@@ -1197,10 +1211,10 @@ async function loadLocalNews({ force = false } = {}) {
     if (state.localFeed.length) {
       const sourceCount = Number(data.sourceCount || 0);
       updateLocalStatus(
-        `Showing ${Math.min(state.localFeed.length, LOCAL_FEED_LIMIT)} of ${state.localFeed.length} local updates${sourceCount ? ` from ${sourceCount} sources` : ""}.`
+        `Showing ${Math.min(state.localFeed.length, LOCAL_PREVIEW_LIMIT)} preview stories${sourceCount ? ` from ${sourceCount} sources` : ""}.`
       );
     } else {
-      updateLocalStatus("No local updates in the last 48 hours.");
+      updateLocalStatus("No local updates in the last 48 hours. Try the full page for a broader view.");
     }
   } catch (error) {
     renderLocalFeed([]);
@@ -1221,11 +1235,13 @@ function renderLocalFeed(items) {
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "local-item";
-    empty.textContent = "No local stories yet.";
+    empty.textContent = state.localPlace
+      ? "No preview stories available right now."
+      : "Select a city to load a quick local preview.";
     elements.localFeed.appendChild(empty);
     return;
   }
-  const limited = items.slice(0, LOCAL_FEED_LIMIT);
+  const limited = items.slice(0, LOCAL_PREVIEW_LIMIT);
   limited.forEach((item) => {
     const card = document.createElement("div");
     card.className = "local-item";
@@ -1237,7 +1253,6 @@ function renderLocalFeed(items) {
     card.innerHTML = `
       <div class="feed-title">${titleHtml}</div>
       <div class="feed-meta">${sourceLabel} • ${published}</div>
-      ${item.summary ? `<div class="local-summary">${item.summary}</div>` : ""}
     `;
     elements.localFeed.appendChild(card);
   });

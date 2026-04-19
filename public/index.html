@@ -124,7 +124,6 @@
             <div class="local-tools">
               <div class="local-actions-row">
                 <button class="btn" id="useLocation">Use my location</button>
-                <a class="btn ghost" id="localDeepDive" href="/local.html">Open local page</a>
               </div>
               <div class="local-input-wrap">
                 <div class="local-input">
@@ -139,10 +138,24 @@
                 <div class="local-suggestions" id="localSuggestions"></div>
               </div>
               <div class="local-display" id="localDisplay">Selected city: not set</div>
+              <section class="local-preview-card">
+                <div class="local-preview-head">
+                  <div>
+                    <h4 id="localPreviewTitle">Quick preview</h4>
+                    <div class="local-status" id="localStatus">
+                      Select a city to preview local stories before opening the full page.
+                    </div>
+                  </div>
+                  <a class="btn local-preview-cta disabled" id="localDeepDive" href="/local.html">
+                    Open full page
+                  </a>
+                </div>
+                <div class="local-feed local-preview-feed" id="localFeed"></div>
+              </section>
               <div class="local-deep">
                 <div class="local-deep-note">
-                  Every city opens a dedicated local page with 25 or 50 recent stories
-                  when available.
+                  Preview a city here, then open the full local page for 25 or 50 recent
+                  stories when available.
                 </div>
               </div>
             </div>
@@ -151,7 +164,7 @@
                 <div>
                   <h4>Browse top U.S. cities</h4>
                   <p class="panel-note">
-                    Click any city to open its own local browsing page.
+                    Select any city to load a quick preview on the left.
                   </p>
                 </div>
               </div>
