@@ -6,6 +6,21 @@ const Parser = require("rss-parser");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const SECURITY_HEADERS = {
+  "Permissions-Policy": "geolocation=(self), camera=(), microphone=(), payment=()",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+};
+
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.removeHeader("X-Powered-By");
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    res.setHeader(name, value);
+  }
+  next();
+});
 
 const sourcesPath = path.join(__dirname, "data", "sources.json");
 const fallbackPath = path.join(__dirname, "data", "news.json");
