@@ -319,13 +319,64 @@ function extractMetaImageUrl(html, baseUrl) {
     /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
     /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["'][^>]*>/i,
     /<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<link[^>]+rel=["'][^"']*image_src[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>/i,
+    /<link[^>]+href=["']([^"']+)["'][^>]+rel=["'][^"']*image_src[^"']*["'][^>]*>/i,
   ];
   for (const pattern of patterns) {
     const match = html.match(pattern);
     const resolved = resolveImageUrl(match?.[1], baseUrl);
     if (resolved) return resolved;
   }
+  const jsonLdImage = extractJsonLdImageUrl(html, baseUrl);
+  if (jsonLdImage) return jsonLdImage;
   return extractImageFromHtml(html);
+}
+
+function collectImageValue(value, baseUrl, bucket) {
+  if (!value) return;
+  if (typeof value === "string") {
+    const resolved = resolveImageUrl(value, baseUrl);
+    if (resolved) bucket.push(resolved);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectImageValue(entry, baseUrl, bucket));
+    return;
+  }
+  if (typeof value === "object") {
+    collectImageValue(value.url || value.contentUrl || value["@id"], baseUrl, bucket);
+  }
+}
+
+function collectJsonLdImages(value, baseUrl, bucket) {
+  if (!value) return;
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectJsonLdImages(entry, baseUrl, bucket));
+    return;
+  }
+  if (typeof value !== "object") return;
+  collectImageValue(value.image, baseUrl, bucket);
+  collectImageValue(value.thumbnailUrl, baseUrl, bucket);
+  collectImageValue(value.primaryImageOfPage, baseUrl, bucket);
+  collectJsonLdImages(value["@graph"], baseUrl, bucket);
+}
+
+function extractJsonLdImageUrl(html, baseUrl) {
+  const matches = html.matchAll(
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  );
+  const candidates = [];
+  for (const match of matches) {
+    const raw = decodeHtmlAttribute(match[1]).trim();
+    if (!raw) continue;
+    try {
+      collectJsonLdImages(JSON.parse(raw), baseUrl, candidates);
+    } catch {
+      continue;
+    }
+    if (candidates.length) break;
+  }
+  return candidates.find(Boolean) || "";
 }
 
 async function fetchArticleImageUrl(link) {
@@ -362,20 +413,46 @@ async function fetchArticleImageUrl(link) {
   }
 }
 
-async function hydrateArticleImages(items) {
+function getImageLookupLinks(item) {
+  const links = [
+    item.link,
+    item.originalSourceUrl,
+    ...(item.supportingLinks || []).map((source) => source.link),
+  ]
+    .map(normalizeImageUrl)
+    .filter(Boolean);
+  return Array.from(new Set(links)).slice(0, 4);
+}
+
+async function findArticleImageForItem(item) {
+  for (const link of getImageLookupLinks(item)) {
+    const imageUrl = await fetchArticleImageUrl(link);
+    if (imageUrl) {
+      return {
+        imageUrl,
+        imageSourceUrl: link,
+      };
+    }
+  }
+  return null;
+}
+
+async function hydrateArticleImages(items, options = {}) {
   if (!IMAGE_LOOKUP_LIMIT || !items.length) return;
+  const limit = Math.max(1, Number(options.limit || IMAGE_LOOKUP_LIMIT));
   const targets = items
     .filter((item) => item && !item.imageUrl && item.link)
-    .slice(0, IMAGE_LOOKUP_LIMIT);
+    .slice(0, limit);
   let cursor = 0;
   const workers = Array.from({ length: Math.min(IMAGE_LOOKUP_CONCURRENCY, targets.length) }, async () => {
     while (cursor < targets.length) {
       const item = targets[cursor];
       cursor += 1;
-      const imageUrl = await fetchArticleImageUrl(item.link);
-      if (imageUrl) {
-        item.imageUrl = imageUrl;
+      const found = await findArticleImageForItem(item);
+      if (found?.imageUrl) {
+        item.imageUrl = found.imageUrl;
         item.imageSource = "article_meta";
+        item.imageSourceUrl = found.imageSourceUrl;
       }
     }
   });
@@ -875,7 +952,7 @@ function summarizeSearchResult(item) {
   return buildSummary(summary, 180);
 }
 
-function searchCurrentNews(query, limit = 30) {
+async function searchCurrentNews(query, limit = 30) {
   const cleanQuery = String(query || "").trim();
   const tokens = tokenizeSearchQuery(cleanQuery);
   if (!cleanQuery || tokens.length === 0) {
@@ -919,10 +996,15 @@ function searchCurrentNews(query, limit = 30) {
         new Date(b.item.publishedAt || 0) - new Date(a.item.publishedAt || 0)
     );
 
+  const limitedScored = scored.slice(0, limit);
+  await hydrateArticleImages(limitedScored.map(({ item }) => item), {
+    limit: Math.min(limit, IMAGE_LOOKUP_LIMIT),
+  });
+
   return {
     query: cleanQuery,
     count: scored.length,
-    items: scored.slice(0, limit).map(({ item, relevance }) => ({
+    items: limitedScored.map(({ item, relevance }) => ({
       id: item.id,
       title: item.liveNewsHeadline || item.title,
       summary: summarizeSearchResult(item),
@@ -933,6 +1015,8 @@ function searchCurrentNews(query, limit = 30) {
       link: item.link || "",
       liveNewsUrl: item.approvedStoryUrl || item.liveNewsUrl || "",
       imageUrl: item.imageUrl || item.thumbnailUrl || "",
+      imageSource: item.imageSource || "",
+      imageSourceUrl: item.imageSourceUrl || "",
       hasLiveNewsStory: Boolean(item.hasLiveNewsStory || item.approvedStoryUrl || item.liveNewsUrl),
       relevance,
     })),
@@ -1050,11 +1134,12 @@ app.get("/api/news", (req, res) => {
   res.json(buildCurrentNewsPayload());
 });
 
-app.get("/api/search", (req, res) => {
+app.get("/api/search", async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit || 30), 1), 75);
+  const results = await searchCurrentNews(req.query.q, limit);
   res.json({
     updatedAt: new Date().toISOString(),
-    ...searchCurrentNews(req.query.q, limit),
+    ...results,
   });
 });
 
