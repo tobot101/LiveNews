@@ -11,6 +11,7 @@ const {
   readApprovedStore,
 } = require("./lib/article-agents/approved-stories");
 const { runArticleAgents } = require("./lib/article-agents/pipeline");
+const { applyLiveNewsSummary } = require("./lib/article-agents/summary-agent");
 const {
   absoluteUrl,
   escapeHtml,
@@ -903,7 +904,7 @@ function finalizeCluster(cluster) {
   const coverageBoost = Math.min(6, Math.max(0, sourceNames.length - 1) * 2);
   const score = clamp(Math.round(lead.baseScore + coverageBoost), 70, 100);
 
-  return {
+  return applyLiveNewsSummary({
     id: lead.id,
     title: lead.title,
     link: lead.link,
@@ -921,7 +922,7 @@ function finalizeCluster(cluster) {
     relatedSources: sourceNames,
     supportingLinks: items.slice(0, 6).map(serializeSupportLink),
     summary: lead.summary || "",
-  };
+  });
 }
 
 function dedupeItems(items) {
@@ -1219,10 +1220,18 @@ function refreshNewsSafely() {
   });
 }
 
+function applyLiveNewsSummariesToPayload(payload) {
+  return {
+    ...payload,
+    topStories: (payload.topStories || []).map(applyLiveNewsSummary),
+    feed: (payload.feed || []).map(applyLiveNewsSummary),
+  };
+}
+
 function buildCurrentNewsPayload() {
   if (!cache.lastUpdated) {
     const fallback = loadFallback();
-    return enrichNewsPayloadWithApprovedStories({
+    return enrichNewsPayloadWithApprovedStories(applyLiveNewsSummariesToPayload({
       updatedAt: new Date().toISOString(),
       maxAgeHours: MAX_AGE_HOURS,
       fallback: true,
@@ -1231,10 +1240,10 @@ function buildCurrentNewsPayload() {
         feed: FEED_LIMIT,
       },
       ...fallback,
-    });
+    }));
   }
 
-  return enrichNewsPayloadWithApprovedStories({
+  return enrichNewsPayloadWithApprovedStories(applyLiveNewsSummariesToPayload({
     updatedAt: cache.lastUpdated,
     maxAgeHours: MAX_AGE_HOURS,
     fallback: false,
@@ -1247,7 +1256,7 @@ function buildCurrentNewsPayload() {
     sourceErrors: cache.sourceErrors,
     sourceMix: cache.sourceMix,
     configuredSources: cache.configuredSources,
-  });
+  }));
 }
 
 function getUniqueCurrentNewsItems(payload = buildCurrentNewsPayload()) {

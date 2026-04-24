@@ -151,7 +151,7 @@ function renderResultCard(item) {
           ${item.hasLiveNewsStory ? "<span>Live News page</span>" : "<span>Source result</span>"}
         </div>
         <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(item.title || "Untitled story")}</a></h2>
-        <p>${escapeHtml(item.summary || "Live News found this result in recent source-linked coverage.")}</p>
+        <p>${escapeHtml(getResultSummary(item))}</p>
         <div class="story-meta">${escapeHtml(item.sourceName || "Source")} • ${escapeHtml(time)}</div>
         <div class="story-actions">
           ${
@@ -168,6 +168,13 @@ function renderResultCard(item) {
       </div>
     </article>
   `;
+}
+
+function getResultSummary(item) {
+  if (item.summary) return item.summary;
+  const title = item.title || `${item.category || "Top"} story`;
+  const source = item.sourceName || item.sourceDomain || "The lead source";
+  return `Coverage centers on ${title}. ${source} is the lead source for confirmed details.`;
 }
 
 function buildCategoryVisual(item) {

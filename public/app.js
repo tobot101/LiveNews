@@ -1551,10 +1551,10 @@ function getDisplayTitle(item) {
 function getDisplaySummary(item, maxLength = 210) {
   if (item.liveNewsSummary) return truncateText(item.liveNewsSummary, maxLength);
   const source = formatSourceLabel(item);
-  const category = item.category || "Top";
-  const published = item.publishedAt ? formatTime(item.publishedAt) : "recently";
+  const title = getDisplayTitle(item);
+  if (item.summary) return truncateText(item.summary, maxLength);
   return truncateText(
-    `Live News is tracking this ${category.toLowerCase()} story from ${source}. It was updated ${published}, and the original source remains available for full reporting while a Live News page is reviewed.`,
+    `Coverage centers on ${title}. ${source} is the lead source for confirmed details.`,
     maxLength
   );
 }
