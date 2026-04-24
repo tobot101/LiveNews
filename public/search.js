@@ -279,6 +279,9 @@ function buildSearchVisual(item) {
   const source = item.sourceName || item.sourceDomain || "Source";
   const category = item.category || "Top";
   const initial = getSourceInitials(item);
+  const usesPublicResearch = item.imageSource === "public_media_research";
+  const credit =
+    item.imageCredit || (usesPublicResearch ? "Related public media" : "");
   const fallback = `
     <figcaption class="search-result-fallback">
       <span>${escapeHtml(initial)}</span>
@@ -289,7 +292,8 @@ function buildSearchVisual(item) {
   if (imageUrl) {
     return `
       <figure class="search-result-visual has-photo">
-        <img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.search-result-visual').classList.remove('has-photo'); this.closest('.search-result-visual').classList.add('image-failed'); this.remove();" />
+        <img src="${escapeHtml(imageUrl)}" alt="${usesPublicResearch ? escapeHtml(item.imageAlt || "") : ""}" loading="lazy" referrerpolicy="no-referrer" onload="validateSearchImage(this)" onerror="rejectSearchImage(this)" />
+        ${credit ? `<figcaption class="search-result-credit">${escapeHtml(credit)}</figcaption>` : ""}
         ${fallback}
       </figure>
     `;
@@ -311,6 +315,29 @@ function getSourceInitials(item) {
       .map((word) => word[0]?.toUpperCase())
       .join("") || "LN"
   );
+}
+
+function isWeakLoadedArticleImage(image) {
+  const src = decodeURIComponent(image.currentSrc || image.src || "").toLowerCase();
+  const logoLike = /favicon|apple-touch-icon|\/logo|[-_]logo|\/icon|[-_]icon|brandmark|publisher/.test(src);
+  const width = Number(image.naturalWidth || 0);
+  const height = Number(image.naturalHeight || 0);
+  const tooSmall = width > 0 && height > 0 && (width < 260 || height < 140 || width * height < 70000);
+  return logoLike || tooSmall;
+}
+
+function rejectSearchImage(image) {
+  const visual = image.closest(".search-result-visual");
+  if (!visual) return;
+  visual.classList.remove("has-photo");
+  visual.classList.add("image-failed");
+  image.remove();
+}
+
+function validateSearchImage(image) {
+  if (isWeakLoadedArticleImage(image)) {
+    rejectSearchImage(image);
+  }
 }
 
 function formatTime(value) {

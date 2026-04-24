@@ -1566,10 +1566,19 @@ function buildStoryVisual(item, variant = "lead") {
   const imageUrl = item.imageUrl || item.thumbnailUrl || "";
   const source = item.sourceName || item.sourceDomain || "Source";
   const category = item.category || "Top";
-  const fallbackLabel = escapeHtml(`${source} • ${category}`);
+  const usesPublicResearch = item.imageSource === "public_media_research";
+  const fallbackLabel = escapeHtml(
+    usesPublicResearch ? "Related public media" : `${source} • ${category}`
+  );
+  const credit = item.imageCredit
+    ? `<small>${escapeHtml(item.imageCredit)}</small>`
+    : usesPublicResearch
+      ? "<small>Public-media research</small>"
+      : "";
   const initial = escapeHtml(getSourceInitials(item));
+  const imageAlt = usesPublicResearch ? escapeHtml(item.imageAlt || "") : "";
   const photoTag = imageUrl
-    ? `<img class="story-photo" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.story-visual').classList.add('image-failed'); this.remove();" />`
+    ? `<img class="story-photo" src="${escapeHtml(imageUrl)}" alt="${imageAlt}" loading="lazy" referrerpolicy="no-referrer" onload="validateStoryImage(this)" onerror="rejectStoryImage(this)" />`
     : "";
   return `
     <figure class="story-visual story-visual-${variant} ${imageUrl ? "has-photo" : "image-failed"}">
@@ -1577,9 +1586,33 @@ function buildStoryVisual(item, variant = "lead") {
       <figcaption>
         <span>${initial}</span>
         <strong>${fallbackLabel}</strong>
+        ${credit}
       </figcaption>
     </figure>
   `;
+}
+
+function isWeakLoadedArticleImage(image) {
+  const src = decodeURIComponent(image.currentSrc || image.src || "").toLowerCase();
+  const logoLike = /favicon|apple-touch-icon|\/logo|[-_]logo|\/icon|[-_]icon|brandmark|publisher/.test(src);
+  const width = Number(image.naturalWidth || 0);
+  const height = Number(image.naturalHeight || 0);
+  const tooSmall = width > 0 && height > 0 && (width < 260 || height < 140 || width * height < 70000);
+  return logoLike || tooSmall;
+}
+
+function rejectStoryImage(image) {
+  const visual = image.closest(".story-visual");
+  if (!visual) return;
+  visual.classList.remove("has-photo");
+  visual.classList.add("image-failed");
+  image.remove();
+}
+
+function validateStoryImage(image) {
+  if (isWeakLoadedArticleImage(image)) {
+    rejectStoryImage(image);
+  }
 }
 
 function buildStoryTitleLink(item, className = "") {

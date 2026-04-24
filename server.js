@@ -19,10 +19,14 @@ const {
 } = require("./lib/article-agents/story-renderer");
 const { STORE_PATHS, readJson, saveAgentRun } = require("./lib/article-agents/store");
 const {
+  getArticleImageRejectionReason,
+  getImageDimensionHints,
   isAuthenticArticleImageUrl,
+  isStrongArticleImageSize,
   normalizeImageUrl,
   pickAuthenticArticleImageUrl,
 } = require("./lib/article-images");
+const { researchPublicMediaImage } = require("./lib/image-research-agent");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -56,6 +60,7 @@ const LOCAL_SOURCE_CAP = Number(process.env.LOCAL_SOURCE_CAP || 4);
 const IMAGE_LOOKUP_LIMIT = Number(process.env.IMAGE_LOOKUP_LIMIT || 18);
 const IMAGE_LOOKUP_CONCURRENCY = Number(process.env.IMAGE_LOOKUP_CONCURRENCY || 4);
 const IMAGE_LOOKUP_TIMEOUT_MS = Number(process.env.IMAGE_LOOKUP_TIMEOUT_MS || 1800);
+const IMAGE_VALIDATION_TIMEOUT_MS = Number(process.env.IMAGE_VALIDATION_TIMEOUT_MS || 1400);
 const AGENT_DRAFT_LIMIT = Number(process.env.LIVE_NEWS_DRAFT_LIMIT || 16);
 const AGENT_MODE = process.env.LIVE_NEWS_AGENT_MODE || "review_only";
 
@@ -166,6 +171,16 @@ let placesMeta = {
 };
 const localCache = new Map();
 const articleImageCache = new Map();
+const articleImageMetadataCache = new Map();
+let imageQualityStats = {
+  checked: 0,
+  accepted: 0,
+  rejected: 0,
+  researchedPages: 0,
+  alternativesTried: 0,
+  fallbacks: 0,
+  rejectionReasons: {},
+};
 
 function loadSources() {
   const raw = fs.readFileSync(sourcesPath, "utf8");
@@ -263,13 +278,61 @@ function collectMediaUrls(value, bucket) {
   }
 }
 
-function extractImageFromHtml(value, baseUrl = "") {
+function resetImageQualityStats() {
+  imageQualityStats = {
+    checked: 0,
+    accepted: 0,
+    rejected: 0,
+    researchedPages: 0,
+    alternativesTried: 0,
+    fallbacks: 0,
+    rejectionReasons: {},
+  };
+}
+
+function recordImageRejection(reason) {
+  const key = reason || "unknown";
+  imageQualityStats.rejected += 1;
+  imageQualityStats.rejectionReasons[key] = (imageQualityStats.rejectionReasons[key] || 0) + 1;
+}
+
+function uniqueImageCandidates(candidates) {
+  return Array.from(
+    new Set(
+      (candidates || [])
+        .map(normalizeImageUrl)
+        .filter((candidate) => candidate && isAuthenticArticleImageUrl(candidate))
+    )
+  ).slice(0, 12);
+}
+
+function extractSrcsetUrls(value, baseUrl) {
+  return String(value || "")
+    .split(",")
+    .map((entry) => entry.trim().split(/\s+/)[0])
+    .map((entry) => resolveImageUrl(entry, baseUrl))
+    .filter(Boolean);
+}
+
+function extractImageCandidatesFromHtml(value, baseUrl = "") {
   const html = String(value || "");
   const candidates = [];
   for (const match of html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)) {
     candidates.push(baseUrl ? resolveImageUrl(match[1], baseUrl) : normalizeImageUrl(match[1]));
   }
-  return pickAuthenticArticleImageUrl(candidates);
+  for (const match of html.matchAll(/<(?:img|source)[^>]+srcset=["']([^"']+)["']/gi)) {
+    candidates.push(...extractSrcsetUrls(match[1], baseUrl));
+  }
+  for (const match of html.matchAll(
+    /<img[^>]+(?:data-src|data-lazy-src|data-original|data-image)=["']([^"']+)["']/gi
+  )) {
+    candidates.push(baseUrl ? resolveImageUrl(match[1], baseUrl) : normalizeImageUrl(match[1]));
+  }
+  return uniqueImageCandidates(candidates);
+}
+
+function extractImageFromHtml(value, baseUrl = "") {
+  return pickAuthenticArticleImageUrl(extractImageCandidatesFromHtml(value, baseUrl));
 }
 
 function extractItemImageUrl(item) {
@@ -308,7 +371,7 @@ function resolveImageUrl(value, baseUrl) {
   }
 }
 
-function extractMetaImageUrl(html, baseUrl) {
+function extractMetaImageCandidates(html, baseUrl) {
   const patterns = [
     /<meta[^>]+property=["']og:image(?::secure_url|:url)?["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url|:url)?["'][^>]*>/gi,
@@ -324,8 +387,9 @@ function extractMetaImageUrl(html, baseUrl) {
       candidates.push(resolveImageUrl(match?.[1], baseUrl));
     }
   }
-  candidates.push(extractJsonLdImageUrl(html, baseUrl), extractImageFromHtml(html, baseUrl));
-  return pickAuthenticArticleImageUrl(candidates);
+  candidates.push(...extractJsonLdImageCandidates(html, baseUrl));
+  candidates.push(...extractImageCandidatesFromHtml(html, baseUrl));
+  return uniqueImageCandidates(candidates);
 }
 
 function collectImageValue(value, baseUrl, bucket) {
@@ -357,10 +421,11 @@ function collectJsonLdImages(value, baseUrl, bucket) {
   collectJsonLdImages(value["@graph"], baseUrl, bucket);
 }
 
-function extractJsonLdImageUrl(html, baseUrl) {
+function extractJsonLdImageCandidates(html, baseUrl) {
   const matches = html.matchAll(
     /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
   );
+  const allCandidates = [];
   for (const match of matches) {
     const candidates = [];
     const raw = decodeHtmlAttribute(match[1]).trim();
@@ -370,17 +435,52 @@ function extractJsonLdImageUrl(html, baseUrl) {
     } catch {
       continue;
     }
-    const selected = pickAuthenticArticleImageUrl(candidates);
-    if (selected) return selected;
+    allCandidates.push(...candidates);
   }
-  return "";
+  return uniqueImageCandidates(allCandidates);
 }
 
-async function fetchArticleImageUrl(link) {
+function extractOembedUrls(html, baseUrl) {
+  const links = [];
+  for (const match of String(html || "").matchAll(/<link\b[^>]*>/gi)) {
+    const tag = match[0];
+    if (!/json\+oembed/i.test(tag)) continue;
+    const href = tag.match(/\bhref=["']([^"']+)["']/i)?.[1];
+    const resolved = resolveImageUrl(href, baseUrl);
+    if (resolved) links.push(resolved);
+  }
+  return Array.from(new Set(links)).slice(0, 2);
+}
+
+async function fetchOembedImageCandidates(oembedUrl) {
+  const url = normalizeImageUrl(oembedUrl);
+  if (!url || typeof fetch !== "function" || typeof AbortController !== "function") return [];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IMAGE_LOOKUP_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "LiveNewsBot/1.0 (+https://newsmorenow.com)",
+      },
+      redirect: "follow",
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return uniqueImageCandidates([data.thumbnail_url, data.url]);
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchArticleImageCandidates(link) {
   const url = normalizeImageUrl(link);
-  if (!url) return "";
+  if (!url) return [];
   if (articleImageCache.has(url)) return articleImageCache.get(url);
-  if (typeof fetch !== "function" || typeof AbortController !== "function") return "";
+  if (typeof fetch !== "function" || typeof AbortController !== "function") return [];
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), IMAGE_LOOKUP_TIMEOUT_MS);
@@ -395,19 +495,191 @@ async function fetchArticleImageUrl(link) {
     });
     const contentType = response.headers.get("content-type") || "";
     if (!response.ok || !contentType.toLowerCase().includes("html")) {
-      articleImageCache.set(url, "");
-      return "";
+      articleImageCache.set(url, []);
+      return [];
     }
     const html = (await response.text()).slice(0, 220000);
-    const imageUrl = extractMetaImageUrl(html, response.url || url);
-    articleImageCache.set(url, imageUrl);
-    return imageUrl;
+    imageQualityStats.researchedPages += 1;
+    const baseUrl = response.url || url;
+    const candidates = [...extractMetaImageCandidates(html, baseUrl)];
+    for (const oembedUrl of extractOembedUrls(html, baseUrl)) {
+      candidates.push(...(await fetchOembedImageCandidates(oembedUrl)));
+    }
+    const unique = uniqueImageCandidates(candidates);
+    articleImageCache.set(url, unique);
+    return unique;
   } catch {
-    articleImageCache.set(url, "");
-    return "";
+    articleImageCache.set(url, []);
+    return [];
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function parsePngDimensions(buffer) {
+  if (buffer.length < 24) return null;
+  if (buffer.toString("ascii", 1, 4) !== "PNG") return null;
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function parseGifDimensions(buffer) {
+  if (buffer.length < 10 || buffer.toString("ascii", 0, 3) !== "GIF") return null;
+  return {
+    width: buffer.readUInt16LE(6),
+    height: buffer.readUInt16LE(8),
+  };
+}
+
+function parseJpegDimensions(buffer) {
+  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
+  let offset = 2;
+  while (offset < buffer.length) {
+    while (buffer[offset] === 0xff) offset += 1;
+    const marker = buffer[offset];
+    offset += 1;
+    if (marker === 0xd9 || marker === 0xda) break;
+    if (offset + 2 > buffer.length) break;
+    const length = buffer.readUInt16BE(offset);
+    if (length < 2 || offset + length > buffer.length) break;
+    if (
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf)
+    ) {
+      return {
+        height: buffer.readUInt16BE(offset + 3),
+        width: buffer.readUInt16BE(offset + 5),
+      };
+    }
+    offset += length;
+  }
+  return null;
+}
+
+function parseWebpDimensions(buffer) {
+  if (buffer.length < 30 || buffer.toString("ascii", 0, 4) !== "RIFF") return null;
+  if (buffer.toString("ascii", 8, 12) !== "WEBP") return null;
+  const chunk = buffer.toString("ascii", 12, 16);
+  if (chunk === "VP8X" && buffer.length >= 30) {
+    return {
+      width: 1 + buffer.readUIntLE(24, 3),
+      height: 1 + buffer.readUIntLE(27, 3),
+    };
+  }
+  if (chunk === "VP8 " && buffer.length >= 30) {
+    return {
+      width: buffer.readUInt16LE(26) & 0x3fff,
+      height: buffer.readUInt16LE(28) & 0x3fff,
+    };
+  }
+  if (chunk === "VP8L" && buffer.length >= 25) {
+    const b0 = buffer[21];
+    const b1 = buffer[22];
+    const b2 = buffer[23];
+    const b3 = buffer[24];
+    return {
+      width: 1 + (((b1 & 0x3f) << 8) | b0),
+      height: 1 + (((b3 & 0x0f) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6)),
+    };
+  }
+  return null;
+}
+
+function parseImageDimensions(buffer, contentType = "") {
+  const lowerType = String(contentType || "").toLowerCase();
+  return (
+    (lowerType.includes("png") && parsePngDimensions(buffer)) ||
+    (lowerType.includes("gif") && parseGifDimensions(buffer)) ||
+    (lowerType.includes("webp") && parseWebpDimensions(buffer)) ||
+    (lowerType.includes("jpeg") && parseJpegDimensions(buffer)) ||
+    parsePngDimensions(buffer) ||
+    parseGifDimensions(buffer) ||
+    parseWebpDimensions(buffer) ||
+    parseJpegDimensions(buffer)
+  );
+}
+
+async function fetchImageMetadata(imageUrl) {
+  const url = normalizeImageUrl(imageUrl);
+  if (!url) return { ok: false, reason: "invalid image URL" };
+  if (articleImageMetadataCache.has(url)) return articleImageMetadataCache.get(url);
+
+  const hints = getImageDimensionHints(url);
+  if (isStrongArticleImageSize(hints.width, hints.height)) {
+    const hinted = { ok: true, width: hints.width, height: hints.height, source: "url_hint" };
+    articleImageMetadataCache.set(url, hinted);
+    return hinted;
+  }
+
+  if (typeof fetch !== "function" || typeof AbortController !== "function") {
+    return { ok: false, reason: "image metadata fetch unavailable" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IMAGE_VALIDATION_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        "Range": "bytes=0-65535",
+        "User-Agent": "LiveNewsBot/1.0 (+https://newsmorenow.com)",
+      },
+      redirect: "follow",
+    });
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok || !contentType.toLowerCase().includes("image/")) {
+      const rejected = { ok: false, reason: "candidate is not an image response" };
+      articleImageMetadataCache.set(url, rejected);
+      return rejected;
+    }
+    const dimensions = parseImageDimensions(Buffer.from(await response.arrayBuffer()), contentType);
+    const metadata = {
+      ok: Boolean(dimensions?.width && dimensions?.height),
+      width: dimensions?.width || 0,
+      height: dimensions?.height || 0,
+      contentType,
+      source: "image_probe",
+      reason: dimensions ? "" : "image dimensions could not be verified",
+    };
+    articleImageMetadataCache.set(url, metadata);
+    return metadata;
+  } catch {
+    const rejected = { ok: false, reason: "image metadata fetch failed" };
+    articleImageMetadataCache.set(url, rejected);
+    return rejected;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function validateArticleImageCandidate(imageUrl) {
+  imageQualityStats.checked += 1;
+  const normalized = normalizeImageUrl(imageUrl);
+  if (!normalized) {
+    recordImageRejection("invalid image URL");
+    return false;
+  }
+  const staticReason = getArticleImageRejectionReason(normalized);
+  if (staticReason) {
+    recordImageRejection(staticReason);
+    return false;
+  }
+  const metadata = await fetchImageMetadata(normalized);
+  if (!metadata.ok) {
+    recordImageRejection(metadata.reason || "image metadata rejected");
+    return false;
+  }
+  if (!isStrongArticleImageSize(metadata.width, metadata.height)) {
+    recordImageRejection("verified image is too small for an article visual");
+    return false;
+  }
+  imageQualityStats.accepted += 1;
+  return true;
 }
 
 function getImageLookupLinks(item) {
@@ -423,30 +695,42 @@ function getImageLookupLinks(item) {
 
 async function findArticleImageForItem(item) {
   for (const link of getImageLookupLinks(item)) {
-    const imageUrl = await fetchArticleImageUrl(link);
-    if (imageUrl && isAuthenticArticleImageUrl(imageUrl)) {
+    const candidates = await fetchArticleImageCandidates(link);
+    for (const imageUrl of candidates) {
+      imageQualityStats.alternativesTried += 1;
+      if (!(await validateArticleImageCandidate(imageUrl))) continue;
       return {
         imageUrl,
+        imageSource: "article_research",
         imageSourceUrl: link,
       };
     }
   }
+  const publicMedia = await researchPublicMediaImage(item, {
+    timeoutMs: IMAGE_LOOKUP_TIMEOUT_MS,
+  });
+  if (publicMedia?.imageUrl && (await validateArticleImageCandidate(publicMedia.imageUrl))) {
+    imageQualityStats.alternativesTried += 1;
+    return publicMedia;
+  }
+  imageQualityStats.fallbacks += 1;
   return null;
 }
 
 async function hydrateArticleImages(items, options = {}) {
   if (!IMAGE_LOOKUP_LIMIT || !items.length) return;
   const limit = Math.max(1, Number(options.limit || IMAGE_LOOKUP_LIMIT));
-  const targets = items
-    .filter((item) => {
-      if (!item || !item.link) return false;
-      if (item.imageUrl && isAuthenticArticleImageUrl(item.imageUrl)) return false;
-      item.imageUrl = "";
-      item.imageSource = "";
-      item.imageSourceUrl = "";
-      return true;
-    })
-    .slice(0, limit);
+  const targets = [];
+  for (const item of items.filter((entry) => entry && entry.link).slice(0, limit)) {
+    if (item.imageUrl && (await validateArticleImageCandidate(item.imageUrl))) continue;
+    item.imageUrl = "";
+    item.imageSource = "";
+    item.imageSourceUrl = "";
+    item.imageCredit = "";
+    item.imageAlt = "";
+    item.imageResearchQuery = "";
+    targets.push(item);
+  }
   let cursor = 0;
   const workers = Array.from({ length: Math.min(IMAGE_LOOKUP_CONCURRENCY, targets.length) }, async () => {
     while (cursor < targets.length) {
@@ -455,8 +739,11 @@ async function hydrateArticleImages(items, options = {}) {
       const found = await findArticleImageForItem(item);
       if (found?.imageUrl) {
         item.imageUrl = found.imageUrl;
-        item.imageSource = "article_meta";
-        item.imageSourceUrl = found.imageSourceUrl;
+        item.imageSource = found.imageSource || "article_research";
+        item.imageSourceUrl = found.imageSourceUrl || "";
+        item.imageCredit = found.imageCredit || "";
+        item.imageAlt = found.imageAlt || "";
+        item.imageResearchQuery = found.imageResearchQuery || "";
       }
     }
   });
@@ -844,6 +1131,7 @@ async function fetchSource(source) {
 }
 
 async function refreshNews() {
+  resetImageQualityStats();
   const sources = loadSources();
   const collected = [];
   const errors = [];
@@ -1024,6 +1312,9 @@ async function searchCurrentNews(query, limit = 30) {
       imageUrl: pickAuthenticArticleImageUrl([item.imageUrl, item.thumbnailUrl]),
       imageSource: item.imageSource || "",
       imageSourceUrl: item.imageSourceUrl || "",
+      imageCredit: item.imageCredit || "",
+      imageAlt: item.imageAlt || "",
+      imageResearchQuery: item.imageResearchQuery || "",
       hasLiveNewsStory: Boolean(item.hasLiveNewsStory || item.approvedStoryUrl || item.liveNewsUrl),
       relevance,
     })),
@@ -1295,6 +1586,7 @@ app.get("/api/health", (req, res) => {
       draftLimit: AGENT_DRAFT_LIMIT,
       approvedStories: listApprovedStories().length,
     },
+    imageResearch: imageQualityStats,
     places: placesMeta.totalPlaces,
   });
 });
