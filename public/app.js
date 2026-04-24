@@ -8,6 +8,8 @@ const ANON_ID_DAYS = 90;
 const PROFILE_TTL_DAYS = 30;
 const ANALYTICS_TTL_DAYS = 30;
 const LOCAL_PREVIEW_LIMIT = 3;
+const ALLOWED_FEED_LIMITS = new Set(["30", "50", "100"]);
+const CATEGORY_LANES = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
 const TOP_US_CITIES = Array.isArray(window.LIVE_NEWS_TOP_CITIES)
   ? window.LIVE_NEWS_TOP_CITIES
   : [];
@@ -23,12 +25,14 @@ const state = {
   gpcDetected: false,
   maxAgeHours: 48,
   category: "Top",
+  searchQuery: "",
   localPlace: null,
   localFeed: [],
   localLastFetched: 0,
   localLoading: false,
   currentTopStories: [],
   currentFeed: [],
+  approvedStories: [],
   currentItems: [],
   pendingData: null,
   seenMap: {},
@@ -65,11 +69,16 @@ const elements = {
   feedLimitControl: document.getElementById("feedLimitControl"),
   modeControl: document.getElementById("modeControl"),
   sectionNav: document.getElementById("sectionNav"),
+  siteSearchForm: document.getElementById("siteSearchForm"),
+  siteSearch: document.getElementById("siteSearch"),
   lastUpdated: document.getElementById("lastUpdated"),
   timeZoneLabel: document.getElementById("timeZoneLabel"),
+  leadStory: document.getElementById("leadStory"),
   topStories: document.getElementById("topStories"),
   topStoriesTitle: document.getElementById("topStoriesTitle"),
   topStoriesTag: document.getElementById("topStoriesTag"),
+  categoryLanesPanel: document.getElementById("categoryLanesPanel"),
+  categoryLanes: document.getElementById("categoryLanes"),
   newsFeed: document.getElementById("newsFeed"),
   feedTitle: document.getElementById("feedTitle"),
   feedTag: document.getElementById("feedTag"),
@@ -159,8 +168,10 @@ function hydrateRefresh() {
 
 function hydrateFeedLimit() {
   const stored = localStorage.getItem("ln_feed_limit");
-  if (stored) {
+  if (stored && ALLOWED_FEED_LIMITS.has(stored)) {
     state.feedLimit = stored;
+  } else if (stored) {
+    localStorage.setItem("ln_feed_limit", state.feedLimit);
   }
   setFeedLimitUI(state.feedLimit);
 }
@@ -233,9 +244,22 @@ function bindControls() {
       if (!target) return;
       const value = target.dataset.feedLimit;
       if (!value) return;
+      if (!ALLOWED_FEED_LIMITS.has(value)) return;
       state.feedLimit = value;
       localStorage.setItem("ln_feed_limit", value);
       setFeedLimitUI(value);
+      renderCurrent();
+    });
+  }
+
+  if (elements.siteSearchForm && elements.siteSearch) {
+    elements.siteSearchForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      state.searchQuery = elements.siteSearch.value.trim();
+      renderCurrent();
+    });
+    elements.siteSearch.addEventListener("input", (event) => {
+      state.searchQuery = event.target.value.trim();
       renderCurrent();
     });
   }
@@ -256,6 +280,15 @@ function bindControls() {
     const category = target.dataset.category;
     setCategory(category);
   });
+
+  if (elements.categoryLanes) {
+    elements.categoryLanes.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-lane-category]");
+      if (!target) return;
+      setCategory(target.dataset.laneCategory);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
 
   elements.useLocation.addEventListener("click", () => {
     if (!state.consent.personalization) return;
@@ -373,7 +406,7 @@ function updateBrandShift() {
   const brandTitle = document.querySelector(".brand-title");
   if (!brand || !brandTitle) return;
   const topbar = document.querySelector(".topbar");
-  const limit = topbar ? topbar.querySelector(".controls") : null;
+  const limit = topbar ? topbar.querySelector(".topbar-tools") : null;
   const brandRect = brand.getBoundingClientRect();
   const limitRect = limit ? limit.getBoundingClientRect() : null;
   const containerRect = topbar ? topbar.getBoundingClientRect() : null;
@@ -572,8 +605,9 @@ function setRefreshUI(value) {
 }
 
 function setFeedLimitUI(value) {
+  const normalized = ALLOWED_FEED_LIMITS.has(String(value)) ? String(value) : "100";
   document.querySelectorAll("[data-feed-limit]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.feedLimit === value);
+    btn.classList.toggle("active", btn.dataset.feedLimit === normalized);
   });
 }
 
@@ -1112,15 +1146,16 @@ function updateSectionHeaders(category, topCount, feedCount, feedTotal = feedCou
   if (!elements.topStoriesTitle || !elements.feedTitle) return;
   const feedNote =
     feedTotal > feedCount ? `Showing ${feedCount} of ${feedTotal}` : `${feedCount} stories`;
+  const searchNote = state.searchQuery ? ` • Search: ${state.searchQuery}` : "";
   if (category === "Top") {
     elements.topStoriesTitle.textContent = "Top Stories";
-    elements.topStoriesTag.textContent = "Cross-source radar";
+    elements.topStoriesTag.textContent = `Cross-source radar${searchNote}`;
     elements.feedTitle.textContent = "Latest News Feed";
     elements.feedTag.textContent = `After Top Stories • ${feedNote}`;
     return;
   }
   elements.topStoriesTitle.textContent = `${category} Top Stories`;
-  elements.topStoriesTag.textContent = `${topCount} selected`;
+  elements.topStoriesTag.textContent = `${topCount} selected${searchNote}`;
   elements.feedTitle.textContent = `${category} News Feed`;
   elements.feedTag.textContent = feedNote;
 }
@@ -1263,12 +1298,69 @@ function renderLocalFeed(items) {
 function applyNewsData(data) {
   state.currentTopStories = data.topStories || [];
   state.currentFeed = data.feed || [];
+  state.approvedStories = data.approvedStories || [];
   renderCurrent();
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).replace(/\s+\S*$/, "")}...`;
+}
+
+function dedupeNewsItems(items) {
+  const seen = new Set();
+  const result = [];
+  items.forEach((item) => {
+    const key = item.id || item.link || `${item.title}:${item.publishedAt}`;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(item);
+  });
+  return result;
+}
+
+function getAllNewsItems() {
+  return dedupeNewsItems([...state.currentTopStories, ...state.currentFeed]);
 }
 
 function filterByCategory(items) {
   if (state.category === "Top") return items;
   return items.filter((item) => item.category === state.category);
+}
+
+function filterBySearch(items) {
+  const query = state.searchQuery.trim().toLowerCase();
+  if (!query) return items;
+  return items.filter((item) => getSearchableText(item).includes(query));
+}
+
+function getSearchableText(item) {
+  return [
+    item.title,
+    item.liveNewsHeadline,
+    item.summary,
+    item.liveNewsSummary,
+    item.sourceName,
+    item.category,
+    item.sourceDomain,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function applyActiveFilters(items) {
+  return filterBySearch(filterByCategory(items));
 }
 
 function sortStoryPool(items) {
@@ -1282,10 +1374,12 @@ function sortStoryPool(items) {
 }
 
 function buildCategoryTopStories() {
-  if (state.category === "Top") {
-    return sortStoryPool(state.currentTopStories).slice(0, 8);
-  }
-  const pool = sortStoryPool(filterByCategory(state.currentFeed));
+  const basePool = state.searchQuery
+    ? getAllNewsItems()
+    : state.category === "Top"
+      ? state.currentTopStories
+      : state.currentFeed;
+  const pool = sortStoryPool(applyActiveFilters(basePool));
   return pool.slice(0, 8);
 }
 
@@ -1304,17 +1398,22 @@ function getCategoryScore(category) {
 
 function renderCurrent() {
   const filteredTop = buildCategoryTopStories();
+  const leadItem = filteredTop[0] || null;
+  const topCards = filteredTop.slice(1, 8);
   const topIds = new Set(filteredTop.map((item) => item.id).filter(Boolean));
-  let filteredFeed = filterByCategory(state.currentFeed).filter((item) => !topIds.has(item.id));
+  const feedPool = state.searchQuery ? getAllNewsItems() : state.currentFeed;
+  let filteredFeed = applyActiveFilters(feedPool).filter((item) => !topIds.has(item.id));
   if (state.consent.personalization) {
     filteredFeed = personalizeFeed(filteredFeed);
   }
   const feedTotal = filteredFeed.length;
   const feedLimit = Number(state.feedLimit) || 50;
   const limitedFeed = filteredFeed.slice(0, feedLimit);
-  renderTopStories(filteredTop);
+  renderLeadStory(leadItem);
+  renderTopStories(topCards, { rankOffset: leadItem ? 1 : 0 });
+  renderCategoryLanes();
   renderFeed(limitedFeed);
-  const combined = [...filteredTop, ...limitedFeed];
+  const combined = [leadItem, ...topCards, ...limitedFeed].filter(Boolean);
   const deduped = new Map();
   combined.forEach((item) => {
     if (item && item.id && !deduped.has(item.id)) {
@@ -1326,12 +1425,95 @@ function renderCurrent() {
   updateSectionHeaders(state.category, filteredTop.length, limitedFeed.length, feedTotal);
 }
 
-function renderTopStories(items) {
+function getLiveNewsUrl(item) {
+  return item.approvedStoryUrl || item.liveNewsUrl || "";
+}
+
+function getDisplayTitle(item) {
+  return item.liveNewsHeadline || item.title || "Untitled story";
+}
+
+function getDisplaySummary(item, maxLength = 210) {
+  if (item.liveNewsSummary) return truncateText(item.liveNewsSummary, maxLength);
+  const source = formatSourceLabel(item);
+  const category = item.category || "Top";
+  const published = item.publishedAt ? formatTime(item.publishedAt) : "recently";
+  return truncateText(
+    `Live News is tracking this ${category.toLowerCase()} story from ${source}. It was updated ${published}, and the original source remains available for full reporting while a Live News page is reviewed.`,
+    maxLength
+  );
+}
+
+function getUrgencyState(item) {
+  const score = Number(item.score || 0);
+  if (score >= 95) return "High";
+  if (score >= 88) return "Watch";
+  return "Recent";
+}
+
+function buildStoryTitleLink(item, className = "") {
+  const liveUrl = getLiveNewsUrl(item);
+  const title = escapeHtml(getDisplayTitle(item));
+  if (liveUrl) {
+    return `<a class="${className}" href="${escapeHtml(liveUrl)}">${title}</a>`;
+  }
+  if (item.link) {
+    return `<a class="${className}" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title}</a>`;
+  }
+  return `<span class="${className}">${title}</span>`;
+}
+
+function buildStoryActions(item) {
+  const liveUrl = getLiveNewsUrl(item);
+  const liveAction = liveUrl
+    ? `<a class="story-action" href="${escapeHtml(liveUrl)}">Open Live News page</a>`
+    : `<span class="story-action disabled">Live News page pending</span>`;
+  const sourceAction = item.link
+    ? `<a class="story-action source-action" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">Original source</a>`
+    : "";
+  return `<div class="story-actions">${liveAction}${sourceAction}</div>`;
+}
+
+function renderLeadStory(item) {
+  if (!elements.leadStory) return;
+  if (!item) {
+    elements.leadStory.hidden = true;
+    elements.leadStory.innerHTML = "";
+    return;
+  }
+  elements.leadStory.hidden = false;
+  const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+  const sourceLabel = formatSourceLabel(item);
+  elements.leadStory.innerHTML = `
+    <article class="lead-card" data-article-id="${escapeHtml(item.id || "")}">
+      <div class="lead-copy">
+        <div class="story-eyebrow">
+          <span>${escapeHtml(item.category || "Top")}</span>
+          <span>${escapeHtml(getUrgencyState(item))}</span>
+          ${item.hasLiveNewsStory ? "<span>Approved Live News page</span>" : "<span>Reviewing Live News page</span>"}
+        </div>
+        <h1>${buildStoryTitleLink(item, "lead-title")}</h1>
+        <p>${escapeHtml(getDisplaySummary(item, 340))}</p>
+        <div class="story-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
+        ${buildStoryActions(item)}
+      </div>
+      <div class="lead-score">
+        <span>Importance</span>
+        <strong>${escapeHtml(item.score || "Live")}</strong>
+      </div>
+    </article>
+  `;
+  elements.leadStory
+    .querySelector("[data-article-id]")
+    ?.addEventListener("click", () => markSeenById(item.id));
+}
+
+function renderTopStories(items, options = {}) {
   elements.topStories.innerHTML = "";
   if (!items.length) {
     const empty = document.createElement("li");
-    empty.className = "story-item";
-    empty.innerHTML = `<div>No ${state.category} stories available yet.</div>`;
+    empty.className = "story-card empty-card";
+    empty.innerHTML = `<div>No additional ${escapeHtml(state.category)} stories available yet.</div>`;
     elements.topStories.appendChild(empty);
     return;
   }
@@ -1339,24 +1521,74 @@ function renderTopStories(items) {
   sorted.forEach((item, index) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
     const sourceLabel = formatSourceLabel(item);
-    const titleHtml = item.link
-      ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
-      : item.title;
     const li = document.createElement("li");
-    li.className = "story-item";
+    li.className = "story-card";
     li.dataset.articleId = item.id;
+    const rank = index + 1 + Number(options.rankOffset || 0);
     li.innerHTML = `
-      <div class="story-rank">${index + 1}</div>
-      <div>
-        <div class="feed-title">${titleHtml}</div>
-        <div class="story-meta">${sourceLabel} • ${item.category} • ${published}</div>
+      <div class="story-card-top">
+        <span class="story-rank">${rank}</span>
+        <div class="story-eyebrow">
+          <span>${escapeHtml(item.category || "Top")}</span>
+          <span>${escapeHtml(getUrgencyState(item))}</span>
+        </div>
       </div>
-      <div class="score-pill">Score ${item.score}</div>
+      <h3>${buildStoryTitleLink(item, "story-card-title")}</h3>
+      <p>${escapeHtml(getDisplaySummary(item, 190))}</p>
+      <div class="story-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
+      <div class="score-pill">Score ${escapeHtml(item.score || "Live")}</div>
+      ${buildStoryActions(item)}
     `;
     elements.topStories.appendChild(li);
     li.addEventListener("click", () => markSeenById(item.id));
   });
   observeSeen();
+}
+
+function renderCategoryLanes() {
+  if (!elements.categoryLanes || !elements.categoryLanesPanel) return;
+  const baseItems = filterBySearch(getAllNewsItems());
+  const lanes = CATEGORY_LANES.map((category) => {
+    const items = sortStoryPool(baseItems.filter((item) => item.category === category)).slice(0, 4);
+    return { category, items };
+  }).filter((lane) => lane.items.length);
+
+  if (!lanes.length) {
+    elements.categoryLanesPanel.hidden = true;
+    elements.categoryLanes.innerHTML = "";
+    return;
+  }
+
+  elements.categoryLanesPanel.hidden = false;
+  elements.categoryLanes.innerHTML = lanes
+    .map(
+      (lane) => `
+        <section class="category-lane">
+          <div class="category-lane-head">
+            <h3>${escapeHtml(lane.category)}</h3>
+            <button class="lane-more" type="button" data-lane-category="${escapeHtml(lane.category)}">See more</button>
+          </div>
+          <div class="category-lane-list">
+            ${lane.items
+              .map(
+                (item) => `
+                  <article class="lane-story" data-article-id="${escapeHtml(item.id || "")}">
+                    <div class="story-eyebrow"><span>${escapeHtml(getUrgencyState(item))}</span></div>
+                    <h4>${buildStoryTitleLink(item, "lane-story-title")}</h4>
+                    <p>${escapeHtml(getDisplaySummary(item, 120))}</p>
+                    <div class="story-meta">${escapeHtml(formatSourceLabel(item))}</div>
+                  </article>
+                `
+              )
+              .join("")}
+          </div>
+        </section>
+      `
+    )
+    .join("");
+  elements.categoryLanes.querySelectorAll("[data-article-id]").forEach((card) => {
+    card.addEventListener("click", () => markSeenById(card.dataset.articleId));
+  });
 }
 
 function renderFeed(items) {
@@ -1383,15 +1615,20 @@ function renderFeed(items) {
     group.items.forEach((item) => {
       const published = item.publishedAt ? formatTime(item.publishedAt) : "";
       const sourceLabel = formatSourceLabel(item);
-      const titleHtml = item.link
-        ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
-        : item.title;
       const card = document.createElement("div");
       card.className = "feed-item";
       card.dataset.articleId = item.id;
       card.innerHTML = `
-        <div class="feed-title">${titleHtml}</div>
-        <div class="feed-meta">${sourceLabel} • ${item.category} • ${published}</div>
+        <div class="feed-item-main">
+          <div class="story-eyebrow">
+            <span>${escapeHtml(item.category || "Top")}</span>
+            ${item.hasLiveNewsStory ? "<span>Approved</span>" : ""}
+          </div>
+          <div class="feed-title">${buildStoryTitleLink(item)}</div>
+          <p>${escapeHtml(getDisplaySummary(item, 150))}</p>
+          <div class="feed-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
+        </div>
+        ${buildStoryActions(item)}
       `;
       list.appendChild(card);
       card.addEventListener("click", () => markSeenById(item.id));

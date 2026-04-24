@@ -97,20 +97,35 @@
     </div>
 
     <header class="topbar">
-      <div class="brand">
+      <a class="brand" href="/" aria-label="Live News home">
         <img class="brand-mark" src="/brand-mark.png" alt="" aria-hidden="true" />
         <div class="brand-text">
           <div class="brand-title">Live News</div>
           <div class="brand-sub">Anytime &amp; Anywhere</div>
         </div>
-      </div>
-      <div class="controls">
-        <div class="control" aria-label="Theme">
-          <span class="control-label">Mode</span>
-          <div class="segmented" id="modeControl">
-            <button class="seg active" data-mode="auto">Auto</button>
-            <button class="seg" data-mode="day">Day</button>
-            <button class="seg" data-mode="night">Dark</button>
+      </a>
+      <div class="topbar-tools">
+        <form class="site-search" id="siteSearchForm" role="search">
+          <label class="control-label" for="siteSearch">Search Live News</label>
+          <div class="site-search-row">
+            <input
+              id="siteSearch"
+              type="search"
+              placeholder="Search stories, sources, or categories"
+              autocomplete="off"
+            />
+            <button class="btn ghost" type="submit">Search</button>
+          </div>
+        </form>
+        <a class="btn compact-local-link" href="/local.html">Local News</a>
+        <div class="controls">
+          <div class="control" aria-label="Theme">
+            <span class="control-label">Mode</span>
+            <div class="segmented" id="modeControl">
+              <button class="seg active" data-mode="auto">Auto</button>
+              <button class="seg" data-mode="day">Day</button>
+              <button class="seg" data-mode="night">Dark</button>
+            </div>
           </div>
         </div>
       </div>
@@ -118,6 +133,33 @@
 
     <main class="layout layout-single">
       <section class="main-col">
+        <div class="status-row editorial-status">
+          <span id="lastUpdated">Last updated: loading</span>
+          <span id="timeZoneLabel">Time zone: local</span>
+        </div>
+        <div class="update-notice" id="updateNotice" hidden>
+          <span id="updateNoticeText">Fresh stories are ready.</span>
+          <button class="btn ghost" id="applyUpdates">Apply updates</button>
+        </div>
+
+        <nav class="sections category-bar" id="sectionNav" aria-label="News sections">
+          <button class="section-link active" type="button" data-category="Top" aria-pressed="true">
+            Top
+          </button>
+          <button class="section-link" type="button" data-category="National">National</button>
+          <button class="section-link" type="button" data-category="Business">Business</button>
+          <button class="section-link" type="button" data-category="Tech">Tech</button>
+          <button class="section-link" type="button" data-category="Sports">Sports</button>
+          <button class="section-link" type="button" data-category="Entertainment">
+            Entertainment
+          </button>
+          <button class="section-link" type="button" data-category="International">
+            International
+          </button>
+        </nav>
+
+        <section class="lead-news-band" id="leadStory" aria-label="Lead news story"></section>
+
         <section class="panel local-panel home-local-panel">
           <div class="panel-header">
             <h3>Local News</h3>
@@ -180,28 +222,23 @@
           </div>
         </section>
 
-      <nav class="sections category-bar" id="sectionNav" aria-label="News sections">
-        <button class="section-link active" type="button" data-category="Top" aria-pressed="true">
-          Top
-        </button>
-        <button class="section-link" type="button" data-category="National">National</button>
-        <button class="section-link" type="button" data-category="Business">Business</button>
-        <button class="section-link" type="button" data-category="Tech">Tech</button>
-        <button class="section-link" type="button" data-category="Sports">Sports</button>
-        <button class="section-link" type="button" data-category="Entertainment">
-          Entertainment
-        </button>
-        <button class="section-link" type="button" data-category="International">
-          International
-        </button>
-      </nav>
-
         <section class="panel top-stories">
           <div class="panel-header">
             <h2 id="topStoriesTitle">Top Stories</h2>
             <span class="tag" id="topStoriesTag">Primary Focus</span>
           </div>
           <ol class="story-list" id="topStories"></ol>
+        </section>
+
+        <section class="panel category-lanes-panel" id="categoryLanesPanel">
+          <div class="panel-header">
+            <div>
+              <h2>Category Lanes</h2>
+              <p class="panel-note">Quick paths into national, world, business, tech, sports, and entertainment coverage.</p>
+            </div>
+            <span class="tag">Section discovery</span>
+          </div>
+          <div class="category-lanes" id="categoryLanes"></div>
         </section>
 
         <section class="panel news-feed">
@@ -216,7 +253,6 @@
                 <button class="seg" data-feed-limit="30">30</button>
                 <button class="seg" data-feed-limit="50">50</button>
                 <button class="seg active" data-feed-limit="100">100</button>
-                <button class="seg" data-feed-limit="170">170</button>
               </div>
             </div>
           </div>
@@ -227,7 +263,7 @@
     </main>
 
     <footer class="footer">
-      <div>LiveNews • Verified Radar • Local Hubs • Source-linked coverage</div>
+      <div>Live News • Source-linked coverage • Local pages • No ads</div>
       <div class="footer-note">
         LiveNews pulls from official feeds and local search results, ranks cross-source
         coverage, and only shows stories from the last 48 hours.

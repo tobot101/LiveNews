@@ -3,7 +3,20 @@ const fs = require("fs");
 const express = require("express");
 const crypto = require("crypto");
 const Parser = require("rss-parser");
+const {
+  enrichNewsPayloadWithApprovedStories,
+  findApprovedStoryBySlug,
+  getApprovedStorySummaries,
+  listApprovedStories,
+  readApprovedStore,
+} = require("./lib/article-agents/approved-stories");
 const { runArticleAgents } = require("./lib/article-agents/pipeline");
+const {
+  absoluteUrl,
+  escapeHtml,
+  renderPublicStoryPage,
+  renderStoryNotFoundPage,
+} = require("./lib/article-agents/story-renderer");
 const { STORE_PATHS, readJson, saveAgentRun } = require("./lib/article-agents/store");
 
 const app = express();
@@ -651,7 +664,7 @@ function refreshNewsSafely() {
 function buildCurrentNewsPayload() {
   if (!cache.lastUpdated) {
     const fallback = loadFallback();
-    return {
+    return enrichNewsPayloadWithApprovedStories({
       updatedAt: new Date().toISOString(),
       maxAgeHours: MAX_AGE_HOURS,
       fallback: true,
@@ -660,10 +673,10 @@ function buildCurrentNewsPayload() {
         feed: FEED_LIMIT,
       },
       ...fallback,
-    };
+    });
   }
 
-  return {
+  return enrichNewsPayloadWithApprovedStories({
     updatedAt: cache.lastUpdated,
     maxAgeHours: MAX_AGE_HOURS,
     fallback: false,
@@ -676,7 +689,7 @@ function buildCurrentNewsPayload() {
     sourceErrors: cache.sourceErrors,
     sourceMix: cache.sourceMix,
     configuredSources: cache.configuredSources,
-  };
+  });
 }
 
 function isLocalRequest(req) {
@@ -706,6 +719,45 @@ function requireAgentAccess(req, res, next) {
   return res.status(404).json({ error: "Not found" });
 }
 
+function getPublicBaseUrl(req) {
+  const configured = String(process.env.PUBLIC_SITE_URL || "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+  const protocol = forwardedProto || req.protocol || "https";
+  return `${protocol}://${req.get("host")}`;
+}
+
+function renderSitemap(req) {
+  const origin = getPublicBaseUrl(req);
+  const now = new Date().toISOString();
+  const staticUrls = [
+    { loc: "/", priority: "1.0", changefreq: "hourly", lastmod: now },
+    { loc: "/local.html", priority: "0.8", changefreq: "hourly", lastmod: now },
+  ];
+  const storyUrls = listApprovedStories().map((story) => ({
+    loc: story.liveNewsUrl || `/stories/${story.slug}`,
+    priority: "0.7",
+    changefreq: "daily",
+    lastmod: story.updatedAt || story.publishedAt || story.approvedAt || now,
+  }));
+  const urls = [...staticUrls, ...storyUrls];
+  const body = urls
+    .map(
+      (url) => `  <url>
+    <loc>${escapeHtml(absoluteUrl(origin, url.loc))}</loc>
+    <lastmod>${escapeHtml(url.lastmod)}</lastmod>
+    <changefreq>${escapeHtml(url.changefreq)}</changefreq>
+    <priority>${escapeHtml(url.priority)}</priority>
+  </url>`
+    )
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${body}
+</urlset>
+`;
+}
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -732,10 +784,37 @@ function findNearestPlace(lat, lon) {
   return { place: rest, distanceKm: Math.round(bestDistance * 10) / 10 };
 }
 
+app.get("/sitemap.xml", (req, res) => {
+  res.type("application/xml").send(renderSitemap(req));
+});
+
+app.get("/stories/:slug", (req, res) => {
+  const story = findApprovedStoryBySlug(req.params.slug);
+  if (!story) {
+    return res.status(404).send(renderStoryNotFoundPage());
+  }
+  res.send(renderPublicStoryPage(story, { origin: getPublicBaseUrl(req) }));
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/news", (req, res) => {
   res.json(buildCurrentNewsPayload());
+});
+
+app.get("/api/stories", (req, res) => {
+  const store = readApprovedStore();
+  res.json({
+    schemaVersion: store.schemaVersion,
+    updatedAt: store.updatedAt,
+    stories: getApprovedStorySummaries(),
+  });
+});
+
+app.get("/api/stories/:slug", (req, res) => {
+  const story = findApprovedStoryBySlug(req.params.slug);
+  if (!story) return res.status(404).json({ error: "Story not found" });
+  res.json(story);
 });
 
 app.get("/api/places", (req, res) => {
@@ -788,12 +867,14 @@ app.get("/api/local", async (req, res) => {
 });
 
 app.get("/api/agents/status", (req, res) => {
+  const approvedCount = listApprovedStories().length;
   res.json({
     ok: true,
     mode: AGENT_MODE,
     reviewOnly: true,
     autoPublish: false,
-    articlePagesCreated: 0,
+    articlePagesCreated: approvedCount,
+    approvedStories: approvedCount,
     internalAccess:
       Boolean(String(process.env.LIVE_NEWS_INTERNAL_TOKEN || "").trim()) || isLocalRequest(req),
     draftLimit: AGENT_DRAFT_LIMIT,
@@ -864,6 +945,7 @@ app.get("/api/health", (req, res) => {
       reviewOnly: true,
       autoPublish: false,
       draftLimit: AGENT_DRAFT_LIMIT,
+      approvedStories: listApprovedStories().length,
     },
     places: placesMeta.totalPlaces,
   });
