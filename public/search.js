@@ -58,7 +58,8 @@ function updateBrandShift() {
   const brand = document.querySelector(".brand");
   if (!brand) return;
   const topbar = document.querySelector(".topbar");
-  const limit = topbar ? topbar.querySelector(".topbar-tools") : null;
+  const tools = topbar ? topbar.querySelector(".topbar-tools") : null;
+  const limit = tools ? tools.querySelector(".site-search, .compact-local-link, .controls") : null;
   const brandRect = brand.getBoundingClientRect();
   const limitRect = limit ? limit.getBoundingClientRect() : null;
   const containerRect = topbar ? topbar.getBoundingClientRect() : null;
