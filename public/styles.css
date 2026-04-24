@@ -238,10 +238,6 @@ input:focus-visible {
   white-space: nowrap;
 }
 
-.back-home-link {
-  white-space: nowrap;
-}
-
 .brand-title {
   font-size: 26px;
   font-weight: 700;
@@ -259,6 +255,7 @@ input:focus-visible {
 }
 
 .brand {
+  --brand-shift: clamp(42px, 9vw, 140px);
   display: inline-flex;
   align-items: center;
   gap: 12px;

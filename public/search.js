@@ -20,6 +20,8 @@ const elements = {
 function init() {
   hydrateMode();
   bindControls();
+  updateBrandShift();
+  window.addEventListener("resize", updateBrandShift);
   const params = new URLSearchParams(window.location.search);
   state.query = String(params.get("q") || "").trim();
   if (elements.siteSearch) {
@@ -50,6 +52,25 @@ function applyTheme() {
   document.querySelectorAll("[data-mode]").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === state.mode);
   });
+}
+
+function updateBrandShift() {
+  const brand = document.querySelector(".brand");
+  if (!brand) return;
+  const topbar = document.querySelector(".topbar");
+  const limit = topbar ? topbar.querySelector(".topbar-tools") : null;
+  const brandRect = brand.getBoundingClientRect();
+  const limitRect = limit ? limit.getBoundingClientRect() : null;
+  const containerRect = topbar ? topbar.getBoundingClientRect() : null;
+  let maxShift = 0;
+  const controlsShareRow =
+    limitRect && Math.abs(limitRect.top - brandRect.top) < Math.max(brandRect.height, 40);
+  if (limitRect && controlsShareRow) {
+    maxShift = Math.max(0, Math.floor(limitRect.left - brandRect.right - 16));
+  } else if (containerRect) {
+    maxShift = Math.max(0, Math.floor(containerRect.right - brandRect.right - 16));
+  }
+  brand.style.setProperty("--brand-shift", `${maxShift}px`);
 }
 
 function bindControls() {
