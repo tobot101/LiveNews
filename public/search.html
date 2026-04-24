@@ -33,18 +33,20 @@
         <form class="site-search" id="siteSearchForm" role="search">
           <label class="control-label" for="siteSearch">Search Live News</label>
           <div class="site-search-row">
-            <input
-              id="siteSearch"
-              type="search"
-              placeholder="Search stories, sources, or categories"
-              autocomplete="off"
-              aria-autocomplete="list"
-              aria-controls="searchDropdown"
-              aria-expanded="false"
-            />
+            <div class="site-search-box">
+              <input
+                id="siteSearch"
+                type="search"
+                placeholder="Search stories, sources, or categories"
+                autocomplete="off"
+                aria-autocomplete="list"
+                aria-controls="searchDropdown"
+                aria-expanded="false"
+              />
+              <div class="search-dropdown" id="searchDropdown" role="listbox" hidden></div>
+            </div>
             <button class="btn ghost" type="submit">Search</button>
           </div>
-          <div class="search-dropdown" id="searchDropdown" role="listbox" hidden></div>
         </form>
         <a class="btn compact-local-link" href="/local.html">Local News</a>
         <div class="controls">

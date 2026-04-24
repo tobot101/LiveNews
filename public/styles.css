@@ -152,6 +152,12 @@ input:focus-visible {
   gap: 8px;
 }
 
+.site-search-box {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
 .site-search input {
   width: 100%;
   min-width: 0;
@@ -164,9 +170,19 @@ input:focus-visible {
   font-size: 13px;
 }
 
+.site-search-box.search-open input {
+  border-bottom-color: transparent;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.search-dropdown[hidden] {
+  display: none;
+}
+
 .search-dropdown {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% - 1px);
   left: 0;
   right: 0;
   z-index: 8;
@@ -174,9 +190,10 @@ input:focus-visible {
   gap: 6px;
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-top: 0;
+  border-radius: 0 0 18px 18px;
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: 0 20px 36px rgba(15, 23, 42, 0.12);
 }
 
 .search-preview-item {

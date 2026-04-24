@@ -261,9 +261,6 @@ function bindControls() {
     elements.siteSearch.addEventListener("input", (event) => {
       scheduleSearchPreview(event.target.value);
     });
-    elements.siteSearch.addEventListener("focus", () => {
-      scheduleSearchPreview(elements.siteSearch.value);
-    });
     elements.siteSearch.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         hideSearchDropdown();
@@ -452,10 +449,6 @@ function scheduleSearchPreview(value) {
     hideSearchDropdown();
     return;
   }
-  if (query.length < 2) {
-    renderSearchDropdown([], query, "Keep typing to search Live News.");
-    return;
-  }
   searchPreviewTimer = setTimeout(() => fetchSearchPreview(query), 180);
 }
 
@@ -486,6 +479,7 @@ function renderSearchDropdown(items, query, message = "", total = items.length) 
     return;
   }
   elements.searchDropdown.hidden = false;
+  elements.searchDropdown.closest(".site-search-box")?.classList.add("search-open");
   elements.siteSearch?.setAttribute("aria-expanded", "true");
   if (message) {
     elements.searchDropdown.innerHTML = `<div class="search-empty">${escapeHtml(message)}</div>`;
@@ -514,8 +508,8 @@ function renderSearchDropdown(items, query, message = "", total = items.length) 
     .join("");
   const more =
     total > items.length
-      ? `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">View all ${total} results</a>`
-      : `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">Open search page</a>`;
+      ? `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">and more</a>`
+      : `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">and more</a>`;
   elements.searchDropdown.innerHTML = `${resultHtml}${more}`;
 }
 
@@ -523,6 +517,7 @@ function hideSearchDropdown() {
   if (!elements.searchDropdown) return;
   elements.searchDropdown.hidden = true;
   elements.searchDropdown.innerHTML = "";
+  elements.searchDropdown.closest(".site-search-box")?.classList.remove("search-open");
   elements.siteSearch?.setAttribute("aria-expanded", "false");
 }
 
