@@ -1,0 +1,309 @@
+CREATE CLIPS EXECUTION PLAN
+Support product plan for social distribution, visual packaging, and Live News amplification
+Prepared: 2026-04-23
+
+PURPOSE
+Create Clips should support Live News, not compete with it. Live News is the primary
+traffic and trust product. Create Clips is the distribution engine that helps turn approved
+Live News stories into social-ready images, clips, captions, and metadata that send users
+back to Live News.
+
+ROLE IN THE OVERALL SYSTEM
+Live News should own:
+- article selection
+- source handling
+- story summaries
+- website pages
+- SEO value
+- editorial trust
+
+Create Clips should own:
+- social packaging
+- visual concept generation
+- clip planning
+- platform-specific captions
+- short video packages
+- reusable media prompts
+
+CORE RULES CREATE CLIPS MUST INHERIT FROM LIVE NEWS
+Brand: Live News
+Tagline: Anytime & Anywhere
+No copied publisher wording
+No copied publisher article structure
+Attribution required
+Original source link required
+Tone should be clear, calm, readable, and useful
+Outputs should never invent unsupported facts
+Every asset should point back to the Live News page first
+
+WHAT CREATE CLIPS SHOULD RECEIVE FROM LIVE NEWS
+Create Clips should not guess what the story is. It should receive a structured article
+packet after Live News has already prepared and approved the story.
+
+Required article packet:
+- storyId
+- liveNewsUrl
+- headline
+- summaryShort
+- summaryLong
+- keyPoints
+- whyItMatters
+- category
+- subcategory
+- city
+- state
+- country
+- urgencyState
+- publishedAt
+- updatedAt
+- originalSourceUrl
+- primarySourceName
+- supportingSources
+- imageHint or thumbnailUrl
+- editorialNotes
+- attributionLine
+- reviewStatus
+
+Optional enrichment fields:
+- peopleEntities
+- organizationEntities
+- locationEntities
+- topic tags
+- quote snippets approved for reuse if available
+- visual restrictions
+- CTA preference
+- target platforms
+
+WHAT CREATE CLIPS SHOULD RETURN
+The response should be a publish-ready social package, not just a random idea.
+
+Required output package:
+- draftId
+- storyId
+- social angle
+- hook line
+- image prompt
+- short clip concept
+- storyboard or shot list
+- on-screen text suggestions
+- platform captions for Instagram, TikTok, YouTube Shorts, and Facebook
+- hashtag list
+- CTA line
+- attribution line
+- review warnings if the story is sensitive or developing
+
+Later outputs:
+- multiple visual variations
+- multiple tone options
+- thumbnail concepts
+- voiceover draft
+- subtitles plan
+- export notes for 9:16, 1:1, and 16:9
+
+EDITORIAL AND COPYRIGHT GUARDRAILS
+Create Clips should make original promotional material around Live News articles. It should
+not behave like a scraper of publisher footage or designs.
+
+Create Clips should do:
+- create original hooks
+- create original captions
+- create original image prompts
+- create original clip structures
+- create platform packaging that links back to Live News
+
+Create Clips should not do:
+- copy the publisher's headline word-for-word unless explicitly approved
+- imitate the publisher's article structure
+- fabricate quotes
+- use unverified facts from a weak source
+- imply Live News was the original on-the-ground reporter when it was not
+
+RECOMMENDED INTEGRATION FLOW
+1. Live News identifies or publishes a story page.
+2. Live News creates an approved article packet.
+3. Live News sends the packet to Create Clips through an API endpoint.
+4. Create Clips returns a draft social package.
+5. A human reviews the package.
+6. Social posts link back to the Live News story page.
+
+BEST API SHAPE
+Endpoint to add in Create Clips:
+POST /api/generate-from-live-news
+
+Expected request headers:
+- Content-Type: application/json
+- Authorization: Bearer shared-secret
+
+Expected behavior:
+1. Validate the shared secret.
+2. Validate the article packet.
+3. Generate a social package tied to storyId.
+4. Return the package in structured JSON.
+
+WHY THIS SETUP IS CORRECT
+This preserves the hierarchy:
+- Live News decides what is true enough to package.
+- Create Clips decides how to distribute it.
+
+That prevents the media tool from drifting into editorial authority.
+
+CREATE CLIPS PRODUCT PRIORITIES
+PRIORITY 1: LIVE NEWS COMPATIBILITY
+The first success condition is not advanced rendering. It is reliable understanding of a
+Live News story packet and consistent return of usable social drafts.
+
+PRIORITY 2: PLATFORM-SPECIFIC WRITING
+Each platform package should differ in style while keeping the same facts.
+
+PRIORITY 3: VISUAL SAFETY
+If media is generated or suggested, it must match the story theme without pretending to be
+documentary evidence unless the media is truly sourced and approved.
+
+PRIORITY 4: SPEED
+The app should return a strong first draft quickly enough for same-day news publishing.
+
+PRIORITY 5: REVIEWABILITY
+The output should be easy to review line by line before posting.
+
+PLATFORM OUTPUT REQUIREMENTS
+INSTAGRAM
+- short hook
+- polished caption
+- 5 to 10 hashtags
+- CTA to Live News
+
+TIKTOK
+- fast hook
+- short caption
+- on-screen text suggestions
+- CTA to read the full story on Live News
+
+YOUTUBE SHORTS
+- searchable title
+- short description
+- attribution line
+- SEO-friendly tags
+
+FACEBOOK
+- clearer summary tone
+- stronger explanatory caption
+- article-link CTA
+
+VISUAL OUTPUT MODULES TO BUILD
+1. Static image prompt builder
+2. Vertical clip concept builder
+3. Storyboard generator
+4. On-screen text generator
+5. Caption and hashtag generator
+6. CTA and source-credit generator
+
+SYSTEM MODULES TO IMPLEMENT
+MODULE 1: LIVE NEWS INPUT ADAPTER
+Turns Live News article packets into Create Clips internal project objects.
+
+MODULE 2: SOCIAL STRATEGY ENGINE
+Chooses the best angle:
+- breaking update
+- quick explainer
+- what changed
+- why it matters
+- local spotlight
+
+MODULE 3: VISUAL CONCEPT ENGINE
+Builds image prompts, clip concepts, frame suggestions, and safe visual themes.
+
+MODULE 4: PLATFORM WRITER
+Outputs tailored social copy for each platform.
+
+MODULE 5: REVIEW LAYER
+Flags risks such as:
+- unclear attribution
+- weak evidence
+- sensitive tragedy coverage
+- conflict or war stories needing careful tone
+
+PHASED BUILD PLAN
+PHASE 1: ACCEPT LIVE NEWS ARTICLE PACKETS
+1. Add the Live News API endpoint.
+2. Add request validation.
+3. Add shared-secret authentication.
+4. Store draft packages by storyId.
+
+PHASE 2: GENERATE TEXT-FIRST SOCIAL PACKAGES
+1. Create captions, hashtags, CTA, and attribution.
+2. Produce one image prompt and one clip concept.
+3. Return review warnings when needed.
+
+PHASE 3: ADD MULTI-OPTION OUTPUTS
+1. Offer 2 to 3 caption variations.
+2. Offer multiple hooks.
+3. Offer multiple visual directions.
+
+PHASE 4: ADD WORK QUEUE AND STATUS
+1. Draft
+2. Needs review
+3. Approved
+4. Published
+5. Archived
+
+PHASE 5: MEASURE WHAT WORKS
+Track which packages drive:
+- click-through to Live News
+- saves
+- comments
+- shares
+- time to publish
+
+GOOGLE DOCS AND COLLABORATION USE
+Create Clips also benefits from a simple shared review structure.
+
+Recommended folders:
+- Create Clips / Brand Rules
+- Create Clips / Approved Social Packages
+- Create Clips / Prompt Library
+- Create Clips / Review Notes
+
+Recommended working doc for each story:
+1. Story ID
+2. Live News URL
+3. Social angle
+4. Hook options
+5. Caption options
+6. Visual prompt options
+7. Final approved package
+
+HOW CREATE CLIPS SHOULD HELP SEO INDIRECTLY
+Create Clips should not chase SEO by itself. It helps SEO by:
+- bringing users to Live News story pages
+- increasing branded search interest
+- increasing return visits
+- supporting fresh distribution around important stories
+- giving article pages more traffic and engagement opportunities
+
+SUCCESS METRICS
+Create Clips is succeeding if:
+- more social posts point to Live News story pages
+- turnaround time from article approval to social draft stays low
+- reviewers can approve packages with minimal rewriting
+- traffic from social to Live News rises
+- attribution remains correct across platforms
+
+REFERENCE INPUTS REVIEWED
+Create Clips project files reviewed:
+- README.md
+- server.js
+- lib/generation.js
+- public/index.html
+- public/app.js
+- tests/generation.test.js
+
+Live News integration principles reviewed:
+- helpful, reliable, people-first content
+  https://developers.google.com/search/docs/fundamentals/creating-helpful-content
+- article structured data
+  https://developers.google.com/search/docs/appearance/structured-data/article
+
+BOTTOM LINE
+Create Clips should be the amplification layer for Live News. It should accept approved
+story packets, generate original social assets, preserve attribution, and direct attention
+back to the Live News article pages that will carry the long-term traffic and SEO value.

@@ -1,0 +1,353 @@
+LIVE NEWS EXECUTION PLAN
+Primary product plan for the website, article system, and front-page redesign
+Prepared: 2026-04-23
+
+PURPOSE
+Live News should become a readability-first, source-respectful news destination that
+turns fast-moving web coverage into cleaner, easier-to-browse story pages. The site
+should not feel like a raw RSS wall. It should feel like a calm newsroom product that
+surfaces the most important stories first, summarizes them clearly, and always points
+readers to the original source.
+
+LOCKED PRODUCT DECISIONS TO PRESERVE
+Brand: Live News
+Tagline: Anytime & Anywhere
+No ads
+No community hub
+Day mode uses a cool blue-gray low-glare palette
+Dark mode should be eye-friendly and readable
+Top Stories remains capped at 8
+Latest News Feed remains capped at 170 in the backend
+User-facing feed controls should stay 30, 50, and 100
+Stories should age out around 48 hours
+Local News must stay near the top of the homepage
+Local browsing should happen on the dedicated local page
+Attribution and original source links are required
+Live News must not copy publisher wording or article structure
+
+WHY THE CURRENT HOMEPAGE NEEDS TO EVOLVE
+The current homepage is useful, but most stories still read like feed rows. The title is
+the main visible asset, and the source/time line does more work than the summary does.
+That makes scanning harder than it should be, especially when many stories look similar.
+
+The next version should turn story rows into structured cards and turn major stories into
+real Live News pages. This does not mean hand-writing every article from scratch. It means
+building a system that:
+1. Ingests source material from the web.
+2. Clusters matching reports.
+3. Produces a simple Live News summary in original wording.
+4. Publishes a dedicated Live News page for that story.
+5. Links back to the original source and any supporting sources.
+
+This is the right path because it gives Live News:
+- indexable article URLs
+- better SEO structure
+- stronger internal linking
+- stable destinations for social posts
+- a cleaner experience than sending users directly away to the publisher first
+
+PRODUCT DIRECTION FOR THE NEW HOMEPAGE
+Live News should borrow the information hierarchy used by major U.S. news sites without
+copying any single outlet's style. The key patterns worth using are:
+- a lead story or lead package at the top
+- visible categories and recency cues
+- grouped modules rather than one long undifferentiated list
+- clear summaries beneath or beside headlines
+- strong source and timestamp context
+- separate lanes for live updates, local coverage, and latest items
+
+RECOMMENDED HOMEPAGE LAYOUT
+1. Top utility header
+   Brand, tagline, search, mode toggle, and a compact local entry point.
+
+2. Lead news band
+   One large lead story card for the most important story on the web right now.
+   This card should show:
+   - headline
+   - 2 to 3 sentence summary
+   - source cluster line
+   - updated time
+   - category
+   - button to open the Live News story page
+   - button to read the original source
+
+3. Top Stories module
+   Keep 8 stories, but stop presenting them as plain list rows.
+   Use 2-column desktop cards and 1-column mobile cards.
+   Each card should show:
+   - headline
+   - 1 short summary block
+   - source line
+   - category
+   - published or updated time
+   - quality or confidence chip
+
+4. Latest News Feed module
+   Keep the grouped-by-time structure, but move to denser cards with clearer text rhythm.
+   Each card should show:
+   - headline
+   - one-line summary
+   - source
+   - category
+   - timestamp
+
+5. Local News module near the top
+   Keep this high on the page.
+   Keep city launcher behavior and dedicated local page behavior.
+   Do not bury local under national or business modules.
+
+6. Category lanes
+   Introduce lighter modular sections below the main story area:
+   - National
+   - International
+   - Business
+   - Tech
+   - Sports
+   - Entertainment
+   Each lane can show 3 to 5 curated cards and a "See more" action.
+
+7. Search and utilities
+   Add a visible site search box near the top.
+   Add a "Developing / Live / Explained" filter later.
+   Add a compact "Updated in the last hour" quick filter later.
+
+PROPOSED ARTICLE CARD FORMAT
+For both Top Stories and category modules, use box-based cards instead of stretched rows.
+
+Card anatomy:
+- Eyebrow: category plus urgency state
+- Headline: 2 to 3 lines max
+- Summary: 2 sentences max
+- Source line: primary source plus supporting source count
+- Time line: published or updated time
+- Actions: Open Live News page, Original source
+
+This will make the page feel more editorial and less like a scraped feed.
+
+HOW THE LIVE NEWS ARTICLE SYSTEM SHOULD WORK
+The article system should be helpful, but not "too intelligent." It should not invent new
+reporting. It should behave like a structured summarizer and organizer.
+
+SAFE WRITING MODEL
+The system should write:
+- a clean headline in Live News wording
+- a 2 to 4 sentence summary
+- 3 key points
+- a "why it matters" line
+- a source block
+
+The system should not write:
+- long opinion pieces
+- speculative claims
+- quotes that are not present in source material
+- dramatic or sensational language
+- full rewritten versions of a publisher article
+
+RECOMMENDED ARTICLE PAGE STRUCTURE
+1. Live News headline
+2. One-deck summary under the headline
+3. Story facts section with 3 to 5 bullets
+4. Why it matters section
+5. Source list with original publisher links
+6. Related coverage section
+7. Social package or clip promo area later
+8. Last updated timestamp
+
+INPUTS THE ARTICLE SYSTEM NEEDS
+To make this work well, each story record should store more than a title and link.
+
+Required story packet fields:
+- storyId
+- slug
+- liveNewsUrl
+- originalSourceUrl
+- primarySourceName
+- supportingSources
+- sourceDomains
+- originalPublisherTitle
+- liveNewsHeadline
+- category
+- subcategory
+- city
+- state
+- country
+- publishedAt
+- updatedAt
+- clusteredAt
+- urgencyState
+- crossSourceScore
+- summaryShort
+- summaryLong
+- keyPoints
+- whyItMatters
+- peopleEntities
+- organizationEntities
+- locationEntities
+- thumbnailUrl
+- imageCredit
+- originalLanguage if relevant
+- reviewStatus
+- socialStatus
+- canonicalUrl
+- metaTitle
+- metaDescription
+- schemaType
+
+EXTRA INPUTS THAT WILL MAKE LIVE NEWS BETTER
+- topic tags for recurring subjects
+- live update flag
+- correction flag
+- explainer flag
+- data-source confidence score
+- duplicate cluster score
+- source freshness score
+- manual editor notes
+- clip package status
+- SEO keyword theme
+- internal related-story IDs
+
+EDITORIAL GUARDRAILS
+Live News should remain source-respectful and useful. The system should follow these rules:
+1. Use source material to understand facts, not to mimic the publisher's prose.
+2. Keep summaries short and original.
+3. Show where information came from.
+4. Prefer multiple-source clusters when possible.
+5. Mark uncertain or developing stories clearly.
+6. Preserve timestamps so users understand freshness.
+7. Let human edits override auto-generated copy.
+
+GOOGLE DOCS COLLABORATION WORKFLOW
+The easiest collaboration method is not to build a full CMS first. Start with a simple
+editorial loop using Google Docs.
+
+Recommended Google Drive structure:
+- Live News / Editorial / Story Drafts
+- Live News / Editorial / Approved Stories
+- Live News / Editorial / Style Guide
+- Live News / Editorial / Source Notes
+
+For each story draft, use a standard document template:
+1. Story ID and category
+2. Original source link
+3. Additional source links
+4. Live News headline draft
+5. Summary draft
+6. Key points
+7. Why it matters
+8. Notes to Create Clips
+9. Status: Draft / Review / Approved / Published
+
+The website should eventually support:
+- "Create draft doc" action
+- "Mark reviewed" action
+- "Publish to Live News page" action
+
+But version 1 can be manual:
+1. Auto-generate a story packet.
+2. Paste it into a Google Doc.
+3. Edit with collaborators.
+4. Approve the final summary.
+5. Publish the edited fields back into Live News.
+
+EXECUTION PHASES
+PHASE 1: DATA MODEL AND STORY PACKETS
+Goal: turn feed items into structured Live News story records.
+Steps:
+1. Expand the backend story object beyond title, link, and summary.
+2. Generate a stable slug and story ID for each cluster.
+3. Preserve original source links and source counts.
+4. Add summaryShort, summaryLong, and keyPoints fields.
+5. Store article-ready metadata for SEO and internal routing.
+
+PHASE 2: DEDICATED LIVE NEWS STORY PAGES
+Goal: each important story gets its own Live News URL.
+Steps:
+1. Create a story route, such as /story/:slug
+2. Render Live News copy, not raw publisher copy
+3. Show the original source link prominently
+4. Add structured data for NewsArticle
+5. Add canonical tags and related stories
+
+PHASE 3: HOMEPAGE REDESIGN
+Goal: make the front page easier to scan and more editorial.
+Steps:
+1. Convert Top Stories rows into box cards
+2. Add a lead story area above the Top Stories grid
+3. Keep Local News near the top
+4. Keep Latest News grouped by time
+5. Rebalance spacing, card density, and summary lengths
+
+PHASE 4: NAVIGATION AND DISCOVERY
+Goal: help users find what matters quickly.
+Steps:
+1. Add search near the top navigation
+2. Add section quick links
+3. Add filters for live, local, and recent later
+4. Add related story linking
+5. Add topic tags or recurring themes later
+
+PHASE 5: SEO AND TRUST
+Goal: make Live News indexable, understandable, and credible.
+Steps:
+1. Add per-story title and description fields
+2. Add NewsArticle schema where appropriate
+3. Maintain sitemap coverage for article pages
+4. Show updated timestamps clearly
+5. Add About, Contact, and editorial standards pages
+
+PHASE 6: EDITORIAL WORKFLOW
+Goal: keep the writing simple, accurate, and collaborative.
+Steps:
+1. Create a draft template for Google Docs
+2. Add human review status to story packets
+3. Let approved text override automated summaries
+4. Build a later admin tool only after the workflow is proven
+
+PHASE 7: CREATE CLIPS INTEGRATION
+Goal: use Create Clips as the attention engine, not the source of truth.
+Steps:
+1. Send approved Live News article packets to Create Clips
+2. Receive social caption and visual packages
+3. Link social posts back to the Live News story page
+4. Keep attribution and source links intact
+
+HIGH-PRIORITY CLEANUP ITEMS FROM THE CURRENT SITE
+1. Remove the user-facing 170 button from the feed controls if 170 is meant to remain a
+   backend cap only.
+2. Replace long Top Stories rows with structured cards.
+3. Add clearer summary text to more homepage story surfaces.
+4. Build true Live News story destinations instead of linking headline clicks only to the
+   original publisher.
+5. Add search and improved section discovery.
+
+SUCCESS METRICS
+Live News is moving in the right direction if:
+- more users open Live News story pages before leaving to original sources
+- article pages receive index coverage in Google
+- homepage click-through improves
+- local page engagement stays strong
+- summaries remain readable and do not trigger copying concerns
+- Create Clips social posts send traffic back to Live News pages
+
+REFERENCE PATTERNS REVIEWED
+Major U.S. outlet homepages reviewed for layout and hierarchy ideas:
+- ABC News homepage: lead modules, visible categories, live updates, top stories, app CTA
+  https://abcnews.com/
+- NPR homepage: top stories plus topical lanes and mission-forward grouping
+  https://www.npr.org/
+- Fox News homepage: modular sections, latest wires, topic lanes, and high-scan packaging
+  https://www.foxnews.com/
+
+Google documentation reviewed for search-facing requirements:
+- Helpful, reliable, people-first content
+  https://developers.google.com/search/docs/fundamentals/creating-helpful-content
+- Article structured data
+  https://developers.google.com/search/docs/appearance/structured-data/article
+- Build and submit a sitemap
+  https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
+
+BOTTOM LINE
+Live News should evolve from a feed-led site into a story-led site. The right move is not
+manual article writing. The right move is a structured article generation system with
+human collaboration, stronger cards, better front-page hierarchy, and dedicated Live News
+story pages that Create Clips can promote.

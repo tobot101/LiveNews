@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "live-news-style-memory-v1",
+  "updatedAt": null,
+  "avoidPhrases": [
+    "This story matters because",
+    "According to reports",
+    "In a major development",
+    "The situation continues to unfold",
+    "This comes as",
+    "Here is what you need to know"
+  ],
+  "editorLessons": [],
+  "recentFingerprints": []
+}

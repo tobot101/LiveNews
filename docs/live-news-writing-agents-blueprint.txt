@@ -1,0 +1,634 @@
+LIVE NEWS WRITING AGENTS BLUEPRINT
+Research-backed plan for creative, source-grounded article writing agents
+Prepared: 2026-04-24
+
+PURPOSE
+This document explains how Live News can use agents to create original article writing
+from news source material without becoming robotic, repetitive, unsafe, or disrespectful
+to publishers. It focuses on the support code, triggers, services, guardrails, review
+process, and improvement loop needed to make the system stay alive over time.
+
+This is not a plan to let AI freely rewrite the website or auto-publish everything. It is
+a plan for a controlled newsroom machine:
+
+- It watches source feeds and the live web.
+- It turns source material into structured story packets.
+- It asks specialist agents to draft, vary, edit, check, and prepare articles.
+- It keeps attribution and original source links.
+- It prevents copied wording and copied article structure.
+- It learns from editor feedback, traces, evals, and prompt versions.
+- It keeps human intuition as the final publishing gate.
+
+CURRENT LIVE NEWS BASELINE
+Recent project work shows that Live News is already moving in the right direction:
+
+- SEO titles and descriptions were updated for the homepage and local page.
+- robots.txt and sitemap.xml were added.
+- Google Search Console verification was added.
+- favicon and logo presentation were updated.
+- Local News was improved for mobile and city browsing.
+- Express and Railway identifying headers were reduced.
+- Current untracked work is in docs only.
+
+The product direction to preserve:
+
+- Brand: Live News.
+- Tagline: Anytime & Anywhere.
+- No ads.
+- No community hub.
+- Readability-first, low-clutter presentation.
+- Source-respectful coverage with attribution and original links.
+- Top Stories capped at 8.
+- Latest News Feed capped at 170.
+- User controls remain 30, 50, and 100.
+- Stories age out around 48 hours.
+- Local News remains near the top of the homepage.
+- Local browsing happens on the dedicated local page.
+- Live News must not copy publisher wording or article structure.
+
+THE SHORT ANSWER
+The best system is not one "writer bot." The best system is a pipeline of small agents
+triggered by story-state events. Each agent has one job, strict inputs, strict outputs,
+and a quality gate.
+
+The core formula:
+
+source articles -> story cluster -> story packet -> draft -> style variation -> source
+audit -> fact/grounding check -> human review -> publish -> learn from edits
+
+The system becomes more intelligent over time by improving:
+
+- what it reads
+- how it groups stories
+- how it structures story packets
+- how it writes in varied forms
+- how it catches bad drafts
+- how it learns from human edits
+- how it measures quality with evals
+
+The system should not become "unlimited" by editing production code on its own. That is
+not intelligence. That is risk. The stronger path is controlled growth: agents can
+collect knowledge, propose improvements, and update approved memory or prompt records,
+but production code changes should remain reviewed and versioned.
+
+WHAT "SUPPORT CODE TRIGGERS AGENTS" MEANS
+Support code is the application layer that decides when agents should run. Agents should
+not wake up randomly. They should be triggered by clear events.
+
+Recommended story events:
+
+- source.item_collected
+- source.item_normalized
+- story.clustered
+- story.packet_ready
+- draft.requested
+- draft.created
+- draft.eval_failed
+- draft.rewrite_requested
+- draft.needs_human_review
+- draft.approved
+- story.published
+- story.updated
+- story.archived
+- style.memory_updated
+- prompt.change_proposed
+
+Recommended story states:
+
+- collected
+- clustered
+- packet_ready
+- drafting
+- checking
+- needs_review
+- approved
+- published
+- correction_needed
+- archived
+
+Example trigger logic:
+
+- When enough sources mention the same story, trigger story.clustered.
+- When the cluster has source links, timestamps, and category, trigger story.packet_ready.
+- When a packet is ready and the story is important enough, trigger draft.requested.
+- When a draft is created, trigger source audit, fact check, and style check.
+- If a check fails, trigger draft.rewrite_requested.
+- If checks pass, trigger draft.needs_human_review.
+- If the human approves, trigger story.published.
+- If new source material changes the story, trigger story.updated and create a revision.
+
+AGENT ROLES FOR LIVE NEWS
+The system should use specialist agents. Each agent should have a narrow job.
+
+Source Scout Agent:
+Finds fresh source items from RSS feeds, official feeds, trusted public pages, and
+configured web search. It records source name, source URL, published time, category, and
+raw metadata.
+
+Source Normalizer Agent:
+Turns messy feed items into a consistent internal shape. It should not write public copy.
+Its job is cleanup, timestamp handling, dedupe keys, and source fields.
+
+Story Cluster Agent:
+Groups articles about the same event. It should compare headline meaning, entity names,
+topic, location, and timestamps.
+
+Story Packet Agent:
+Turns a cluster into a structured Live News story object. This is the most important
+input to the writer. It should include facts, source links, timestamps, category, city or
+region, and source diversity.
+
+Source Auditor Agent:
+Checks that every draft has the original source link and supporting source links. It also
+flags single-source stories, unclear source names, missing timestamps, and weak attribution.
+
+Angle Agent:
+Chooses the article framing without inventing opinion. It can choose formats such as fast
+update, context explainer, local impact, business consequence, accountability, timeline,
+or "what happened and what is next."
+
+Draft Writer Agent:
+Writes the first Live News draft from the story packet. It must use Live News wording,
+not publisher wording. It should write only what is supported by the packet.
+
+Style Variation Agent:
+Prevents same-rhythm writing. It changes sentence cadence, opening style, paragraph shape,
+headline structure, and summary rhythm without changing facts.
+
+Copy Editor Agent:
+Removes robotic phrasing, hype, repeated templates, awkward grammar, and overexplaining.
+It should preserve facts and source references.
+
+Fact and Grounding Agent:
+Checks every factual claim against the story packet and sources. Unsupported claims must
+be removed or sent back for review.
+
+SEO and Schema Agent:
+Creates a meta title, meta description, canonical URL fields, and NewsArticle structured
+data. It should support search engines without turning the writing into search-engine-first
+content.
+
+Human Review Gate:
+The human editor reviews article quality, tone, source integrity, and sensitivity before
+public posting. Sensitive topics must always require human approval.
+
+Learning Agent:
+Compares AI drafts against human-approved versions. It creates weekly lessons and proposes
+style memory or prompt updates. It should not change production code without approval.
+
+THE STORY PACKET
+Agents should write from story packets, not directly from random web pages. A story packet
+is the safe source of truth for each article.
+
+Recommended story packet fields:
+
+- storyId
+- slug
+- canonicalLiveNewsUrl
+- category
+- subcategory
+- urgencyState
+- city
+- state
+- country
+- primarySourceName
+- primarySourceUrl
+- supportingSources
+- originalPublisherTitle
+- sourcePublishedAt
+- collectedAt
+- updatedAt
+- sourceDiversityScore
+- crossSourceCount
+- facts
+- disputedOrUnclearClaims
+- keyEntities
+- timeline
+- whyItMattersCandidate
+- attributionLine
+- prohibitedPhrasesFromSources
+- sensitiveTopicFlags
+- requiredHumanReview
+
+This packet should be stored before drafting. If the packet is weak, the writing should
+not begin.
+
+ANTI-ROBOTIC WRITING SYSTEM
+Bad AI writing usually comes from one of these problems:
+
+- the same opening every time
+- the same sentence length every time
+- the same summary structure every time
+- vague phrases instead of concrete facts
+- too many "this comes as" transitions
+- summaries that feel like rewritten publisher copy
+- empty SEO filler
+- no human sense of importance
+
+Live News should use style dials instead of one fixed template.
+
+Recommended style dials:
+
+- urgency: calm, developing, breaking, routine
+- article shape: quick brief, context card, timeline, local impact, accountability, explainer
+- sentence rhythm: short-and-direct, mixed cadence, slower context, clipped update
+- opening type: direct fact, impact first, timeline first, source first, question answered
+- paragraph density: compact, standard, expanded
+- reader value: what happened, why it matters, what changes, what is still unknown
+
+Do-not-repeat patterns:
+
+- "This story matters because..."
+- "According to reports..."
+- "In a major development..."
+- "The situation continues to unfold..."
+- "This comes as..."
+- "Here is what you need to know..."
+- using exactly 3 bullets on every story
+- starting every summary with the source name
+- ending every story with the same attribution sentence
+
+Style fingerprint checks:
+
+- Compare the draft opening against the last 20 Live News articles.
+- Compare headline structure against the last 20 headlines.
+- Compare average sentence length against the last 20 drafts.
+- Count repeated transition phrases.
+- Count passive voice and vague filler.
+- Flag if two drafts feel too similar in rhythm.
+
+If the style fingerprint is too close to recent writing, the Style Variation Agent should
+rewrite the draft while preserving facts.
+
+QUALITY GATES BEFORE HUMAN REVIEW
+Every draft should pass automatic gates before a human sees it.
+
+Required gates:
+
+- Source gate: every story has a primary source URL and attribution line.
+- Grounding gate: every factual claim maps to the story packet.
+- Originality gate: no copied publisher wording or copied structure.
+- Tone gate: no hype, sensationalism, unsupported certainty, or loaded language.
+- Freshness gate: timestamps are clear and the story is within the Live News freshness window.
+- Style gate: draft rhythm is not too similar to recent drafts.
+- Sensitivity gate: sensitive categories require human review.
+- SEO gate: title, description, canonical, and structured data are present.
+- Link gate: original source link works and is not hidden.
+
+Sensitive topics that should always require human review:
+
+- war and conflict
+- crime and accusations
+- death, injury, tragedy, disasters
+- elections and politics
+- health and medical claims
+- legal cases and lawsuits
+- minors
+- identities and protected classes
+- financial advice or market-moving claims
+
+HUMAN INTUITION LOOP
+Human review is not a weakness. It is the system's taste, judgment, and responsibility
+layer.
+
+The editor should be able to mark:
+
+- approve
+- request rewrite
+- fix headline
+- fix tone
+- fix source attribution
+- fact unsupported
+- too robotic
+- too similar to publisher
+- too long
+- too thin
+- hold story
+- correction needed
+
+Every human edit should become a learning signal. The system should store:
+
+- AI draft
+- human-approved draft
+- diff between both
+- editor tags
+- editor note
+- story category
+- source count
+- prompt version
+- model version
+- eval scores
+- publish outcome
+
+Once per week, the Learning Agent should create a report:
+
+- what types of drafts failed
+- which prompts caused weak writing
+- which categories had robotic rhythm
+- which sources created attribution problems
+- which edits repeated across stories
+- what prompt or style-memory update is proposed
+
+The human should approve prompt updates before they become active.
+
+HOW INTELLIGENCE KEEPS GROWING
+The system grows through a controlled flywheel.
+
+Flywheel:
+
+1. Collect fresh sources.
+2. Build better story packets.
+3. Draft with source-grounded agents.
+4. Evaluate drafts automatically.
+5. Let a human approve or edit.
+6. Save traces, scores, and editor feedback.
+7. Use feedback to update prompts, style memory, and quality checks.
+8. Re-run evals before shipping changes.
+
+What should grow automatically:
+
+- source metadata
+- story clusters
+- article packets
+- traces and eval records
+- style fingerprints
+- editor feedback datasets
+- proposed prompt improvements
+- source reliability notes
+
+What should not grow automatically without approval:
+
+- production website code
+- publishing rules
+- source allowlists for sensitive coverage
+- legal or safety policies
+- prompt changes that affect public publishing
+- auto-publish permissions
+
+WHAT IS OUT THERE ACROSS THE WEB
+These are the major service categories and how they apply to Live News.
+
+OpenAI Responses API and Agents SDK:
+Good fit for code-first agents, structured outputs, web search, guardrails, human review,
+tool calls, background tasks, tracing, and evals. This is the most direct fit if Live News
+uses OpenAI as the agent layer.
+
+LangGraph:
+Good fit for durable, stateful agent workflows where steps can pause, resume, and survive
+failures. Useful if Live News needs deep workflow control and human-in-the-loop checkpoints.
+
+LlamaIndex:
+Good fit for RAG, document indexing, vector stores, workflows, and agents that need to
+retrieve from internal knowledge. Useful for story memory, source packets, and prior
+editorial lessons.
+
+CrewAI:
+Good fit for role-based agent teams and flows. Useful conceptually for defining scout,
+writer, editor, and auditor roles, though Live News should avoid overly theatrical agent
+chains that add cost without quality.
+
+Microsoft Agent Framework and AutoGen:
+Good fit for enterprise multi-agent orchestration, state, telemetry, and graph workflows.
+Useful to watch, but likely heavier than Live News needs at the first build stage.
+
+Railway Cron, Workers, and Queues:
+Good fit for deployment operations. Cron can run scheduled ingestion. Workers can process
+background jobs. Queues can handle retries, rate limits, and long writing checks.
+
+Inngest:
+Good fit for event-driven durable functions with retries, memoized steps, throttling, and
+state. Useful if Live News wants cleaner event-based orchestration without managing queue
+infrastructure directly.
+
+Temporal:
+Good fit for very durable long-running workflows, but may be operationally heavy for the
+early Live News build.
+
+BullMQ with Redis:
+Good fit for Node.js queues, retries, delayed jobs, worker concurrency, and dead-letter
+handling. This is practical if Live News stays mostly Node/Express.
+
+LangSmith:
+Good fit for traces, feedback, evaluation, and observability across agent runs.
+
+Langfuse:
+Good fit for open-source tracing, prompt management, cost tracking, and evaluations.
+
+Arize Phoenix:
+Good fit for open-source LLM observability, tracing, RAG debugging, and eval experiments.
+
+Braintrust:
+Good fit for systematic evals, prompt experiments, production logs, online scoring, and
+feedback loops.
+
+Google Search Central and Google News guidance:
+Critical for editorial boundaries. Google does not reward thin content made mainly for
+rankings. Live News must add clarity, source organization, context, and trust. AI can help,
+but the page must serve readers first.
+
+RECOMMENDED LIVE NEWS BUILD PHASES
+Phase 1: Story Packet Foundation
+Build structured story packets from the existing feed and clustering data. Do not publish
+AI-written pages yet. Store source links, timestamps, facts, category, and source count.
+
+Phase 2: Internal Draft Generator
+Create a script or internal endpoint that generates draft article packages from story
+packets. Save drafts as review-only records. Do not auto-publish.
+
+Phase 3: Automatic Quality Gates
+Add grounding, attribution, originality, tone, freshness, and style checks. Failed drafts
+go back to rewrite or human review.
+
+Phase 4: Human Review Dashboard
+Create a private admin page where the editor can approve, edit, reject, or request rewrite.
+This is where human intuition enters the product loop.
+
+Phase 5: Publish Dedicated Live News Article Pages
+Publish approved articles to stable URLs with NewsArticle schema, source links, canonical
+URLs, updated timestamps, and related stories.
+
+Phase 6: Learning Memory
+Store editor feedback, draft diffs, prompt versions, source notes, and eval outcomes. Create
+a weekly learning report and prompt-update proposal.
+
+Phase 7: Safer Automation
+Allow limited auto-publishing only for low-risk, routine, clearly sourced stories after the
+system has proven quality. Sensitive topics should remain human-approved.
+
+Phase 8: Advanced Intelligence
+Add deeper research, topic watchlists, local source expansion, source reliability memory,
+and stronger editorial style adaptation.
+
+RECOMMENDED STARTER TECHNICAL DESIGN
+Keep the first version simple and compatible with the current Live News repo.
+
+Suggested folders and files:
+
+- data/story-packets.json
+- data/drafts.json
+- data/editor-feedback.json
+- data/style-memory.json
+- lib/article-agents/story-packet.js
+- lib/article-agents/draft-agent.js
+- lib/article-agents/style-check.js
+- lib/article-agents/source-audit.js
+- lib/article-agents/evals.js
+- scripts/generate-story-drafts.js
+- scripts/run-draft-evals.js
+
+Suggested environment flags:
+
+- OPENAI_API_KEY
+- LIVE_NEWS_AGENT_MODE=review_only
+- LIVE_NEWS_AUTO_PUBLISH=false
+- LIVE_NEWS_DRAFT_MODEL
+- LIVE_NEWS_REVIEW_MODEL
+- LIVE_NEWS_AGENT_TRACE=true
+
+Suggested first data flow:
+
+1. Existing feed creates or updates story packets.
+2. A script picks high-priority packets.
+3. The draft agent writes a structured draft.
+4. The review agents score the draft.
+5. Draft and scores are saved to data/drafts.json.
+6. Human reviews the draft manually.
+7. No public publish happens until approved.
+
+EXAMPLE STRUCTURED DRAFT OUTPUT
+Agents should return structured JSON, not loose text.
+
+{
+  "storyId": "example-story-id",
+  "headline": "Live News original headline",
+  "dek": "One sentence summary in Live News wording.",
+  "summary": [
+    "First concise paragraph.",
+    "Second concise paragraph."
+  ],
+  "keyPoints": [
+    "Fact supported by source packet.",
+    "Fact supported by source packet.",
+    "Fact supported by source packet."
+  ],
+  "whyItMatters": "Plain-language reader value.",
+  "sourceAttribution": "Source: Publisher Name, with supporting coverage from others.",
+  "originalSourceUrl": "https://example.com/original",
+  "supportingSourceUrls": [],
+  "requiresHumanReview": true,
+  "riskFlags": [],
+  "styleFingerprint": {
+    "openingType": "direct_fact",
+    "sentenceRhythm": "mixed",
+    "articleShape": "context_card"
+  }
+}
+
+ASSURANCE MODEL
+To trust the system, Live News needs proof of what happened.
+
+Every run should record:
+
+- storyId
+- trigger event
+- agent name
+- model name
+- prompt version
+- source packet version
+- output
+- eval scores
+- failures
+- human decision
+- published URL if approved
+- trace ID
+
+This makes the agents accountable. If a story is bad, we can inspect the packet, prompt,
+agent output, eval results, and editor decision.
+
+WHAT TO BUILD FIRST
+Build the review-only system first. Do not begin with full automation.
+
+First implementation package:
+
+- Add story packet schema.
+- Add internal draft schema.
+- Add source audit checks.
+- Add style fingerprint checks.
+- Add manual draft generation script.
+- Add docs for editor review rules.
+- Keep all AI drafts private until approved.
+
+This gives Live News a strong foundation without risking the public site.
+
+BOTTOM LINE
+Live News can absolutely use agents to do most of the article writing labor. The best
+version is not a loose AI writer. It is a living editorial system with:
+
+- event triggers
+- story packets
+- source-grounded drafting
+- style variation
+- automated quality gates
+- human approval
+- trace logs
+- eval datasets
+- weekly learning reports
+- versioned prompt improvements
+
+That is how the system becomes more intelligent over time while staying trustworthy,
+readable, source-respectful, and aligned with the Live News product direction.
+
+SOURCE NOTES USED FOR THIS BLUEPRINT
+OpenAI Agents SDK:
+https://developers.openai.com/api/docs/guides/agents
+
+OpenAI tracing and observability:
+https://developers.openai.com/api/docs/guides/agents/integrations-observability#tracing
+
+OpenAI guardrails and human review:
+https://developers.openai.com/api/docs/guides/agents/guardrails-approvals
+
+OpenAI agent evals:
+https://developers.openai.com/api/docs/guides/agent-evals
+
+OpenAI structured outputs:
+https://developers.openai.com/api/docs/guides/structured-outputs
+
+OpenAI web search:
+https://developers.openai.com/api/docs/guides/tools-web-search
+
+LangGraph durable execution:
+https://docs.langchain.com/oss/python/langgraph/durable-execution
+
+LlamaIndex workflows:
+https://developers.llamaindex.ai/python/llamaagents/workflows/
+
+LlamaIndex agents:
+https://developers.llamaindex.ai/python/framework/module_guides/deploying/agents/
+
+Railway cron, workers, and queues:
+https://docs.railway.com/guides/cron-workers-queues
+
+Inngest durable execution:
+https://www.inngest.com/docs/learn/how-functions-are-executed
+
+LangSmith observability:
+https://docs.langchain.com/langsmith/observability-concepts
+
+Langfuse observability:
+https://langfuse.com/docs/observability/overview
+
+Braintrust evals:
+https://www.braintrust.dev/docs/evaluate
+
+Google helpful, reliable, people-first content:
+https://developers.google.com/search/docs/fundamentals/creating-helpful-content
+
+Google spam policies and scaled content abuse:
+https://developers.google.com/search/docs/essentials/spam-policies
+
+Google Article and NewsArticle structured data:
+https://developers.google.com/search/docs/appearance/structured-data/article
+
+Google News policies:
+https://support.google.com/news/publisher-center/answer/6204050

@@ -1,0 +1,551 @@
+LIVE NEWS INTELLIGENCE ARCHITECTURE
+Research-backed strategy for making Live News smarter over time without losing control
+Prepared: 2026-04-23
+
+PURPOSE
+This document answers a product question before implementation:
+How do we make Live News continue getting better from web resources over time without
+turning it into an unsafe black box that edits itself, publishes low-quality content, or
+drifts away from the Live News brand and editorial rules?
+
+SHORT ANSWER
+Live News should not aim for "unlimited intelligence." No practical production system has
+no limit. Instead, Live News should aim for:
+- expanding intelligence
+- bounded autonomy
+- explicit memory
+- continuous retrieval from the web
+- eval-driven improvement
+- human-controlled publishing
+
+That is the safe path to a system that becomes meaningfully smarter over time.
+
+THE MOST IMPORTANT PRODUCT DECISION
+Live News should learn primarily through:
+1. Retrieval from fresh web sources
+2. Structured memory stored in Live News data
+3. Human review signals
+4. Evaluation results
+5. Prompt and workflow improvements
+
+Live News should NOT learn primarily through:
+- blind self-editing of production code
+- auto-overwriting files from the web
+- auto-retraining on raw internet content
+- fully automatic publishing of sensitive news
+
+This is the main design principle for the system.
+
+RESEARCH SUMMARY
+The strongest technical pattern for continuously improving knowledge-based systems is not
+to keep retraining the model on the live internet. It is to pair a capable reasoning model
+with explicit external memory, retrieval, and verification loops.
+
+Key research and official guidance:
+
+1. Retrieval-Augmented Generation (RAG)
+   The RAG paper describes combining parametric model knowledge with non-parametric memory,
+   which helps with provenance and updating world knowledge. This is directly relevant to
+   Live News because fresh knowledge should come from retrievable sources, not hidden model
+   memory alone.
+
+2. ReAct
+   ReAct shows that interleaving reasoning and actions lets a model gather additional
+   information from external sources and improve interpretability and trustworthiness.
+   This maps well to news workflows where an agent should search, read, compare, and then
+   decide what to do next.
+
+3. Self-Refine
+   Self-Refine shows that first drafts can improve through iterative feedback and
+   refinement. For Live News, this means article drafts should go through a feedback pass
+   before they become public.
+
+4. OpenAI official guidance on evals
+   OpenAI's current guidance treats evaluations as an essential component for reliable LLM
+   applications. That matches the Live News need to measure factuality, attribution,
+   style, and duplication before content is trusted.
+
+5. OpenAI background responses and tools
+   OpenAI's current docs support long-running background tasks plus web search and file
+   search tooling. This means research and story preparation can run asynchronously rather
+   than blocking user-facing requests.
+
+6. Railway official guidance on cron jobs, workers, and queues
+   Railway currently recommends cron jobs for scheduled tasks, workers for continuous
+   background processing, and queues when retryable or decoupled work is needed. This is
+   the right operational split for Live News.
+
+7. Google Search guidance
+   Google currently prioritizes helpful, reliable, people-first content and warns against
+   automation that simply rewrites other sources without adding value. This is critical for
+   Live News. The site must add structure, clarity, and trust, not mass-produce thin
+   rewrites of publisher content.
+
+BOTTOM-LINE RESEARCH INTERPRETATION
+For Live News, "intelligence" should mean:
+- better information gathering
+- better source comparison
+- better drafting
+- better memory of what has already been seen
+- better self-checking
+- better routing and prioritization
+
+It should not mean:
+- autonomy without boundaries
+- publishing without review
+- self-modifying code without tests and approval
+- vague claims that the system can become infinitely intelligent
+
+PRODUCT POSITION
+Live News should become a monitored newsroom system, not an unsupervised AI organism.
+
+The product should feel like:
+- a web-aware information engine
+- an editorial assistant
+- a prioritization machine
+- a source-respectful summarizer
+- a continuous knowledge collector
+
+The product should not feel like:
+- a random content farm
+- a bot that rewrites the web
+- a self-changing production server
+
+THE RIGHT MODEL OF "LEARNING"
+There are three different things people often mean by learning:
+
+1. Fresh retrieval
+   The system can read newly published web information and use it right now.
+
+2. Persistent memory
+   The system can store useful structured knowledge from previous runs and use it later.
+
+3. Model training
+   The model weights themselves change through fine-tuning or training.
+
+For Live News, phases 1 and 2 matter now. Phase 3 should be considered much later, and
+only on carefully curated internal data.
+
+RECOMMENDED INTELLIGENCE ARCHITECTURE
+Live News should be built as a layered system with bounded agents.
+
+LAYER 1: SOURCE INGESTION
+Goal:
+Continuously collect trusted, recent source material from the web.
+
+Inputs:
+- RSS feeds
+- official publisher feeds
+- official public APIs where available
+- local-source discovery queries
+- later: topic watchlists and official government or institutional feeds
+
+Outputs:
+- normalized source items
+- source metadata
+- timestamps
+- raw excerpts for internal use
+
+Rules:
+- obey robots and legal boundaries
+- prefer official/public feeds over scraping arbitrary HTML when possible
+- record source provenance for every item
+
+LAYER 2: STORY CLUSTERING
+Goal:
+Detect which source items refer to the same underlying story.
+
+Outputs:
+- story clusters
+- duplicate confidence
+- cross-source count
+- source diversity score
+- freshness score
+
+This is where Live News starts becoming more useful than a plain feed reader.
+
+LAYER 3: ARTICLE PACKET GENERATION
+Goal:
+Turn each story cluster into a structured Live News story packet.
+
+Outputs:
+- storyId
+- slug
+- category
+- primary source
+- supporting sources
+- summaryShort
+- summaryLong
+- keyPoints
+- whyItMatters
+- timestamps
+- review status
+
+This is Live News's core "knowledge object."
+
+LAYER 4: DRAFTING AGENT
+Goal:
+Produce a first-pass Live News article draft from the story packet.
+
+Allowed work:
+- headline draft
+- summary draft
+- bullet key points
+- why-it-matters line
+- source block
+
+Not allowed:
+- unsupported claims
+- invented quotes
+- copied article structure
+- sensational language
+
+This agent should be retrieval-grounded and style-constrained.
+
+LAYER 5: REVIEW AND REFINEMENT AGENT
+Goal:
+Critique the draft before a person sees it or before low-risk auto-publish rules are
+considered.
+
+Checks:
+- attribution present
+- summary original enough
+- statements supported by source cluster
+- no excessive hedging or hype
+- timestamps present
+- category correct
+- duplication with existing Live News story pages
+
+This is where Self-Refine style iteration belongs.
+
+LAYER 6: MEMORY AND KNOWLEDGE STORE
+Goal:
+Persist useful knowledge outside the model itself.
+
+This store should include:
+- story packets
+- source reliability history
+- topic/entity timelines
+- past editorial overrides
+- related-story maps
+- prompt versions
+- eval results
+- publish outcomes
+
+This is the system's memory. It is much safer and more controllable than pretending the
+model itself is "learning everything."
+
+LAYER 7: PUBLISHING GATE
+Goal:
+Control what becomes public.
+
+Recommended states:
+- collected
+- clustered
+- drafted
+- needs review
+- approved
+- published
+- corrected
+- archived
+
+This state machine is where liability gets controlled.
+
+LAYER 8: OBSERVABILITY AND EVALS
+Goal:
+Measure whether the system is actually getting better.
+
+Track:
+- attribution pass rate
+- duplicate-story rate
+- summary originality pass rate
+- correction rate
+- editor override rate
+- publish latency
+- click-through from homepage to story pages
+- search indexing coverage
+- source diversity per story
+
+Without evals and metrics, the system may look intelligent while silently degrading.
+
+WHAT "CONTINUOUS IMPROVEMENT" SHOULD LOOK LIKE
+The system should improve by updating:
+- prompts
+- routing rules
+- source trust scores
+- clustering heuristics
+- summary templates
+- review thresholds
+- topic taxonomies
+- story ranking features
+
+The system should not silently improve by:
+- rewriting random code files in production
+- mutating prompts without versioning
+- changing published copy without traceability
+
+RECOMMENDED AUTONOMY LEVELS
+LEVEL 1: ASSISTED MODE
+Human chooses stories. System gathers, clusters, drafts, and suggests.
+
+LEVEL 2: SUPERVISED AUTOPILOT
+System proposes top candidate stories and drafts automatically. Human approves publishing.
+
+LEVEL 3: LIMITED AUTO-PUBLISH
+System may auto-publish only low-risk, well-supported, non-sensitive categories that pass
+strict eval thresholds. For example, earnings summaries or official schedule changes could
+eventually qualify. Sensitive categories should stay human-reviewed.
+
+LEVEL 4: CONTINUOUS INTELLIGENCE MODE
+System continuously monitors sources, updates story packets, refreshes timelines, and
+improves internal knowledge, while still respecting publishing gates.
+
+Live News should target Level 2 first, then parts of Level 4, before considering any Level
+3 auto-publish behavior.
+
+WHAT LIVE NEWS SHOULD NEVER DO AUTONOMOUSLY
+1. Auto-edit production code in the repo without explicit review.
+2. Publish tragedy, conflict, health, crime, or legal stories without human review.
+3. Rewrite old published stories without changelog or timestamps.
+4. Treat a single-source report as confirmed when the story is still developing.
+5. Learn directly from untrusted web content without provenance.
+6. Overwrite editorial rules based on observed trends.
+7. Claim originality for reporting done by publishers.
+
+THE CORRECT ROLE OF WEB RESOURCES
+Web resources should feed Live News in a controlled way.
+
+Recommended source trust tiers:
+
+Tier 1
+- direct publisher RSS
+- official newsroom feeds
+- official government/public institution feeds
+- verified APIs
+
+Tier 2
+- direct article URLs from trusted publishers
+- public search results used for discovery, not as sole truth
+
+Tier 3
+- broad web search results
+- community chatter
+- social trend indicators
+
+Tier 1 should drive publication.
+Tier 2 can enrich.
+Tier 3 can suggest leads, but should not directly authorize published facts.
+
+HOW TO MAKE THE SYSTEM "KEEP GOING"
+The system should keep going through scheduled operations, not vague always-on magic.
+
+Recommended job model on Railway:
+
+1. Persistent web service
+   Serves the Live News website and APIs.
+
+2. Scheduled ingestion cron
+   Runs every 10 minutes or similar.
+   Fetches and normalizes new source items.
+   Exits when done.
+
+3. Scheduled story packet cron
+   Runs after ingestion.
+   Clusters stories, refreshes story packets, and updates rankings.
+   Exits when done.
+
+4. Background worker later
+   Handles heavier asynchronous jobs such as draft generation, re-ranking, search-based
+   enrichment, and sitemap/article refresh tasks.
+
+5. Queue later
+   Use when tasks need retries, isolation, and backpressure.
+
+This matches Railway's current official distinction between cron jobs, workers, and
+queues.
+
+HOW TO MAKE THE SYSTEM SMARTER OVER TIME
+A strong Live News intelligence loop should look like this:
+
+1. Collect source items
+2. Cluster story candidates
+3. Generate draft packet
+4. Critique and refine draft
+5. Human or rules-based approval
+6. Publish
+7. Measure outcomes
+8. Store lessons in structured memory
+9. Update prompts, thresholds, and source scoring
+10. Re-run evals
+
+That is real system improvement.
+
+WHAT THE SYSTEM SHOULD STORE AS MEMORY
+EDITORIAL MEMORY
+- best-performing headline structures
+- categories that need more human review
+- correction history
+- topic-specific style notes
+
+SOURCE MEMORY
+- reliability score by source
+- duplicate frequency
+- source freshness behavior
+- source outage behavior
+
+TOPIC MEMORY
+- recurring names, organizations, places
+- developing story timelines
+- related story graphs
+
+QUALITY MEMORY
+- which prompts led to low-quality summaries
+- which review checks failed most often
+- which stories needed heavy editor rewrites
+
+This memory should live in your data layer, not inside a model's hidden state.
+
+HOW TO THINK ABOUT MODEL CHOICE
+If you build this with current OpenAI tooling, one practical split is:
+
+- fast routine classification, cleanup, and formatting on a smaller model
+- higher-reasoning draft synthesis and review on a stronger reasoning model
+- deep research only for heavier special investigations or complex background briefs
+
+As of official OpenAI docs available on 2026-04-23, GPT-5.4 is presented as the flagship
+model for complex reasoning and coding, supports tools like web search and file search, and
+OpenAI also documents deep research models such as o4-mini-deep-research and
+o3-deep-research for multi-step research tasks.
+
+The exact provider is less important than the system shape:
+- a fast model for routine work
+- a stronger model for important reasoning
+- explicit retrieval
+- explicit memory
+- explicit evals
+
+WHY THIS IS BETTER THAN "SELF-UPDATING EVERYTHING"
+Because intelligence without control becomes liability.
+
+Risks of a self-updating system:
+- quality drift
+- SEO damage from thin pages
+- hidden regressions
+- accidental duplication
+- brand inconsistency
+- unsafe publishing
+- legal risk from copied wording or unsupported claims
+
+Risks are reduced when:
+- every action is typed and logged
+- memory is structured
+- prompts are versioned
+- evals are required
+- publishing has gates
+- code changes are not autonomous
+
+RECOMMENDED BUILD ORDER FOR LIVE NEWS
+STEP 1
+Build structured story packets.
+
+STEP 2
+Build dedicated story pages.
+
+STEP 3
+Build editorial workflow and review status.
+
+STEP 4
+Add eval harnesses for draft quality, attribution, and duplication.
+
+STEP 5
+Add scheduled jobs for ingestion and story refresh.
+
+STEP 6
+Add memory stores for source reliability and story history.
+
+STEP 7
+Only then consider limited autonomous publishing or background research agents.
+
+THIS IS THE ASSURANCE MODEL
+If you want assurance that the system is "doing its job," use these controls:
+
+1. Source provenance on every story
+2. Versioned prompts
+3. Eval suite run regularly
+4. Publish-state machine
+5. Audit logs
+6. Editor overrides
+7. Metrics dashboards
+8. Rollback capability
+
+That is what makes an intelligent system trustworthy.
+
+RECOMMENDED DOCS TO MAINTAIN IN THE REPO
+- editorial-rules.md
+- source-trust-policy.md
+- story-packet-schema.md
+- eval-spec.md
+- automation-boundaries.md
+- model-routing.md
+- incident-log.md
+
+These documents matter because intelligence without documented boundaries becomes chaos.
+
+FINAL RECOMMENDATION
+Build Live News as a retrieval-grounded, memory-backed, eval-driven newsroom system.
+
+The system should:
+- continuously gather fresh web knowledge
+- structure that knowledge into story packets
+- refine and review drafts
+- preserve provenance
+- learn from outcomes
+- improve prompts and workflows over time
+
+The system should not:
+- promise infinite intelligence
+- modify code and content freely
+- publish without gates
+- treat raw web text as trustworthy training data
+
+This is the strongest path to a Live News system that genuinely becomes better as it runs.
+
+SOURCES
+Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
+https://arxiv.org/abs/2005.11401
+
+ReAct: Synergizing Reasoning and Acting in Language Models
+https://arxiv.org/abs/2210.03629
+
+Self-Refine: Iterative Refinement with Self-Feedback
+https://arxiv.org/abs/2303.17651
+
+OpenAI background mode guide
+https://developers.openai.com/api/docs/guides/background
+
+OpenAI evals guide
+https://developers.openai.com/api/docs/guides/evals
+
+OpenAI models overview
+https://developers.openai.com/api/docs/models
+
+OpenAI GPT-5.4 model page
+https://developers.openai.com/api/docs/models/gpt-5.4
+
+OpenAI o4-mini-deep-research model page
+https://developers.openai.com/api/docs/models/o4-mini-deep-research
+
+OpenAI o3-deep-research model page
+https://developers.openai.com/api/docs/models/o3-deep-research
+
+Railway Cron Jobs
+https://docs.railway.com/cron-jobs
+
+Railway guide: Choose Between Cron Jobs, Background Workers, and Queues
+https://docs.railway.com/guides/cron-workers-queues
+
+Google Search: Creating helpful, reliable, people-first content
+https://developers.google.com/search/docs/fundamentals/creating-helpful-content
+
+Google Search: Article structured data
+https://developers.google.com/search/docs/appearance/structured-data/article

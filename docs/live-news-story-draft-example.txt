@@ -1,0 +1,103 @@
+LIVE NEWS STORY DRAFT EXAMPLE
+Phase 6 editorial workflow example
+Prepared: 2026-04-23 16:07 PDT
+
+HOW TO USE THIS
+This is an example of the kind of Google Doc or draft file a Live News editor would review
+before publishing a story page. The text below is intentionally simple. It shows how the
+system should organize facts, sources, and writing without sounding copied or overly
+"intelligent."
+
+STORY ID
+a7c3f0077fc69e80ef6c6488c75015fce6cef707
+
+CATEGORY
+International
+
+PROPOSED LIVE NEWS SLUG
+ex-philippine-president-duterte-crimes-against-humanity-trial
+
+PROPOSED LIVE NEWS URL
+https://newsmorenow.com/story/ex-philippine-president-duterte-crimes-against-humanity-trial
+
+ORIGINAL SOURCE LINKS
+Primary source:
+https://www.pbs.org/newshour/world/ex-philippine-president-duterte-to-face-trial-on-crimes-against-humanity-charges
+
+Supporting sources:
+https://abcnews.com/International/wireStory/philippine-president-duterte-face-trial-crimes-humanity-charges-132303294
+https://www.theguardian.com/world/2026/apr/23/philippines-ex-president-rodrigo-duterte-trial-charges-crimes-against-humanity
+https://www.foxnews.com/world/ex-philippine-president-duterte-face-trial-crimes-humanity-charges
+
+SOURCE CLUSTER
+Primary source: PBS NewsHour
+Supporting source count: 4
+Related sources: PBS NewsHour, ABC News, The Guardian, Fox News
+
+PUBLISHING TIMESTAMPS
+Primary published time: 2026-04-23T16:27:09.000Z
+Draft pulled from Live News API: 2026-04-23 16:07 PDT
+
+ORIGINAL PUBLISHER TITLE
+Ex-Philippine president Duterte to face trial on crimes against humanity charges
+
+LIVE NEWS HEADLINE DRAFT
+Duterte to face crimes against humanity trial as cross-source coverage converges
+
+LIVE NEWS SUMMARY DRAFT
+Former Philippine president Rodrigo Duterte is set to face trial on crimes against
+humanity charges, according to cross-source reporting collected by Live News. Coverage
+clustered by Live News shows PBS NewsHour, ABC News, The Guardian, and Fox News all
+reporting the same major development. Current reporting says Duterte, who served from
+2016 to 2022, was arrested in the Philippines last year and flown to The Hague. He denies
+the charges.
+
+KEY POINTS
+1. Multiple major outlets are reporting that Duterte will face trial on crimes against
+   humanity charges.
+2. The clustered coverage says he was arrested in the Philippines last year and taken to
+   The Hague.
+3. Duterte denies the charges.
+
+WHY IT MATTERS
+This is a major international accountability story involving a former head of state. It
+is also the kind of story where cross-source confirmation is important, because readers
+need context and clarity rather than a single-source headline.
+
+ATTRIBUTION LINE
+Sources: PBS NewsHour, ABC News, The Guardian, and Fox News via Live News clustering.
+
+EDITOR NOTES
+- Keep wording neutral and factual.
+- Do not imply Live News conducted original reporting.
+- Do not copy the publisher headline into the final page if a cleaner Live News wording is
+  available.
+- Keep the page summary short and readable.
+
+NOTES FOR CREATE CLIPS
+Suggested social angle:
+Former leader faces international trial.
+
+Suggested clip hook:
+Four major outlets are now aligned on one of the biggest international accountability
+stories of the day.
+
+Suggested visual direction:
+Clean world-news card, courtroom or international law visual language, no fake evidence,
+no dramatic imagery that implies an event not directly shown.
+
+Suggested CTA:
+Read the Live News summary and source links for the full context.
+
+REVIEW CHECKLIST
+- Is the Live News headline original enough?
+- Does the summary stay within verified facts shown in the source cluster?
+- Are all source links present?
+- Is the tone neutral?
+- Is the page ready for Create Clips packaging?
+
+STATUS
+Draft
+
+NEXT ACTION
+Editor review and approval before publishing to a Live News story page.

@@ -3,6 +3,8 @@ const fs = require("fs");
 const express = require("express");
 const crypto = require("crypto");
 const Parser = require("rss-parser");
+const { runArticleAgents } = require("./lib/article-agents/pipeline");
+const { STORE_PATHS, readJson, saveAgentRun } = require("./lib/article-agents/store");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -21,6 +23,7 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use(express.json({ limit: "256kb" }));
 
 const sourcesPath = path.join(__dirname, "data", "sources.json");
 const fallbackPath = path.join(__dirname, "data", "news.json");
@@ -32,6 +35,8 @@ const TOP_STORIES_LIMIT = Number(process.env.NEWS_TOP_STORIES_LIMIT || 8);
 const FEED_LIMIT = Number(process.env.NEWS_FEED_LIMIT || 170);
 const LOCAL_POOL_LIMIT = Number(process.env.LOCAL_POOL_LIMIT || 60);
 const LOCAL_SOURCE_CAP = Number(process.env.LOCAL_SOURCE_CAP || 4);
+const AGENT_DRAFT_LIMIT = Number(process.env.LIVE_NEWS_DRAFT_LIMIT || 16);
+const AGENT_MODE = process.env.LIVE_NEWS_AGENT_MODE || "review_only";
 
 const EVENT_STOPWORDS = new Set([
   "a",
@@ -643,6 +648,64 @@ function refreshNewsSafely() {
   });
 }
 
+function buildCurrentNewsPayload() {
+  if (!cache.lastUpdated) {
+    const fallback = loadFallback();
+    return {
+      updatedAt: new Date().toISOString(),
+      maxAgeHours: MAX_AGE_HOURS,
+      fallback: true,
+      limits: {
+        topStories: TOP_STORIES_LIMIT,
+        feed: FEED_LIMIT,
+      },
+      ...fallback,
+    };
+  }
+
+  return {
+    updatedAt: cache.lastUpdated,
+    maxAgeHours: MAX_AGE_HOURS,
+    fallback: false,
+    limits: {
+      topStories: TOP_STORIES_LIMIT,
+      feed: FEED_LIMIT,
+    },
+    topStories: cache.topStories,
+    feed: cache.feed,
+    sourceErrors: cache.sourceErrors,
+    sourceMix: cache.sourceMix,
+    configuredSources: cache.configuredSources,
+  };
+}
+
+function isLocalRequest(req) {
+  const ip = String(req.ip || req.socket?.remoteAddress || "");
+  return (
+    ip === "127.0.0.1" ||
+    ip === "::1" ||
+    ip === "::ffff:127.0.0.1" ||
+    req.hostname === "localhost" ||
+    req.hostname === "127.0.0.1"
+  );
+}
+
+function getProvidedAgentToken(req) {
+  const auth = String(req.get("authorization") || "");
+  if (auth.toLowerCase().startsWith("bearer ")) {
+    return auth.slice(7).trim();
+  }
+  return String(req.get("x-live-news-token") || req.query.token || "").trim();
+}
+
+function requireAgentAccess(req, res, next) {
+  const token = String(process.env.LIVE_NEWS_INTERNAL_TOKEN || "").trim();
+  const provided = getProvidedAgentToken(req);
+  if (token && provided === token) return next();
+  if (!token && isLocalRequest(req)) return next();
+  return res.status(404).json({ error: "Not found" });
+}
+
 function haversineKm(lat1, lon1, lat2, lon2) {
   const toRad = (value) => (value * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -672,34 +735,7 @@ function findNearestPlace(lat, lon) {
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/news", (req, res) => {
-  if (!cache.lastUpdated) {
-    const fallback = loadFallback();
-    return res.json({
-      updatedAt: new Date().toISOString(),
-      maxAgeHours: MAX_AGE_HOURS,
-      fallback: true,
-      limits: {
-        topStories: TOP_STORIES_LIMIT,
-        feed: FEED_LIMIT,
-      },
-      ...fallback,
-    });
-  }
-
-  res.json({
-    updatedAt: cache.lastUpdated,
-    maxAgeHours: MAX_AGE_HOURS,
-    fallback: false,
-    limits: {
-      topStories: TOP_STORIES_LIMIT,
-      feed: FEED_LIMIT,
-    },
-    topStories: cache.topStories,
-    feed: cache.feed,
-    sourceErrors: cache.sourceErrors,
-    sourceMix: cache.sourceMix,
-    configuredSources: cache.configuredSources,
-  });
+  res.json(buildCurrentNewsPayload());
 });
 
 app.get("/api/places", (req, res) => {
@@ -751,6 +787,63 @@ app.get("/api/local", async (req, res) => {
   }
 });
 
+app.get("/api/agents/status", (req, res) => {
+  res.json({
+    ok: true,
+    mode: AGENT_MODE,
+    reviewOnly: true,
+    autoPublish: false,
+    articlePagesCreated: 0,
+    internalAccess:
+      Boolean(String(process.env.LIVE_NEWS_INTERNAL_TOKEN || "").trim()) || isLocalRequest(req),
+    draftLimit: AGENT_DRAFT_LIMIT,
+    safety: {
+      humanReviewRequired: true,
+      sourceAttributionRequired: true,
+      originalSourceLinksRequired: true,
+      publisherWordingCopyingAllowed: false,
+    },
+  });
+});
+
+app.get("/api/internal/story-packets", requireAgentAccess, (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit || AGENT_DRAFT_LIMIT), 1), 50);
+  const result = runArticleAgents(buildCurrentNewsPayload(), { limit });
+  res.json({
+    run: result.run,
+    packets: result.packets,
+  });
+});
+
+app.get("/api/internal/drafts", requireAgentAccess, (req, res) => {
+  res.json(
+    readJson(STORE_PATHS.drafts, {
+      schemaVersion: "live-news-drafts-store-v1",
+      mode: "review_only",
+      autoPublish: false,
+      updatedAt: null,
+      run: null,
+      drafts: [],
+    })
+  );
+});
+
+app.post("/api/internal/drafts/generate", requireAgentAccess, (req, res) => {
+  const limit = Math.min(
+    Math.max(Number(req.body?.limit || req.query.limit || AGENT_DRAFT_LIMIT), 1),
+    50
+  );
+  const persist = req.body?.persist === true || req.query.persist === "true";
+  const result = runArticleAgents(buildCurrentNewsPayload(), { limit });
+  if (persist) {
+    saveAgentRun(result);
+  }
+  res.json({
+    ...result,
+    persisted: persist,
+  });
+});
+
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
@@ -765,6 +858,12 @@ app.get("/api/health", (req, res) => {
       topStories: TOP_STORIES_LIMIT,
       feed: FEED_LIMIT,
       maxAgeHours: MAX_AGE_HOURS,
+    },
+    agents: {
+      mode: AGENT_MODE,
+      reviewOnly: true,
+      autoPublish: false,
+      draftLimit: AGENT_DRAFT_LIMIT,
     },
     places: placesMeta.totalPlaces,
   });
