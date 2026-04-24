@@ -606,6 +606,24 @@ function buildManualPlace(value) {
   };
 }
 
+function syncResolvedLocalPlace(place) {
+  if (!place?.name) return;
+  const changed = !isSamePlace(place, state.localPlace) ||
+    String(place.display || "") !== String(state.localPlace?.display || "");
+  if (!changed) return;
+  state.localPlace = place;
+  syncLocalDisplay(place);
+  syncLocalPreviewTitle(place);
+  if (elements.manualLocation && place.display) {
+    elements.manualLocation.value = place.display;
+  }
+  if (state.consent.personalization) {
+    localStorage.setItem("ln_local_place", JSON.stringify(place));
+  }
+  updateLocalDeepLink();
+  renderTopCities();
+}
+
 function buildLocalPageHref(place) {
   const city = place?.name || place?.display;
   if (!city) return "/local.html";
@@ -1334,6 +1352,7 @@ async function loadLocalNews({ force = false } = {}) {
     });
     const response = await fetch(`/api/local?${params.toString()}`);
     const data = await response.json();
+    syncResolvedLocalPlace(data.place);
     state.localFeed = data.items || [];
     state.localLastFetched = Date.now();
     renderLocalFeed(state.localFeed);

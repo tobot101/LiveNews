@@ -10,7 +10,7 @@
     "agent:approve": "node scripts/approve-draft.js",
     "agent:check": "node scripts/check-article-agents.js",
     "image:check": "node scripts/check-image-quality.js",
-    "test": "node scripts/check-article-agents.js && node scripts/check-image-quality.js"
+    "test": "node scripts/check-article-agents.js && node scripts/check-image-quality.js && node scripts/check-local-news.js"
   },
   "dependencies": {
     "express": "^4.18.2",

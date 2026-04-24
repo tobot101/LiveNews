@@ -98,13 +98,7 @@ function bindControls() {
     elements.setButton.addEventListener("click", () => {
       const value = elements.input.value.trim();
       if (!value) return;
-      setPlace({
-        name: value,
-        display: value,
-        state: "",
-        stateName: "",
-        geoid: "",
-      });
+      setPlace(buildManualPlace(value));
     });
   }
 
@@ -159,13 +153,7 @@ function hydrateFromQuery() {
   const city = params.get("city");
   const stateCode = params.get("state") || "";
   if (city) {
-    setPlace({
-      name: city,
-      display: stateCode ? `${city}, ${stateCode}` : city,
-      state: stateCode,
-      stateName: "",
-      geoid: "",
-    });
+    setPlace(buildManualPlace(city, stateCode));
   }
 }
 
@@ -249,6 +237,62 @@ function clearSuggestions() {
 function getPlaceLabel(place) {
   if (!place) return "not set";
   return place.display || place.name || "not set";
+}
+
+function buildManualPlace(value, stateValue = "") {
+  const raw = String(value || "").trim();
+  const explicitState = String(stateValue || "").trim().toUpperCase();
+  if (explicitState) {
+    const name = raw
+      .replace(new RegExp(`\\s*,?\\s*${explicitState}$`, "i"), "")
+      .replace(/\s*,\s*$/g, "")
+      .trim();
+    return {
+      name,
+      display: name ? `${name}, ${explicitState}` : explicitState,
+      state: explicitState,
+      stateName: "",
+      geoid: "",
+    };
+  }
+  const commaMatch = raw.match(/^(.*?),\s*([A-Za-z]{2})$/);
+  if (commaMatch) {
+    const name = commaMatch[1].trim();
+    const state = commaMatch[2].toUpperCase();
+    return {
+      name,
+      display: `${name}, ${state}`,
+      state,
+      stateName: "",
+      geoid: "",
+    };
+  }
+  return {
+    name: raw,
+    display: raw,
+    state: "",
+    stateName: "",
+    geoid: "",
+  };
+}
+
+function syncResolvedPlace(place) {
+  if (!place?.name) return;
+  const changed = !isSamePlace(place, state.place) ||
+    String(place.display || "") !== String(state.place?.display || "");
+  if (!changed) return;
+  state.place = place;
+  if (elements.display) {
+    elements.display.textContent = `Selected city: ${getPlaceLabel(place)}`;
+  }
+  if (elements.input && place.display) {
+    elements.input.value = place.display;
+  }
+  if (personalizationAllowed()) {
+    localStorage.setItem("ln_local_place", JSON.stringify(place));
+  }
+  history.replaceState(null, "", buildLocalPageHref(place));
+  renderTopCities();
 }
 
 function buildLocalPageHref(place) {
@@ -348,6 +392,7 @@ async function loadLocalFeed({ force = false } = {}) {
     });
     const response = await fetch(`/api/local?${params.toString()}`);
     const data = await response.json();
+    syncResolvedPlace(data.place);
     state.feed = data.items || [];
     state.lastFetched = Date.now();
     renderLocalFeed();

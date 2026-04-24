@@ -27,6 +27,10 @@ const {
   pickAuthenticArticleImageUrl,
 } = require("./lib/article-images");
 const { researchPublicMediaImage } = require("./lib/image-research-agent");
+const {
+  buildLocalQueryVariants,
+  resolveLocalPlaceInput,
+} = require("./lib/local-news-helpers");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -173,6 +177,16 @@ let placesMeta = {
 const localCache = new Map();
 const articleImageCache = new Map();
 const articleImageMetadataCache = new Map();
+let localHealthStats = {
+  requests: 0,
+  emptyResponses: 0,
+  lastQuery: "",
+  lastResolvedPlace: "",
+  lastResultCount: 0,
+  lastSourceCount: 0,
+  lastError: null,
+  lastUpdated: null,
+};
 let imageQualityStats = {
   checked: 0,
   accepted: 0,
@@ -1069,22 +1083,31 @@ function isBlockedLocalItem({ title, sourceName, link }) {
   );
 }
 
-function buildLocalQueryVariants(city, state) {
-  const cleanedCity = String(city || "").trim();
-  const cleanedState = String(state || "").trim();
-  const stateName = stateNameByCode.get(cleanedState) || "";
-  const baseVariants = [
-    [cleanedCity, cleanedState].filter(Boolean).join(" "),
-    [cleanedCity, cleanedState, "local news"].filter(Boolean).join(" "),
-    [cleanedCity, stateName, "local news"].filter(Boolean).join(" "),
-    `"${cleanedCity}" ${cleanedState}`.trim(),
-    `"${cleanedCity}" ${stateName}`.trim(),
-  ].map((value) => value.trim()).filter(Boolean);
-  const withRecency = baseVariants.slice(0, 4).map((value) => `${value} when:2d`);
-  return Array.from(new Set([...baseVariants, ...withRecency]));
+function resolveLocalRequestPlace(city, state) {
+  return resolveLocalPlaceInput({
+    city,
+    state,
+    placesIndex,
+    stateNameByCode,
+  });
 }
 
-async function fetchLocalNews(city, state) {
+function recordLocalHealth({ query, place, itemCount = 0, sourceCount = 0, error = null }) {
+  localHealthStats = {
+    requests: localHealthStats.requests + 1,
+    emptyResponses: localHealthStats.emptyResponses + (itemCount === 0 ? 1 : 0),
+    lastQuery: query || "",
+    lastResolvedPlace: place?.display || place?.name || "",
+    lastResultCount: itemCount,
+    lastSourceCount: sourceCount,
+    lastError: error ? String(error.message || error) : null,
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+async function fetchLocalNews(place) {
+  const city = String(place?.name || "").trim();
+  const state = String(place?.state || "").trim();
   const key = `${city}|${state}`.toLowerCase();
   const cached = localCache.get(key);
   const now = Date.now();
@@ -1092,7 +1115,7 @@ async function fetchLocalNews(city, state) {
     return cached.payload;
   }
 
-  const variants = buildLocalQueryVariants(city, state);
+  const variants = buildLocalQueryVariants(city, state, stateNameByCode);
   const feeds = await Promise.allSettled(
     variants.map((query) => {
       const feedUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
@@ -1117,9 +1140,18 @@ async function fetchLocalNews(city, state) {
   const payload = {
     updatedAt: new Date().toISOString(),
     items: diversified,
-    query: [city, state].filter(Boolean).join(", "),
+    query: place.display || [city, state].filter(Boolean).join(", "),
+    place,
     variants,
     sourceCount: new Set(diversified.map((item) => item.sourceName)).size,
+    diagnostics: {
+      queryVariants: variants.length,
+      feedSuccesses: feeds.filter((result) => result.status === "fulfilled").length,
+      feedFailures: feeds.filter((result) => result.status === "rejected").length,
+      collectedItems: collected.length,
+      dedupedItems: deduped.length,
+      diversifiedItems: diversified.length,
+    },
   };
   localCache.set(key, { fetchedAt: now, payload });
   return payload;
@@ -1549,16 +1581,40 @@ app.get("/api/places/nearest", (req, res) => {
 app.get("/api/local", async (req, res) => {
   const city = String(req.query.city || "").trim();
   const state = String(req.query.state || "").trim();
-  if (!city) {
-    return res.json({ updatedAt: new Date().toISOString(), items: [] });
+  const place = resolveLocalRequestPlace(city, state);
+  if (!place.name) {
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      items: [],
+      place,
+      query: "",
+      variants: [],
+      sourceCount: 0,
+    };
+    recordLocalHealth({ query: "", place, itemCount: 0, sourceCount: 0 });
+    return res.json(payload);
   }
   try {
-    const payload = await fetchLocalNews(city, state);
+    const payload = await fetchLocalNews(place);
+    recordLocalHealth({
+      query: payload.query,
+      place: payload.place,
+      itemCount: payload.items.length,
+      sourceCount: payload.sourceCount,
+    });
     res.json(payload);
   } catch (error) {
+    recordLocalHealth({
+      query: place.display || city,
+      place,
+      itemCount: 0,
+      sourceCount: 0,
+      error,
+    });
     res.json({
       updatedAt: new Date().toISOString(),
       items: [],
+      place,
       error: error.message,
     });
   }
@@ -1646,6 +1702,7 @@ app.get("/api/health", (req, res) => {
       approvedStories: listApprovedStories().length,
     },
     imageResearch: imageQualityStats,
+    localNews: localHealthStats,
     places: placesMeta.totalPlaces,
   });
 });
