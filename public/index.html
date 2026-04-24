@@ -105,24 +105,6 @@
         </div>
       </a>
       <div class="topbar-tools">
-        <form class="site-search" id="siteSearchForm" role="search">
-          <label class="control-label" for="siteSearch">Search Live News</label>
-          <div class="site-search-row">
-            <div class="site-search-box">
-              <input
-                id="siteSearch"
-                type="search"
-                placeholder="Search stories, sources, or categories"
-                autocomplete="off"
-                aria-autocomplete="list"
-                aria-controls="searchDropdown"
-                aria-expanded="false"
-              />
-              <div class="search-dropdown" id="searchDropdown" role="listbox" hidden></div>
-            </div>
-            <button class="btn ghost" type="submit">Search</button>
-          </div>
-        </form>
         <a class="btn compact-local-link" href="/local.html">Local News</a>
         <div class="controls">
           <div class="control" aria-label="Theme">
@@ -139,30 +121,33 @@
 
     <main class="layout layout-single">
       <section class="main-col">
-        <div class="status-row editorial-status">
-          <span id="lastUpdated">Last updated: loading</span>
-          <span id="timeZoneLabel">Time zone: local</span>
-        </div>
-        <div class="update-notice" id="updateNotice" hidden>
-          <span id="updateNoticeText">Fresh stories are ready.</span>
-          <button class="btn ghost" id="applyUpdates">Apply updates</button>
-        </div>
-
-        <nav class="sections category-bar" id="sectionNav" aria-label="News sections">
-          <button class="section-link active" type="button" data-category="Top" aria-pressed="true">
-            Top
-          </button>
-          <button class="section-link" type="button" data-category="National">National</button>
-          <button class="section-link" type="button" data-category="Business">Business</button>
-          <button class="section-link" type="button" data-category="Tech">Tech</button>
-          <button class="section-link" type="button" data-category="Sports">Sports</button>
-          <button class="section-link" type="button" data-category="Entertainment">
-            Entertainment
-          </button>
-          <button class="section-link" type="button" data-category="International">
-            International
-          </button>
-        </nav>
+        <section class="panel home-search-panel" aria-label="Search Live News">
+          <div class="home-search-copy">
+            <span class="tag">Search Live News</span>
+            <h2>Find recent source-linked coverage</h2>
+            <p>
+              Search stories, sources, categories, and topics from current Live News coverage.
+            </p>
+          </div>
+          <form class="site-search home-search-form" id="siteSearchForm" role="search">
+            <label class="control-label" for="siteSearch">Search Live News</label>
+            <div class="site-search-row">
+              <div class="site-search-box">
+                <input
+                  id="siteSearch"
+                  type="search"
+                  placeholder="Search stories, sources, or categories"
+                  autocomplete="off"
+                  aria-autocomplete="list"
+                  aria-controls="searchDropdown"
+                  aria-expanded="false"
+                />
+                <div class="search-dropdown" id="searchDropdown" role="listbox" hidden></div>
+              </div>
+              <button class="btn ghost" type="submit">Search</button>
+            </div>
+          </form>
+        </section>
 
         <section class="lead-news-band" id="leadStory" aria-label="Lead news story"></section>
 

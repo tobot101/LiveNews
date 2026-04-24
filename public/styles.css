@@ -136,7 +136,8 @@ input:focus-visible {
   align-items: end;
   justify-content: flex-end;
   gap: 14px;
-  min-width: min(760px, 62vw);
+  min-width: 0;
+  flex: 1;
 }
 
 .site-search {
@@ -429,6 +430,48 @@ html[data-theme="night"] .brand {
 
 .home-local-panel {
   margin-bottom: 16px;
+}
+
+.home-search-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: end;
+  margin-bottom: 16px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(2, 132, 199, 0.1), transparent 34%),
+    var(--surface);
+}
+
+.home-search-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.home-search-copy h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.home-search-copy p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.home-search-form {
+  max-width: none;
+  width: 100%;
+}
+
+.home-search-form .site-search-row {
+  align-items: stretch;
+}
+
+.home-search-form input {
+  padding: 12px 14px;
+  font-size: 14px;
 }
 
 .lead-news-band,
@@ -1724,6 +1767,11 @@ html[data-theme="night"] .brand {
 
   .lead-card {
     grid-template-columns: 1fr;
+  }
+
+  .home-search-panel {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .story-visual-lead {

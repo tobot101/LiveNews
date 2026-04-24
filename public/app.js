@@ -283,12 +283,14 @@ function bindControls() {
     applyTheme();
   });
 
-  elements.sectionNav.addEventListener("click", (event) => {
-    const target = event.target.closest("button[data-category]");
-    if (!target) return;
-    const category = target.dataset.category;
-    setCategory(category);
-  });
+  if (elements.sectionNav) {
+    elements.sectionNav.addEventListener("click", (event) => {
+      const target = event.target.closest("button[data-category]");
+      if (!target) return;
+      const category = target.dataset.category;
+      setCategory(category);
+    });
+  }
 
   if (elements.categoryLanes) {
     elements.categoryLanes.addEventListener("click", (event) => {
