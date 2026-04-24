@@ -1559,11 +1559,15 @@ function getDisplaySummary(item, maxLength = 210) {
   );
 }
 
-function getUrgencyState(item) {
-  const score = Number(item.score || 0);
-  if (score >= 95) return "High";
-  if (score >= 88) return "Watch";
-  return "Recent";
+function getPublishedDateBadge(item) {
+  if (!item?.publishedAt) return "Date unavailable";
+  const date = new Date(item.publishedAt);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function getSourceInitials(item) {
@@ -1667,7 +1671,7 @@ function renderLeadStory(item) {
       <div class="lead-copy">
         <div class="story-eyebrow">
           <span>${escapeHtml(item.category || "Top")}</span>
-          <span>${escapeHtml(getUrgencyState(item))}</span>
+          <span>${escapeHtml(getPublishedDateBadge(item))}</span>
           ${item.hasLiveNewsStory ? "<span>Approved Live News page</span>" : "<span>Reviewing Live News page</span>"}
         </div>
         <h1>${buildStoryTitleLink(item, "lead-title")}</h1>
@@ -1705,7 +1709,7 @@ function renderTopStories(items, options = {}) {
         <span class="story-rank">${rank}</span>
         <div class="story-eyebrow">
           <span>${escapeHtml(item.category || "Top")}</span>
-          <span>${escapeHtml(getUrgencyState(item))}</span>
+          <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
       </div>
       <h3>${buildStoryTitleLink(item, "story-card-title")}</h3>
@@ -1748,7 +1752,7 @@ function renderCategoryLanes() {
               .map(
                 (item) => `
                   <article class="lane-story" data-article-id="${escapeHtml(item.id || "")}">
-                    <div class="story-eyebrow"><span>${escapeHtml(getUrgencyState(item))}</span></div>
+                    <div class="story-eyebrow"><span>${escapeHtml(getPublishedDateBadge(item))}</span></div>
                     <h4>${buildStoryTitleLink(item, "lane-story-title")}</h4>
                     <p>${escapeHtml(getDisplaySummary(item, 120))}</p>
                     <div class="story-meta">${escapeHtml(formatSourceLabel(item))}</div>
