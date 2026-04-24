@@ -234,6 +234,59 @@ function buildSummary(text, maxLength = 260) {
   return summary.slice(0, maxLength).trim();
 }
 
+function normalizeImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    if (!["http:", "https:"].includes(url.protocol)) return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function collectMediaUrls(value, bucket) {
+  if (!value) return;
+  if (typeof value === "string") {
+    bucket.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectMediaUrls(entry, bucket));
+    return;
+  }
+  if (typeof value === "object") {
+    bucket.push(value.url, value.href, value.$?.url, value.$?.href);
+    Object.keys(value).forEach((key) => {
+      if (key.toLowerCase().includes("url") || key.toLowerCase().includes("image")) {
+        collectMediaUrls(value[key], bucket);
+      }
+    });
+  }
+}
+
+function extractImageFromHtml(value) {
+  const html = String(value || "");
+  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return normalizeImageUrl(match?.[1]);
+}
+
+function extractItemImageUrl(item) {
+  const candidates = [];
+  if (item.enclosure && (!item.enclosure.type || String(item.enclosure.type).startsWith("image/"))) {
+    collectMediaUrls(item.enclosure, candidates);
+  }
+  collectMediaUrls(item.image, candidates);
+  collectMediaUrls(item.thumbnail, candidates);
+  collectMediaUrls(item["media:content"], candidates);
+  collectMediaUrls(item["media:thumbnail"], candidates);
+  collectMediaUrls(item["itunes:image"], candidates);
+  collectMediaUrls(item.itunes?.image, candidates);
+  candidates.push(extractImageFromHtml(item.content), extractImageFromHtml(item.summary));
+  return candidates.map(normalizeImageUrl).find(Boolean) || "";
+}
+
 function parseSourceFromTitle(title) {
   if (!title) return { title: "", sourceName: "" };
   const parts = String(title).split(" - ");
@@ -358,6 +411,7 @@ function serializeSupportLink(item) {
     link: item.link,
     publishedAt: item.publishedAt,
     category: item.category,
+    imageUrl: item.imageUrl || "",
   };
 }
 
@@ -379,6 +433,7 @@ function finalizeCluster(cluster) {
     sourceName: lead.sourceName,
     sourceUrl: lead.sourceUrl,
     sourceDomain: lead.domain,
+    imageUrl: lead.imageUrl || items.find((item) => item.imageUrl)?.imageUrl || "",
     category,
     score,
     sourceCount: sourceNames.length,
@@ -498,6 +553,7 @@ function normalizeItem(source, item) {
     sourceWeight: Number(source.weight || 1),
     category: source.category || "Top",
     domain: getDomain(link),
+    imageUrl: extractItemImageUrl(item),
     summary: buildSummary(item.contentSnippet || item.content || item.summary || ""),
     baseScore: computeBaseScore(source, publishedAt),
     titleTokens: tokenizeTitle(title),
@@ -523,6 +579,7 @@ function normalizeLocalItem(item) {
     publishedAt: publishedAt.toISOString(),
     sourceName,
     sourceDomain: getDomain(link),
+    imageUrl: extractItemImageUrl(item),
     category: "Local",
     sourceCount: 1,
     relatedSources: [sourceName],

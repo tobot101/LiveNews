@@ -1451,6 +1451,44 @@ function getUrgencyState(item) {
   return "Recent";
 }
 
+function getSourceInitials(item) {
+  const label = item.sourceName || item.sourceDomain || item.category || "Live News";
+  return label
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join("") || "LN";
+}
+
+function getFallbackImageUrl(item) {
+  const domain = item.sourceDomain || "";
+  if (!domain) return "";
+  return `https://${domain}/favicon.ico`;
+}
+
+function buildStoryVisual(item, variant = "lead") {
+  const imageUrl = item.imageUrl || item.thumbnailUrl || "";
+  const fallbackImage = getFallbackImageUrl(item);
+  const src = imageUrl || fallbackImage;
+  const source = item.sourceName || item.sourceDomain || "Source";
+  const category = item.category || "Top";
+  const fallbackLabel = escapeHtml(`${source} • ${category}`);
+  const initial = escapeHtml(getSourceInitials(item));
+  const imageTag = src
+    ? `<img src="${escapeHtml(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.story-visual').classList.add('image-failed'); this.remove();" />`
+    : "";
+  return `
+    <figure class="story-visual story-visual-${variant} ${src ? "" : "image-failed"}">
+      ${imageTag}
+      <figcaption>
+        <span>${initial}</span>
+        <strong>${fallbackLabel}</strong>
+      </figcaption>
+    </figure>
+  `;
+}
+
 function buildStoryTitleLink(item, className = "") {
   const liveUrl = getLiveNewsUrl(item);
   const title = escapeHtml(getDisplayTitle(item));
@@ -1497,10 +1535,7 @@ function renderLeadStory(item) {
         <div class="story-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
         ${buildStoryActions(item)}
       </div>
-      <div class="lead-score">
-        <span>Importance</span>
-        <strong>${escapeHtml(item.score || "Live")}</strong>
-      </div>
+      ${buildStoryVisual(item, "lead")}
     </article>
   `;
   elements.leadStory
@@ -1536,7 +1571,7 @@ function renderTopStories(items, options = {}) {
       <h3>${buildStoryTitleLink(item, "story-card-title")}</h3>
       <p>${escapeHtml(getDisplaySummary(item, 190))}</p>
       <div class="story-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
-      <div class="score-pill">Score ${escapeHtml(item.score || "Live")}</div>
+      ${buildStoryVisual(item, "card")}
       ${buildStoryActions(item)}
     `;
     elements.topStories.appendChild(li);
