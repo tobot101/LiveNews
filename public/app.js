@@ -1562,15 +1562,8 @@ function getSourceInitials(item) {
     .join("") || "LN";
 }
 
-function getFallbackImageUrl(item) {
-  const domain = item.sourceDomain || "";
-  if (!domain) return "";
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
-}
-
 function buildStoryVisual(item, variant = "lead") {
   const imageUrl = item.imageUrl || item.thumbnailUrl || "";
-  const sourceIconUrl = getFallbackImageUrl(item);
   const source = item.sourceName || item.sourceDomain || "Source";
   const category = item.category || "Top";
   const fallbackLabel = escapeHtml(`${source} • ${category}`);
@@ -1578,14 +1571,10 @@ function buildStoryVisual(item, variant = "lead") {
   const photoTag = imageUrl
     ? `<img class="story-photo" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.story-visual').classList.add('image-failed'); this.remove();" />`
     : "";
-  const sourceMark = !imageUrl && sourceIconUrl
-    ? `<img class="story-source-mark" src="${escapeHtml(sourceIconUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('figcaption').classList.remove('has-source-mark'); this.remove();" />`
-    : "";
   return `
     <figure class="story-visual story-visual-${variant} ${imageUrl ? "has-photo" : "image-failed"}">
       ${photoTag}
-      <figcaption class="${sourceMark ? "has-source-mark" : ""}">
-        ${sourceMark}
+      <figcaption>
         <span>${initial}</span>
         <strong>${fallbackLabel}</strong>
       </figcaption>

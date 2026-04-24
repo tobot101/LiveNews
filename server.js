@@ -18,6 +18,11 @@ const {
   renderStoryNotFoundPage,
 } = require("./lib/article-agents/story-renderer");
 const { STORE_PATHS, readJson, saveAgentRun } = require("./lib/article-agents/store");
+const {
+  isAuthenticArticleImageUrl,
+  normalizeImageUrl,
+  pickAuthenticArticleImageUrl,
+} = require("./lib/article-images");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -238,18 +243,6 @@ function buildSummary(text, maxLength = 260) {
   return summary.slice(0, maxLength).trim();
 }
 
-function normalizeImageUrl(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  try {
-    const url = new URL(raw);
-    if (!["http:", "https:"].includes(url.protocol)) return "";
-    return url.toString();
-  } catch {
-    return "";
-  }
-}
-
 function collectMediaUrls(value, bucket) {
   if (!value) return;
   if (typeof value === "string") {
@@ -270,10 +263,13 @@ function collectMediaUrls(value, bucket) {
   }
 }
 
-function extractImageFromHtml(value) {
+function extractImageFromHtml(value, baseUrl = "") {
   const html = String(value || "");
-  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  return normalizeImageUrl(match?.[1]);
+  const candidates = [];
+  for (const match of html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)) {
+    candidates.push(baseUrl ? resolveImageUrl(match[1], baseUrl) : normalizeImageUrl(match[1]));
+  }
+  return pickAuthenticArticleImageUrl(candidates);
 }
 
 function extractItemImageUrl(item) {
@@ -288,7 +284,7 @@ function extractItemImageUrl(item) {
   collectMediaUrls(item["itunes:image"], candidates);
   collectMediaUrls(item.itunes?.image, candidates);
   candidates.push(extractImageFromHtml(item.content), extractImageFromHtml(item.summary));
-  return candidates.map(normalizeImageUrl).find(Boolean) || "";
+  return pickAuthenticArticleImageUrl(candidates);
 }
 
 function decodeHtmlAttribute(value) {
@@ -314,22 +310,22 @@ function resolveImageUrl(value, baseUrl) {
 
 function extractMetaImageUrl(html, baseUrl) {
   const patterns = [
-    /<meta[^>]+property=["']og:image(?::secure_url|:url)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url|:url)?["'][^>]*>/i,
-    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["'][^>]*>/i,
-    /<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-    /<link[^>]+rel=["'][^"']*image_src[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>/i,
-    /<link[^>]+href=["']([^"']+)["'][^>]+rel=["'][^"']*image_src[^"']*["'][^>]*>/i,
+    /<meta[^>]+property=["']og:image(?::secure_url|:url)?["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url|:url)?["'][^>]*>/gi,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["'][^>]*>/gi,
+    /<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+    /<link[^>]+rel=["'][^"']*image_src[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>/gi,
+    /<link[^>]+href=["']([^"']+)["'][^>]+rel=["'][^"']*image_src[^"']*["'][^>]*>/gi,
   ];
+  const candidates = [];
   for (const pattern of patterns) {
-    const match = html.match(pattern);
-    const resolved = resolveImageUrl(match?.[1], baseUrl);
-    if (resolved) return resolved;
+    for (const match of html.matchAll(pattern)) {
+      candidates.push(resolveImageUrl(match?.[1], baseUrl));
+    }
   }
-  const jsonLdImage = extractJsonLdImageUrl(html, baseUrl);
-  if (jsonLdImage) return jsonLdImage;
-  return extractImageFromHtml(html);
+  candidates.push(extractJsonLdImageUrl(html, baseUrl), extractImageFromHtml(html, baseUrl));
+  return pickAuthenticArticleImageUrl(candidates);
 }
 
 function collectImageValue(value, baseUrl, bucket) {
@@ -365,8 +361,8 @@ function extractJsonLdImageUrl(html, baseUrl) {
   const matches = html.matchAll(
     /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
   );
-  const candidates = [];
   for (const match of matches) {
+    const candidates = [];
     const raw = decodeHtmlAttribute(match[1]).trim();
     if (!raw) continue;
     try {
@@ -374,9 +370,10 @@ function extractJsonLdImageUrl(html, baseUrl) {
     } catch {
       continue;
     }
-    if (candidates.length) break;
+    const selected = pickAuthenticArticleImageUrl(candidates);
+    if (selected) return selected;
   }
-  return candidates.find(Boolean) || "";
+  return "";
 }
 
 async function fetchArticleImageUrl(link) {
@@ -427,7 +424,7 @@ function getImageLookupLinks(item) {
 async function findArticleImageForItem(item) {
   for (const link of getImageLookupLinks(item)) {
     const imageUrl = await fetchArticleImageUrl(link);
-    if (imageUrl) {
+    if (imageUrl && isAuthenticArticleImageUrl(imageUrl)) {
       return {
         imageUrl,
         imageSourceUrl: link,
@@ -441,7 +438,14 @@ async function hydrateArticleImages(items, options = {}) {
   if (!IMAGE_LOOKUP_LIMIT || !items.length) return;
   const limit = Math.max(1, Number(options.limit || IMAGE_LOOKUP_LIMIT));
   const targets = items
-    .filter((item) => item && !item.imageUrl && item.link)
+    .filter((item) => {
+      if (!item || !item.link) return false;
+      if (item.imageUrl && isAuthenticArticleImageUrl(item.imageUrl)) return false;
+      item.imageUrl = "";
+      item.imageSource = "";
+      item.imageSourceUrl = "";
+      return true;
+    })
     .slice(0, limit);
   let cursor = 0;
   const workers = Array.from({ length: Math.min(IMAGE_LOOKUP_CONCURRENCY, targets.length) }, async () => {
@@ -605,7 +609,10 @@ function finalizeCluster(cluster) {
     sourceName: lead.sourceName,
     sourceUrl: lead.sourceUrl,
     sourceDomain: lead.domain,
-    imageUrl: lead.imageUrl || items.find((item) => item.imageUrl)?.imageUrl || "",
+    imageUrl: pickAuthenticArticleImageUrl([
+      lead.imageUrl,
+      ...items.map((item) => item.imageUrl),
+    ]),
     category,
     score,
     sourceCount: sourceNames.length,
@@ -1014,7 +1021,7 @@ async function searchCurrentNews(query, limit = 30) {
       publishedAt: item.publishedAt || "",
       link: item.link || "",
       liveNewsUrl: item.approvedStoryUrl || item.liveNewsUrl || "",
-      imageUrl: item.imageUrl || item.thumbnailUrl || "",
+      imageUrl: pickAuthenticArticleImageUrl([item.imageUrl, item.thumbnailUrl]),
       imageSource: item.imageSource || "",
       imageSourceUrl: item.imageSourceUrl || "",
       hasLiveNewsStory: Boolean(item.hasLiveNewsStory || item.approvedStoryUrl || item.liveNewsUrl),

@@ -276,25 +276,41 @@ function renderResultCard(item) {
 
 function buildSearchVisual(item) {
   const imageUrl = item.imageUrl || "";
-  const domain = item.sourceDomain || "";
-  const favicon = domain
-    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
-    : "";
   const source = item.sourceName || item.sourceDomain || "Source";
   const category = item.category || "Top";
+  const initial = getSourceInitials(item);
+  const fallback = `
+    <figcaption class="search-result-fallback">
+      <span>${escapeHtml(initial)}</span>
+      <strong>${escapeHtml(source)}</strong>
+      <small>${escapeHtml(category)} coverage</small>
+    </figcaption>
+  `;
   if (imageUrl) {
     return `
       <figure class="search-result-visual has-photo">
-        <img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" />
+        <img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.search-result-visual').classList.remove('has-photo'); this.closest('.search-result-visual').classList.add('image-failed'); this.remove();" />
+        ${fallback}
       </figure>
     `;
   }
   return `
-    <figure class="search-result-visual">
-      ${favicon ? `<img src="${escapeHtml(favicon)}" alt="" loading="lazy" referrerpolicy="no-referrer" />` : ""}
-      <figcaption>${escapeHtml(source)} • ${escapeHtml(category)}</figcaption>
+    <figure class="search-result-visual image-failed">
+      ${fallback}
     </figure>
   `;
+}
+
+function getSourceInitials(item) {
+  const label = item.sourceName || item.sourceDomain || item.category || "Live News";
+  return (
+    label
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0]?.toUpperCase())
+      .join("") || "LN"
+  );
 }
 
 function formatTime(value) {
