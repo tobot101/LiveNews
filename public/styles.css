@@ -238,6 +238,10 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.back-home-link {
+  white-space: nowrap;
+}
+
 .brand-title {
   font-size: 26px;
   font-weight: 700;
