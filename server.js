@@ -48,6 +48,9 @@ const TOP_STORIES_LIMIT = Number(process.env.NEWS_TOP_STORIES_LIMIT || 8);
 const FEED_LIMIT = Number(process.env.NEWS_FEED_LIMIT || 170);
 const LOCAL_POOL_LIMIT = Number(process.env.LOCAL_POOL_LIMIT || 60);
 const LOCAL_SOURCE_CAP = Number(process.env.LOCAL_SOURCE_CAP || 4);
+const IMAGE_LOOKUP_LIMIT = Number(process.env.IMAGE_LOOKUP_LIMIT || 18);
+const IMAGE_LOOKUP_CONCURRENCY = Number(process.env.IMAGE_LOOKUP_CONCURRENCY || 4);
+const IMAGE_LOOKUP_TIMEOUT_MS = Number(process.env.IMAGE_LOOKUP_TIMEOUT_MS || 1800);
 const AGENT_DRAFT_LIMIT = Number(process.env.LIVE_NEWS_DRAFT_LIMIT || 16);
 const AGENT_MODE = process.env.LIVE_NEWS_AGENT_MODE || "review_only";
 
@@ -157,6 +160,7 @@ let placesMeta = {
   totalPlaces: 0,
 };
 const localCache = new Map();
+const articleImageCache = new Map();
 
 function loadSources() {
   const raw = fs.readFileSync(sourcesPath, "utf8");
@@ -285,6 +289,97 @@ function extractItemImageUrl(item) {
   collectMediaUrls(item.itunes?.image, candidates);
   candidates.push(extractImageFromHtml(item.content), extractImageFromHtml(item.summary));
   return candidates.map(normalizeImageUrl).find(Boolean) || "";
+}
+
+function decodeHtmlAttribute(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+}
+
+function resolveImageUrl(value, baseUrl) {
+  const decoded = decodeHtmlAttribute(value);
+  if (!decoded) return "";
+  try {
+    return normalizeImageUrl(new URL(decoded, baseUrl).toString());
+  } catch {
+    return normalizeImageUrl(decoded);
+  }
+}
+
+function extractMetaImageUrl(html, baseUrl) {
+  const patterns = [
+    /<meta[^>]+property=["']og:image(?::secure_url|:url)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url|:url)?["'][^>]*>/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["'][^>]*>/i,
+    /<meta[^>]+itemprop=["']image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    const resolved = resolveImageUrl(match?.[1], baseUrl);
+    if (resolved) return resolved;
+  }
+  return extractImageFromHtml(html);
+}
+
+async function fetchArticleImageUrl(link) {
+  const url = normalizeImageUrl(link);
+  if (!url) return "";
+  if (articleImageCache.has(url)) return articleImageCache.get(url);
+  if (typeof fetch !== "function" || typeof AbortController !== "function") return "";
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IMAGE_LOOKUP_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent": "LiveNewsBot/1.0 (+https://newsmorenow.com)",
+      },
+      redirect: "follow",
+    });
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok || !contentType.toLowerCase().includes("html")) {
+      articleImageCache.set(url, "");
+      return "";
+    }
+    const html = (await response.text()).slice(0, 220000);
+    const imageUrl = extractMetaImageUrl(html, response.url || url);
+    articleImageCache.set(url, imageUrl);
+    return imageUrl;
+  } catch {
+    articleImageCache.set(url, "");
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function hydrateArticleImages(items) {
+  if (!IMAGE_LOOKUP_LIMIT || !items.length) return;
+  const targets = items
+    .filter((item) => item && !item.imageUrl && item.link)
+    .slice(0, IMAGE_LOOKUP_LIMIT);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(IMAGE_LOOKUP_CONCURRENCY, targets.length) }, async () => {
+    while (cursor < targets.length) {
+      const item = targets[cursor];
+      cursor += 1;
+      const imageUrl = await fetchArticleImageUrl(item.link);
+      if (imageUrl) {
+        item.imageUrl = imageUrl;
+        item.imageSource = "article_meta";
+      }
+    }
+  });
+  await Promise.allSettled(workers);
 }
 
 function parseSourceFromTitle(title) {
@@ -706,6 +801,7 @@ async function refreshNews() {
     maxPerSource: Math.max(12, Math.ceil(FEED_LIMIT / 6)),
     limit: FEED_LIMIT,
   });
+  await hydrateArticleImages([...cache.topStories, ...cache.feed]);
   cache.lastUpdated = new Date().toISOString();
   cache.lastFetched = new Date().toISOString();
   cache.sourceErrors = errors;

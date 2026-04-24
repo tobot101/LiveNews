@@ -1464,24 +1464,27 @@ function getSourceInitials(item) {
 function getFallbackImageUrl(item) {
   const domain = item.sourceDomain || "";
   if (!domain) return "";
-  return `https://${domain}/favicon.ico`;
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
 }
 
 function buildStoryVisual(item, variant = "lead") {
   const imageUrl = item.imageUrl || item.thumbnailUrl || "";
-  const fallbackImage = getFallbackImageUrl(item);
-  const src = imageUrl || fallbackImage;
+  const sourceIconUrl = getFallbackImageUrl(item);
   const source = item.sourceName || item.sourceDomain || "Source";
   const category = item.category || "Top";
   const fallbackLabel = escapeHtml(`${source} • ${category}`);
   const initial = escapeHtml(getSourceInitials(item));
-  const imageTag = src
-    ? `<img src="${escapeHtml(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.story-visual').classList.add('image-failed'); this.remove();" />`
+  const photoTag = imageUrl
+    ? `<img class="story-photo" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.story-visual').classList.add('image-failed'); this.remove();" />`
+    : "";
+  const sourceMark = !imageUrl && sourceIconUrl
+    ? `<img class="story-source-mark" src="${escapeHtml(sourceIconUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('figcaption').classList.remove('has-source-mark'); this.remove();" />`
     : "";
   return `
-    <figure class="story-visual story-visual-${variant} ${src ? "" : "image-failed"}">
-      ${imageTag}
-      <figcaption>
+    <figure class="story-visual story-visual-${variant} ${imageUrl ? "has-photo" : "image-failed"}">
+      ${photoTag}
+      <figcaption class="${sourceMark ? "has-source-mark" : ""}">
+        ${sourceMark}
         <span>${initial}</span>
         <strong>${fallbackLabel}</strong>
       </figcaption>
