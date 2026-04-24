@@ -113,9 +113,13 @@
               type="search"
               placeholder="Search stories, sources, or categories"
               autocomplete="off"
+              aria-autocomplete="list"
+              aria-controls="searchDropdown"
+              aria-expanded="false"
             />
             <button class="btn ghost" type="submit">Search</button>
           </div>
+          <div class="search-dropdown" id="searchDropdown" role="listbox" hidden></div>
         </form>
         <a class="btn compact-local-link" href="/local.html">Local News</a>
         <div class="controls">

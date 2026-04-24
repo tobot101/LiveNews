@@ -845,6 +845,100 @@ function buildCurrentNewsPayload() {
   });
 }
 
+function tokenizeSearchQuery(query) {
+  return String(query || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 2 && !EVENT_STOPWORDS.has(word));
+}
+
+function getSearchText(item) {
+  return [
+    item.title,
+    item.liveNewsHeadline,
+    item.summary,
+    item.liveNewsSummary,
+    item.sourceName,
+    item.source,
+    item.sourceDomain,
+    item.category,
+    item.relatedSources?.join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function summarizeSearchResult(item) {
+  const summary = item.liveNewsSummary || item.summary || "";
+  return buildSummary(summary, 180);
+}
+
+function searchCurrentNews(query, limit = 30) {
+  const cleanQuery = String(query || "").trim();
+  const tokens = tokenizeSearchQuery(cleanQuery);
+  if (!cleanQuery || tokens.length === 0) {
+    return {
+      query: cleanQuery,
+      count: 0,
+      items: [],
+    };
+  }
+
+  const payload = buildCurrentNewsPayload();
+  const seen = new Set();
+  const pool = [...(payload.topStories || []), ...(payload.feed || [])]
+    .filter((item) => {
+      const key = item.id || item.link || `${item.title}:${item.publishedAt}`;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  const scored = pool
+    .map((item) => {
+      const haystack = getSearchText(item);
+      const title = String(item.liveNewsHeadline || item.title || "").toLowerCase();
+      const source = String(item.sourceName || item.source || "").toLowerCase();
+      const category = String(item.category || "").toLowerCase();
+      let relevance = 0;
+      tokens.forEach((token) => {
+        if (title.includes(token)) relevance += 8;
+        if (source.includes(token)) relevance += 4;
+        if (category.includes(token)) relevance += 4;
+        if (haystack.includes(token)) relevance += 2;
+      });
+      return { item, relevance };
+    })
+    .filter((entry) => entry.relevance > 0)
+    .sort(
+      (a, b) =>
+        b.relevance - a.relevance ||
+        Number(b.item.score || 0) - Number(a.item.score || 0) ||
+        new Date(b.item.publishedAt || 0) - new Date(a.item.publishedAt || 0)
+    );
+
+  return {
+    query: cleanQuery,
+    count: scored.length,
+    items: scored.slice(0, limit).map(({ item, relevance }) => ({
+      id: item.id,
+      title: item.liveNewsHeadline || item.title,
+      summary: summarizeSearchResult(item),
+      category: item.category || "Top",
+      sourceName: item.sourceName || item.source || "Source",
+      sourceDomain: item.sourceDomain || getDomain(item.link || ""),
+      publishedAt: item.publishedAt || "",
+      link: item.link || "",
+      liveNewsUrl: item.approvedStoryUrl || item.liveNewsUrl || "",
+      imageUrl: item.imageUrl || item.thumbnailUrl || "",
+      hasLiveNewsStory: Boolean(item.hasLiveNewsStory || item.approvedStoryUrl || item.liveNewsUrl),
+      relevance,
+    })),
+  };
+}
+
 function isLocalRequest(req) {
   const ip = String(req.ip || req.socket?.remoteAddress || "");
   return (
@@ -885,6 +979,7 @@ function renderSitemap(req) {
   const now = new Date().toISOString();
   const staticUrls = [
     { loc: "/", priority: "1.0", changefreq: "hourly", lastmod: now },
+    { loc: "/search.html", priority: "0.7", changefreq: "hourly", lastmod: now },
     { loc: "/local.html", priority: "0.8", changefreq: "hourly", lastmod: now },
   ];
   const storyUrls = listApprovedStories().map((story) => ({
@@ -953,6 +1048,14 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/news", (req, res) => {
   res.json(buildCurrentNewsPayload());
+});
+
+app.get("/api/search", (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit || 30), 1), 75);
+  res.json({
+    updatedAt: new Date().toISOString(),
+    ...searchCurrentNews(req.query.q, limit),
+  });
 });
 
 app.get("/api/stories", (req, res) => {

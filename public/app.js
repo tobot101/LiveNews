@@ -71,6 +71,7 @@ const elements = {
   sectionNav: document.getElementById("sectionNav"),
   siteSearchForm: document.getElementById("siteSearchForm"),
   siteSearch: document.getElementById("siteSearch"),
+  searchDropdown: document.getElementById("searchDropdown"),
   lastUpdated: document.getElementById("lastUpdated"),
   timeZoneLabel: document.getElementById("timeZoneLabel"),
   leadStory: document.getElementById("leadStory"),
@@ -255,12 +256,23 @@ function bindControls() {
   if (elements.siteSearchForm && elements.siteSearch) {
     elements.siteSearchForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      state.searchQuery = elements.siteSearch.value.trim();
-      renderCurrent();
+      navigateToSearch(elements.siteSearch.value);
     });
     elements.siteSearch.addEventListener("input", (event) => {
-      state.searchQuery = event.target.value.trim();
-      renderCurrent();
+      scheduleSearchPreview(event.target.value);
+    });
+    elements.siteSearch.addEventListener("focus", () => {
+      scheduleSearchPreview(elements.siteSearch.value);
+    });
+    elements.siteSearch.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        hideSearchDropdown();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!elements.siteSearchForm.contains(event.target)) {
+        hideSearchDropdown();
+      }
     });
   }
 
@@ -422,6 +434,97 @@ function updateBrandShift() {
 }
 
 let localSearchTimer = null;
+let searchPreviewTimer = null;
+let searchPreviewController = null;
+
+function navigateToSearch(value) {
+  const query = String(value || "").trim();
+  if (!query) return;
+  window.location.href = `/search.html?q=${encodeURIComponent(query)}`;
+}
+
+function scheduleSearchPreview(value) {
+  const query = String(value || "").trim();
+  if (searchPreviewTimer) {
+    clearTimeout(searchPreviewTimer);
+  }
+  if (!query) {
+    hideSearchDropdown();
+    return;
+  }
+  if (query.length < 2) {
+    renderSearchDropdown([], query, "Keep typing to search Live News.");
+    return;
+  }
+  searchPreviewTimer = setTimeout(() => fetchSearchPreview(query), 180);
+}
+
+async function fetchSearchPreview(query) {
+  if (!elements.searchDropdown) return;
+  if (searchPreviewController) {
+    searchPreviewController.abort();
+  }
+  searchPreviewController = new AbortController();
+  try {
+    const params = new URLSearchParams({ q: query, limit: "5" });
+    const response = await fetch(`/api/search?${params.toString()}`, {
+      signal: searchPreviewController.signal,
+    });
+    const data = await response.json();
+    renderSearchDropdown(data.items || [], query, "", Number(data.count || 0));
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    renderSearchDropdown([], query, "Search is unavailable right now.");
+  }
+}
+
+function renderSearchDropdown(items, query, message = "", total = items.length) {
+  if (!elements.searchDropdown) return;
+  const cleanQuery = String(query || "").trim();
+  if (!cleanQuery) {
+    hideSearchDropdown();
+    return;
+  }
+  elements.searchDropdown.hidden = false;
+  elements.siteSearch?.setAttribute("aria-expanded", "true");
+  if (message) {
+    elements.searchDropdown.innerHTML = `<div class="search-empty">${escapeHtml(message)}</div>`;
+    return;
+  }
+  if (!items.length) {
+    elements.searchDropdown.innerHTML = `
+      <div class="search-empty">
+        No results for “${escapeHtml(cleanQuery)}”. Try a source, category, city, or shorter phrase.
+      </div>
+    `;
+    return;
+  }
+  const resultHtml = items
+    .map((item) => {
+      const href = item.liveNewsUrl || item.link || `/search.html?q=${encodeURIComponent(cleanQuery)}`;
+      const target = item.liveNewsUrl ? "" : ` target="_blank" rel="noopener noreferrer"`;
+      const time = item.publishedAt ? formatTime(item.publishedAt) : "";
+      return `
+        <a class="search-preview-item" href="${escapeHtml(href)}"${target} role="option">
+          <span class="search-preview-title">${escapeHtml(item.title || "Untitled story")}</span>
+          <span class="search-preview-meta">${escapeHtml(item.sourceName || "Source")} • ${escapeHtml(item.category || "Top")} • ${escapeHtml(time)}</span>
+        </a>
+      `;
+    })
+    .join("");
+  const more =
+    total > items.length
+      ? `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">View all ${total} results</a>`
+      : `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">Open search page</a>`;
+  elements.searchDropdown.innerHTML = `${resultHtml}${more}`;
+}
+
+function hideSearchDropdown() {
+  if (!elements.searchDropdown) return;
+  elements.searchDropdown.hidden = true;
+  elements.searchDropdown.innerHTML = "";
+  elements.siteSearch?.setAttribute("aria-expanded", "false");
+}
 
 function schedulePlaceSearch(query) {
   if (!elements.localSuggestions) return;
