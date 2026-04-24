@@ -63,6 +63,7 @@ const IMAGE_LOOKUP_TIMEOUT_MS = Number(process.env.IMAGE_LOOKUP_TIMEOUT_MS || 18
 const IMAGE_VALIDATION_TIMEOUT_MS = Number(process.env.IMAGE_VALIDATION_TIMEOUT_MS || 1400);
 const AGENT_DRAFT_LIMIT = Number(process.env.LIVE_NEWS_DRAFT_LIMIT || 16);
 const AGENT_MODE = process.env.LIVE_NEWS_AGENT_MODE || "review_only";
+const CATEGORY_SECTIONS = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
 
 const EVENT_STOPWORDS = new Set([
   "a",
@@ -1217,6 +1218,43 @@ function buildCurrentNewsPayload() {
   });
 }
 
+function getUniqueCurrentNewsItems(payload = buildCurrentNewsPayload()) {
+  const seen = new Set();
+  return [...(payload.topStories || []), ...(payload.feed || [])].filter((item) => {
+    const key = item.id || item.link || `${item.title}:${item.publishedAt}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeCategorySection(value) {
+  const requested = String(value || "").trim().toLowerCase();
+  return CATEGORY_SECTIONS.find((category) => category.toLowerCase() === requested) || "";
+}
+
+function serializeNewsResultItem(item, extra = {}) {
+  return {
+    id: item.id,
+    title: item.liveNewsHeadline || item.title,
+    summary: summarizeSearchResult(item),
+    category: item.category || "Top",
+    sourceName: item.sourceName || item.source || "Source",
+    sourceDomain: item.sourceDomain || getDomain(item.link || ""),
+    publishedAt: item.publishedAt || "",
+    link: item.link || "",
+    liveNewsUrl: item.approvedStoryUrl || item.liveNewsUrl || "",
+    imageUrl: pickAuthenticArticleImageUrl([item.imageUrl, item.thumbnailUrl]),
+    imageSource: item.imageSource || "",
+    imageSourceUrl: item.imageSourceUrl || "",
+    imageCredit: item.imageCredit || "",
+    imageAlt: item.imageAlt || "",
+    imageResearchQuery: item.imageResearchQuery || "",
+    hasLiveNewsStory: Boolean(item.hasLiveNewsStory || item.approvedStoryUrl || item.liveNewsUrl),
+    ...extra,
+  };
+}
+
 function tokenizeSearchQuery(query) {
   return String(query || "")
     .toLowerCase()
@@ -1258,15 +1296,7 @@ async function searchCurrentNews(query, limit = 30) {
     };
   }
 
-  const payload = buildCurrentNewsPayload();
-  const seen = new Set();
-  const pool = [...(payload.topStories || []), ...(payload.feed || [])]
-    .filter((item) => {
-      const key = item.id || item.link || `${item.title}:${item.publishedAt}`;
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  const pool = getUniqueCurrentNewsItems();
 
   const scored = pool
     .map((item) => {
@@ -1299,25 +1329,39 @@ async function searchCurrentNews(query, limit = 30) {
   return {
     query: cleanQuery,
     count: scored.length,
-    items: limitedScored.map(({ item, relevance }) => ({
-      id: item.id,
-      title: item.liveNewsHeadline || item.title,
-      summary: summarizeSearchResult(item),
-      category: item.category || "Top",
-      sourceName: item.sourceName || item.source || "Source",
-      sourceDomain: item.sourceDomain || getDomain(item.link || ""),
-      publishedAt: item.publishedAt || "",
-      link: item.link || "",
-      liveNewsUrl: item.approvedStoryUrl || item.liveNewsUrl || "",
-      imageUrl: pickAuthenticArticleImageUrl([item.imageUrl, item.thumbnailUrl]),
-      imageSource: item.imageSource || "",
-      imageSourceUrl: item.imageSourceUrl || "",
-      imageCredit: item.imageCredit || "",
-      imageAlt: item.imageAlt || "",
-      imageResearchQuery: item.imageResearchQuery || "",
-      hasLiveNewsStory: Boolean(item.hasLiveNewsStory || item.approvedStoryUrl || item.liveNewsUrl),
-      relevance,
-    })),
+    items: limitedScored.map(({ item, relevance }) => serializeNewsResultItem(item, { relevance })),
+  };
+}
+
+async function getCategoryNews(category, limit = 60) {
+  const normalizedCategory = normalizeCategorySection(category);
+  if (!normalizedCategory) {
+    return {
+      category: "",
+      allowedCategories: CATEGORY_SECTIONS,
+      count: 0,
+      items: [],
+    };
+  }
+
+  const items = getUniqueCurrentNewsItems()
+    .filter((item) => item.category === normalizedCategory)
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0) ||
+        Number(b.score || 0) - Number(a.score || 0) ||
+        (b.sourceCount || 1) - (a.sourceCount || 1)
+    );
+  const limited = items.slice(0, limit);
+  await hydrateArticleImages(limited, {
+    limit: Math.min(limit, IMAGE_LOOKUP_LIMIT),
+  });
+
+  return {
+    category: normalizedCategory,
+    allowedCategories: CATEGORY_SECTIONS,
+    count: items.length,
+    items: limited.map((item) => serializeNewsResultItem(item)),
   };
 }
 
@@ -1364,13 +1408,19 @@ function renderSitemap(req) {
     { loc: "/search.html", priority: "0.7", changefreq: "hourly", lastmod: now },
     { loc: "/local.html", priority: "0.8", changefreq: "hourly", lastmod: now },
   ];
+  const categoryUrls = CATEGORY_SECTIONS.map((category) => ({
+    loc: `/category.html?category=${encodeURIComponent(category)}`,
+    priority: "0.7",
+    changefreq: "hourly",
+    lastmod: now,
+  }));
   const storyUrls = listApprovedStories().map((story) => ({
     loc: story.liveNewsUrl || `/stories/${story.slug}`,
     priority: "0.7",
     changefreq: "daily",
     lastmod: story.updatedAt || story.publishedAt || story.approvedAt || now,
   }));
-  const urls = [...staticUrls, ...storyUrls];
+  const urls = [...staticUrls, ...categoryUrls, ...storyUrls];
   const body = urls
     .map(
       (url) => `  <url>
@@ -1436,6 +1486,15 @@ app.get("/api/search", async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit || 30), 1), 75);
   const results = await searchCurrentNews(req.query.q, limit);
   res.json({
+    updatedAt: new Date().toISOString(),
+    ...results,
+  });
+});
+
+app.get("/api/category", async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit || 60), 1), 100);
+  const results = await getCategoryNews(req.query.category, limit);
+  res.status(results.category ? 200 : 400).json({
     updatedAt: new Date().toISOString(),
     ...results,
   });

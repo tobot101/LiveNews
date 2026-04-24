@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live News Category | Source-Linked Coverage</title>
+    <meta
+      name="description"
+      content="Browse source-linked Live News coverage by category, including national, international, business, tech, sports, and entertainment stories from recent feeds."
+    />
+    <link rel="shortcut icon" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Live News home">
+        <img class="brand-mark" src="/brand-mark.png" alt="" aria-hidden="true" />
+        <div class="brand-text">
+          <div class="brand-title">Live News</div>
+          <div class="brand-sub">Anytime &amp; Anywhere</div>
+        </div>
+      </a>
+      <div class="topbar-tools">
+        <form class="site-search" id="siteSearchForm" role="search">
+          <label class="control-label" for="siteSearch">Search Live News</label>
+          <div class="site-search-row">
+            <div class="site-search-box">
+              <input
+                id="siteSearch"
+                type="search"
+                placeholder="Search stories, sources, or categories"
+                autocomplete="off"
+              />
+            </div>
+            <button class="btn ghost" type="submit">Search</button>
+          </div>
+        </form>
+        <a class="btn compact-local-link" href="/local.html">Local News</a>
+        <div class="controls">
+          <div class="control" aria-label="Theme">
+            <span class="control-label">Mode</span>
+            <div class="segmented" id="modeControl">
+              <button class="seg active" data-mode="auto">Auto</button>
+              <button class="seg" data-mode="day">Day</button>
+              <button class="seg" data-mode="night">Dark</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="search-page category-page">
+      <section class="panel search-hero">
+        <span class="tag">Category page</span>
+        <h1 id="categoryTitle">Live News category</h1>
+        <p id="categorySummary">
+          Browse recent, source-linked Live News coverage from this section.
+        </p>
+        <nav class="category-tabs" id="categoryTabs" aria-label="Live News categories"></nav>
+      </section>
+
+      <section class="panel search-results-panel">
+        <div class="panel-header">
+          <h2 id="categoryResultsTitle">Stories</h2>
+          <span class="tag" id="categoryCount">Loading</span>
+        </div>
+        <div class="search-results" id="categoryResults"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>Live News • Source-linked coverage • Local pages • No ads</div>
+    </footer>
+
+    <script src="category.js"></script>
+  </body>
+</html>

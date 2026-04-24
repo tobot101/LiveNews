@@ -292,15 +292,6 @@ function bindControls() {
     });
   }
 
-  if (elements.categoryLanes) {
-    elements.categoryLanes.addEventListener("click", (event) => {
-      const target = event.target.closest("[data-lane-category]");
-      if (!target) return;
-      setCategory(target.dataset.laneCategory);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-  }
-
   elements.useLocation.addEventListener("click", () => {
     if (!state.consent.personalization) return;
     if (!navigator.geolocation) {
@@ -1727,7 +1718,7 @@ function renderCategoryLanes() {
         <section class="category-lane">
           <div class="category-lane-head">
             <h3>${escapeHtml(lane.category)}</h3>
-            <button class="lane-more" type="button" data-lane-category="${escapeHtml(lane.category)}">See more</button>
+            <a class="lane-more" href="/category.html?category=${encodeURIComponent(lane.category)}">See more</a>
           </div>
           <div class="category-lane-list">
             ${lane.items
