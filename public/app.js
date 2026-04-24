@@ -1259,13 +1259,17 @@ function updateSectionHeaders(category, topCount, feedCount, feedTotal = feedCou
   const searchNote = state.searchQuery ? ` • Search: ${state.searchQuery}` : "";
   if (category === "Top") {
     elements.topStoriesTitle.textContent = "Top Stories";
-    elements.topStoriesTag.textContent = `Cross-source radar${searchNote}`;
+    if (elements.topStoriesTag) {
+      elements.topStoriesTag.textContent = `Cross-source radar${searchNote}`;
+    }
     elements.feedTitle.textContent = "Latest News Feed";
     elements.feedTag.textContent = `After Top Stories • ${feedNote}`;
     return;
   }
   elements.topStoriesTitle.textContent = `${category} Top Stories`;
-  elements.topStoriesTag.textContent = `${topCount} selected${searchNote}`;
+  if (elements.topStoriesTag) {
+    elements.topStoriesTag.textContent = `${topCount} selected${searchNote}`;
+  }
   elements.feedTitle.textContent = `${category} News Feed`;
   elements.feedTag.textContent = feedNote;
 }
