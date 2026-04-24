@@ -434,30 +434,21 @@ html[data-theme="night"] .brand {
 
 .home-search-panel {
   display: grid;
-  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: end;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: stretch;
   margin-bottom: 16px;
   background:
     radial-gradient(circle at 10% 0%, rgba(2, 132, 199, 0.1), transparent 34%),
     var(--surface);
 }
 
-.home-search-copy {
-  display: grid;
-  gap: 8px;
-}
-
-.home-search-copy h2 {
+.home-search-note {
   margin: 0;
-  font-size: 28px;
-}
-
-.home-search-copy p {
-  margin: 0;
+  width: 100%;
   color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .home-search-form {
@@ -1767,11 +1758,6 @@ html[data-theme="night"] .brand {
 
   .lead-card {
     grid-template-columns: 1fr;
-  }
-
-  .home-search-panel {
-    grid-template-columns: 1fr;
-    align-items: stretch;
   }
 
   .story-visual-lead {
