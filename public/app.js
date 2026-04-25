@@ -1670,9 +1670,7 @@ function renderLeadStory(item) {
     <article class="lead-card" data-article-id="${escapeHtml(item.id || "")}">
       <div class="lead-copy">
         <div class="story-eyebrow">
-          <span>${escapeHtml(item.category || "Top")}</span>
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
-          ${item.hasLiveNewsStory ? "<span>Approved Live News page</span>" : "<span>Reviewing Live News page</span>"}
         </div>
         <h1>${buildStoryTitleLink(item, "lead-title")}</h1>
         <p>${escapeHtml(getDisplaySummary(item, 340))}</p>
@@ -1708,7 +1706,6 @@ function renderTopStories(items, options = {}) {
       <div class="story-card-top">
         <span class="story-rank">${rank}</span>
         <div class="story-eyebrow">
-          <span>${escapeHtml(item.category || "Top")}</span>
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
       </div>
@@ -1800,8 +1797,7 @@ function renderFeed(items) {
       card.innerHTML = `
         <div class="feed-item-main">
           <div class="story-eyebrow">
-            <span>${escapeHtml(item.category || "Top")}</span>
-            ${item.hasLiveNewsStory ? "<span>Approved</span>" : ""}
+            <span>${escapeHtml(getPublishedDateBadge(item))}</span>
           </div>
           <div class="feed-title">${buildStoryTitleLink(item)}</div>
           <p>${escapeHtml(getDisplaySummary(item, 150))}</p>
