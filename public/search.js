@@ -254,7 +254,6 @@ function renderResultCard(item) {
       <div class="search-result-copy">
         <div class="story-eyebrow">
           <span>${escapeHtml(item.category || "Top")}</span>
-          ${item.hasLiveNewsStory ? "<span>Live News page</span>" : "<span>Source result</span>"}
         </div>
         <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(item.title || "Untitled story")}</a></h2>
         <p>${escapeHtml(getResultSummary(item))}</p>
