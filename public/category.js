@@ -1,4 +1,22 @@
 const CATEGORY_SECTIONS = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
+const CATEGORY_PAGE_SLUGS = {
+  National: "national",
+  International: "world",
+  Business: "business",
+  Tech: "technology",
+  Sports: "sports",
+  Entertainment: "entertainment",
+};
+const CATEGORY_SLUG_ALIASES = {
+  national: "National",
+  world: "International",
+  international: "International",
+  business: "Business",
+  technology: "Tech",
+  tech: "Tech",
+  sports: "Sports",
+  entertainment: "Entertainment",
+};
 
 const state = {
   mode: "auto",
@@ -23,7 +41,7 @@ function init() {
   updateBrandShift();
   window.addEventListener("resize", updateBrandShift);
   const params = new URLSearchParams(window.location.search);
-  state.category = normalizeCategory(params.get("category")) || "National";
+  state.category = getCategoryFromPath() || normalizeCategory(params.get("category")) || "National";
   renderCategoryTabs();
   loadCategory(state.category);
 }
@@ -31,6 +49,17 @@ function init() {
 function normalizeCategory(value) {
   const clean = String(value || "").trim().toLowerCase();
   return CATEGORY_SECTIONS.find((category) => category.toLowerCase() === clean) || "";
+}
+
+function getCategoryFromPath() {
+  const match = window.location.pathname.match(/^\/category\/([^/]+)\/?$/);
+  if (!match) return "";
+  return CATEGORY_SLUG_ALIASES[decodeURIComponent(match[1]).toLowerCase()] || "";
+}
+
+function getCategoryPageHref(category) {
+  const slug = CATEGORY_PAGE_SLUGS[category] || String(category || "national").toLowerCase();
+  return `/category/${encodeURIComponent(slug)}`;
 }
 
 function hydrateMode() {
@@ -94,7 +123,7 @@ function bindControls() {
 function renderCategoryTabs() {
   elements.categoryTabs.innerHTML = CATEGORY_SECTIONS.map((category) => {
     const active = category === state.category ? " active" : "";
-    return `<a class="category-tab${active}" href="/category.html?category=${encodeURIComponent(category)}">${escapeHtml(category)}</a>`;
+    return `<a class="category-tab${active}" href="${getCategoryPageHref(category)}">${escapeHtml(category)}</a>`;
   }).join("");
 }
 

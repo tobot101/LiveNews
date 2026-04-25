@@ -10,6 +10,14 @@ const ANALYTICS_TTL_DAYS = 30;
 const LOCAL_PREVIEW_LIMIT = 3;
 const ALLOWED_FEED_LIMITS = new Set(["30", "50", "100"]);
 const CATEGORY_LANES = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
+const CATEGORY_PAGE_SLUGS = {
+  National: "national",
+  International: "world",
+  Business: "business",
+  Tech: "technology",
+  Sports: "sports",
+  Entertainment: "entertainment",
+};
 const TOP_US_CITIES = Array.isArray(window.LIVE_NEWS_TOP_CITIES)
   ? window.LIVE_NEWS_TOP_CITIES
   : [];
@@ -101,6 +109,11 @@ const elements = {
   signupBtn: document.getElementById("signupBtn"),
   communityPreview: document.getElementById("communityPreview"),
 };
+
+function getCategoryPageHref(category) {
+  const slug = CATEGORY_PAGE_SLUGS[category] || String(category || "national").toLowerCase();
+  return `/category/${encodeURIComponent(slug)}`;
+}
 
 function init() {
   hydrateConsent();
@@ -398,7 +411,7 @@ function updateLocalDeepLink() {
     elements.localDeepDive.href = buildLocalPageHref(state.localPlace);
     elements.localDeepDive.classList.remove("disabled");
   } else {
-    elements.localDeepDive.href = "/local.html";
+    elements.localDeepDive.href = "/local";
     elements.localDeepDive.classList.add("disabled");
   }
 }
@@ -626,12 +639,12 @@ function syncResolvedLocalPlace(place) {
 
 function buildLocalPageHref(place) {
   const city = place?.name || place?.display;
-  if (!city) return "/local.html";
+  if (!city) return "/local";
   const params = new URLSearchParams({ city });
   if (place?.state) {
     params.set("state", place.state);
   }
-  return `/local.html?${params.toString()}`;
+  return `/local?${params.toString()}`;
 }
 
 function navigateToLocalPage(place) {
@@ -1745,7 +1758,7 @@ function renderCategoryLanes() {
         <section class="category-lane">
           <div class="category-lane-head">
             <h3>${escapeHtml(lane.category)}</h3>
-            <a class="lane-more" href="/category.html?category=${encodeURIComponent(lane.category)}">See more</a>
+            <a class="lane-more" href="${getCategoryPageHref(lane.category)}">See more</a>
           </div>
           <div class="category-lane-list">
             ${lane.items

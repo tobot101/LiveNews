@@ -73,6 +73,124 @@ const IMAGE_VALIDATION_TIMEOUT_MS = Number(process.env.IMAGE_VALIDATION_TIMEOUT_
 const AGENT_DRAFT_LIMIT = Number(process.env.LIVE_NEWS_DRAFT_LIMIT || 16);
 const AGENT_MODE = process.env.LIVE_NEWS_AGENT_MODE || "review_only";
 const CATEGORY_SECTIONS = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
+const PUBLIC_CANONICAL_ORIGIN = "https://newsmorenow.com";
+const SITEMAP_STABLE_PAGES = [
+  { path: "/", changefreq: "hourly", priority: "1.0" },
+  { path: "/local", changefreq: "hourly", priority: "0.8" },
+  { path: "/latest", changefreq: "hourly", priority: "0.8" },
+  { path: "/top-stories", changefreq: "hourly", priority: "0.9" },
+  { path: "/category/national", changefreq: "hourly", priority: "0.7" },
+  { path: "/category/world", changefreq: "hourly", priority: "0.7" },
+  { path: "/category/business", changefreq: "hourly", priority: "0.7" },
+  { path: "/category/technology", changefreq: "hourly", priority: "0.7" },
+  { path: "/category/sports", changefreq: "hourly", priority: "0.7" },
+  { path: "/category/entertainment", changefreq: "hourly", priority: "0.7" },
+  { path: "/about", changefreq: "monthly", priority: "0.5" },
+  { path: "/editorial-policy", changefreq: "monthly", priority: "0.5" },
+  { path: "/sources", changefreq: "weekly", priority: "0.5" },
+  { path: "/privacy", changefreq: "monthly", priority: "0.5" },
+  { path: "/contact", changefreq: "monthly", priority: "0.5" },
+];
+const CATEGORY_ROUTE_CONFIG = {
+  national: {
+    label: "National",
+    apiCategory: "National",
+    title: "Live News National Coverage",
+    description: "Browse recent national coverage from Live News with attribution and original source links.",
+  },
+  world: {
+    label: "World",
+    apiCategory: "International",
+    title: "Live News World Coverage",
+    description: "Browse recent world and international coverage from Live News with original source links.",
+  },
+  business: {
+    label: "Business",
+    apiCategory: "Business",
+    title: "Live News Business Coverage",
+    description: "Browse business coverage about companies, markets, workers, money, and consumers.",
+  },
+  technology: {
+    label: "Technology",
+    apiCategory: "Tech",
+    title: "Live News Technology Coverage",
+    description: "Browse technology coverage about products, platforms, users, privacy, and tools.",
+  },
+  sports: {
+    label: "Sports",
+    apiCategory: "Sports",
+    title: "Live News Sports Coverage",
+    description: "Browse sports coverage about teams, players, results, and upcoming matchups.",
+  },
+  entertainment: {
+    label: "Entertainment",
+    apiCategory: "Entertainment",
+    title: "Live News Entertainment Coverage",
+    description: "Browse entertainment coverage about releases, people, audiences, and events.",
+  },
+};
+const STATIC_INFO_PAGES = {
+  about: {
+    title: "About Live News",
+    description:
+      "Learn how Live News keeps coverage readable, low-clutter, source-linked, and respectful of original publishers.",
+    heading: "About Live News",
+    kicker: "Readability first",
+    body: [
+      "Live News is built to make current coverage easier to browse without ads, clutter, or copied publisher wording.",
+      "Stories are gathered from official feeds and recent reporting, summarized in plain language, and linked back to the original publisher for full reporting.",
+      "The product direction is simple: keep Top Stories focused, keep local coverage easy to reach, and keep attribution visible.",
+    ],
+  },
+  contact: {
+    title: "Contact Live News",
+    description:
+      "Contact Live News about source attribution, corrections, local coverage, or website feedback.",
+    heading: "Contact Live News",
+    kicker: "Feedback and corrections",
+    body: [
+      "For corrections, attribution questions, source issues, or website feedback, contact the Live News team through the site owner.",
+      "When reporting an issue, include the page URL, story title, source name, and what should be reviewed.",
+      "Live News is designed to improve over time while keeping publisher links and reader clarity at the center.",
+    ],
+  },
+  privacy: {
+    title: "Live News Privacy",
+    description:
+      "Read the Live News privacy approach for cookies, personalization, analytics, and no-ad browsing.",
+    heading: "Privacy",
+    kicker: "No ads, no selling data",
+    body: [
+      "Live News does not serve ads and does not sell personal data.",
+      "Functional settings may remember theme, refresh, feed size, city selection, and cookie choices on your device.",
+      "Personalization and analytics are optional. They help improve browsing, but the site remains usable without them.",
+    ],
+  },
+  "editorial-policy": {
+    title: "Live News Editorial Policy",
+    description:
+      "Read how Live News handles summaries, attribution, original source links, and source-respectful coverage.",
+    heading: "Editorial Policy",
+    kicker: "Source-respectful coverage",
+    body: [
+      "Live News summarizes source-linked coverage with attribution. Full reporting remains with the original publisher.",
+      "Summaries should use plain language, avoid copied publisher wording, and never add facts not supported by available source data.",
+      "Original source links are required so readers can verify details and read the complete reporting from the publisher.",
+    ],
+  },
+  sources: {
+    title: "Live News Sources",
+    description:
+      "See how Live News uses official feeds, recent reporting, local search results, attribution, and original source links.",
+    heading: "Sources",
+    kicker: "Attribution and original links",
+    body: [
+      "Live News uses official RSS feeds, recent public reporting, and local search results to organize current coverage.",
+      "Every story card should show the source name, timestamp, category, summary, and a link back to the original publisher.",
+      "Live News does not include external publisher URLs in its sitemap. Publisher links remain visible on article cards for attribution and verification.",
+    ],
+  },
+};
 
 const EVENT_STOPWORDS = new Set([
   "a",
@@ -1409,7 +1527,217 @@ function renderCrawlableHomepage() {
     .replace(
       '<div class="feed" id="newsFeed"></div>',
       `<div class="feed" id="newsFeed">${feedCards.map(renderCrawlableFeedItem).join("")}</div>`
-    );
+    )
+    .replace("</head>", `    <link rel="canonical" href="${escapeHtml(getCanonicalUrl("/"))}" />\n  </head>`);
+}
+
+function renderCanonicalStaticPage(fileName, canonicalPath) {
+  return readPublicHtml(fileName).replace(
+    "</head>",
+    `    <link rel="canonical" href="${escapeHtml(getCanonicalUrl(canonicalPath))}" />\n  </head>`
+  );
+}
+
+function renderPageShell({ canonicalPath, title, description, kicker, h1, bodyHtml = "" }) {
+  const canonicalUrl = getCanonicalUrl(canonicalPath);
+  return `<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <meta name="description" content="${escapeHtml(description)}" />
+    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Live News home">
+        <img class="brand-mark" src="/brand-mark.png" alt="" aria-hidden="true" />
+        <div class="brand-text">
+          <div class="brand-title">Live News</div>
+          <div class="brand-sub">Anytime &amp; Anywhere</div>
+        </div>
+      </a>
+    </header>
+    <main class="search-page">
+      <section class="panel search-hero">
+        <span class="tag">${escapeHtml(kicker || "Live News")}</span>
+        <h1>${escapeHtml(h1)}</h1>
+        <p>${escapeHtml(description)}</p>
+      </section>
+      ${bodyHtml}
+    </main>
+    <footer class="footer">
+      <div>Live News • Source-linked coverage • Local pages • No ads</div>
+      <div class="footer-note">
+        <a href="/about">About</a> •
+        <a href="/editorial-policy">Editorial Policy</a> •
+        <a href="/sources">Sources</a> •
+        <a href="/privacy">Privacy</a> •
+        <a href="/contact">Contact</a>
+      </div>
+    </footer>
+  </body>
+</html>`;
+}
+
+function renderCrawlerList(items) {
+  if (!items.length) {
+    return `
+      <div class="search-empty-card">
+        Live News will fill this page as fresh, source-linked coverage is available.
+      </div>
+    `;
+  }
+  return `<div class="feed">${items.map(renderCrawlableFeedItem).join("")}</div>`;
+}
+
+function renderNewsIndexPage({ canonicalPath, title, description, h1, kicker, items }) {
+  return renderPageShell({
+    canonicalPath,
+    title,
+    description,
+    h1,
+    kicker,
+    bodyHtml: `
+      <section class="panel search-results-panel">
+        <div class="panel-header">
+          <h2>${escapeHtml(h1)} stories</h2>
+          <span class="tag">${escapeHtml(String(items.length))} visible</span>
+        </div>
+        ${renderCrawlerList(items)}
+      </section>
+    `,
+  });
+}
+
+function renderLatestPage() {
+  const payload = buildCurrentNewsPayload();
+  const items = (payload.feed || []).slice(0, FEED_LIMIT);
+  return renderNewsIndexPage({
+    canonicalPath: "/latest",
+    title: "Latest News Feed | Live News",
+    description:
+      "Browse the latest Live News feed with readable summaries, timestamps, attribution, and original source links.",
+    h1: "Latest News Feed",
+    kicker: "Fresh source-linked coverage",
+    items,
+  });
+}
+
+function renderTopStoriesPage() {
+  const payload = buildCurrentNewsPayload();
+  const items = (payload.topStories || []).slice(0, TOP_STORIES_LIMIT);
+  return renderNewsIndexPage({
+    canonicalPath: "/top-stories",
+    title: "Top Stories | Live News",
+    description:
+      "Browse the eight most important Live News top stories with source-respectful summaries and original publisher links.",
+    h1: "Top Stories",
+    kicker: "Top 8",
+    items,
+  });
+}
+
+function getCategoryRouteConfig(slug) {
+  const key = String(slug || "").trim().toLowerCase();
+  return CATEGORY_ROUTE_CONFIG[key] ? { slug: key, ...CATEGORY_ROUTE_CONFIG[key] } : null;
+}
+
+function getCategorySlugFromValue(value) {
+  const requested = String(value || "").trim().toLowerCase();
+  return (
+    Object.entries(CATEGORY_ROUTE_CONFIG).find(([, config]) => {
+      return (
+        config.label.toLowerCase() === requested ||
+        config.apiCategory.toLowerCase() === requested
+      );
+    })?.[0] || "national"
+  );
+}
+
+function renderCategoryRoutePage(slug) {
+  const config = getCategoryRouteConfig(slug);
+  if (!config) return "";
+  const payload = buildCurrentNewsPayload();
+  const allItems = getUniqueCurrentNewsItems(payload);
+  const items = allItems
+    .filter((item) => item.category === config.apiCategory)
+    .slice(0, 75);
+  return renderNewsIndexPage({
+    canonicalPath: `/category/${config.slug}`,
+    title: `${config.label} News | Live News`,
+    description: config.description,
+    h1: `${config.label} News`,
+    kicker: "Category coverage",
+    items,
+  });
+}
+
+function renderInfoPage(slug) {
+  const page = STATIC_INFO_PAGES[slug];
+  if (!page) return "";
+  const paragraphs = page.body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("");
+  return renderPageShell({
+    canonicalPath: `/${slug}`,
+    title: `${page.title} | Live News`,
+    description: page.description,
+    h1: page.heading,
+    kicker: page.kicker,
+    bodyHtml: `
+      <section class="panel search-results-panel">
+        <div class="story-section">
+          ${paragraphs}
+        </div>
+      </section>
+    `,
+  });
+}
+
+function renderSourcesPage() {
+  const sources = loadSources();
+  const sourceCards = sources
+    .map(
+      (source) => `
+        <article class="search-empty-card">
+          <strong>${escapeHtml(source.name || source.url || "News source")}</strong>
+          <span>${escapeHtml(source.category || "General")} coverage • weight ${escapeHtml(source.weight || "1")}</span>
+        </article>
+      `
+    )
+    .join("");
+  return renderPageShell({
+    canonicalPath: "/sources",
+    title: "Live News Sources | Live News",
+    description:
+      "See how Live News uses official feeds, recent reporting, local search results, attribution, and original source links.",
+    h1: "Sources",
+    kicker: "Attribution and original links",
+    bodyHtml: `
+      <section class="panel search-results-panel">
+        <div class="story-section">
+          <p>Live News organizes current coverage from configured feeds, local search results, and source-linked reporting while keeping original publisher links visible.</p>
+          <p>The sitemap lists only Live News pages. External publisher URLs stay on article cards for attribution and verification.</p>
+        </div>
+        <div class="search-results">
+          ${sourceCards}
+        </div>
+      </section>
+    `,
+  });
 }
 
 function normalizeCategorySection(value) {
@@ -1586,36 +1914,47 @@ function getPublicBaseUrl(req) {
   return `${protocol}://${req.get("host")}`;
 }
 
-function renderSitemap(req) {
-  const origin = getPublicBaseUrl(req);
+function getCanonicalOrigin() {
+  return String(process.env.PUBLIC_SITE_URL || PUBLIC_CANONICAL_ORIGIN).trim().replace(/\/$/, "");
+}
+
+function getCanonicalUrl(pathname) {
+  return absoluteUrl(getCanonicalOrigin(), pathname);
+}
+
+function renderSitemap() {
+  const origin = getCanonicalOrigin();
   const now = new Date().toISOString();
-  const staticUrls = [
-    { loc: "/", priority: "1.0", changefreq: "hourly", lastmod: now },
-    { loc: "/search.html", priority: "0.7", changefreq: "hourly", lastmod: now },
-    { loc: "/local.html", priority: "0.8", changefreq: "hourly", lastmod: now },
-  ];
-  const categoryUrls = CATEGORY_SECTIONS.map((category) => ({
-    loc: `/category.html?category=${encodeURIComponent(category)}`,
-    priority: "0.7",
-    changefreq: "hourly",
-    lastmod: now,
-  }));
-  const storyUrls = listApprovedStories().map((story) => ({
-    loc: story.liveNewsUrl || `/stories/${story.slug}`,
-    priority: "0.7",
-    changefreq: "daily",
-    lastmod: story.updatedAt || story.publishedAt || story.approvedAt || now,
-  }));
-  const urls = [...staticUrls, ...categoryUrls, ...storyUrls];
-  const body = urls
+  const body = SITEMAP_STABLE_PAGES
     .map(
       (url) => `  <url>
-    <loc>${escapeHtml(absoluteUrl(origin, url.loc))}</loc>
-    <lastmod>${escapeHtml(url.lastmod)}</lastmod>
+    <loc>${escapeHtml(absoluteUrl(origin, url.path))}</loc>
+    <lastmod>${escapeHtml(url.lastmod || now)}</lastmod>
     <changefreq>${escapeHtml(url.changefreq)}</changefreq>
     <priority>${escapeHtml(url.priority)}</priority>
   </url>`
     )
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${body}
+</urlset>
+`;
+}
+
+function renderNewsSitemap() {
+  const stories = listApprovedStories();
+  if (!stories.length) return "";
+  const origin = getCanonicalOrigin();
+  const body = stories
+    .map((story) => {
+      const loc = story.liveNewsUrl || `/stories/${story.slug}`;
+      const lastmod = story.updatedAt || story.publishedAt || story.approvedAt || new Date().toISOString();
+      return `  <url>
+    <loc>${escapeHtml(absoluteUrl(origin, loc))}</loc>
+    <lastmod>${escapeHtml(lastmod)}</lastmod>
+  </url>`;
+    })
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -1651,7 +1990,13 @@ function findNearestPlace(lat, lon) {
 }
 
 app.get("/sitemap.xml", (req, res) => {
-  res.type("application/xml").send(renderSitemap(req));
+  res.type("application/xml").send(renderSitemap());
+});
+
+app.get("/news-sitemap.xml", (req, res) => {
+  const xml = renderNewsSitemap();
+  if (!xml) return res.status(404).type("text/plain").send("No internal Live News story pages are public yet.");
+  return res.type("application/xml").send(xml);
 });
 
 app.get("/stories/:slug", (req, res) => {
@@ -1662,8 +2007,50 @@ app.get("/stories/:slug", (req, res) => {
   res.send(renderPublicStoryPage(story, { origin: getPublicBaseUrl(req) }));
 });
 
-app.get(["/", "/index.html"], (req, res) => {
+app.get("/index.html", (req, res) => {
+  res.redirect(301, "/");
+});
+
+app.get("/", (req, res) => {
   res.type("html").send(renderCrawlableHomepage(req));
+});
+
+app.get("/local.html", (req, res) => {
+  const query = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
+  res.redirect(301, `/local${query}`);
+});
+
+app.get("/local", (req, res) => {
+  res.type("html").send(renderCanonicalStaticPage("local.html", "/local"));
+});
+
+app.get("/latest", (req, res) => {
+  res.type("html").send(renderLatestPage());
+});
+
+app.get("/top-stories", (req, res) => {
+  res.type("html").send(renderTopStoriesPage());
+});
+
+app.get("/category.html", (req, res) => {
+  res.redirect(301, `/category/${getCategorySlugFromValue(req.query.category)}`);
+});
+
+app.get("/category/:slug", (req, res, next) => {
+  const html = renderCategoryRoutePage(req.params.slug);
+  if (!html) return next();
+  return res.type("html").send(html);
+});
+
+app.get("/sources", (req, res) => {
+  res.type("html").send(renderSourcesPage());
+});
+
+app.get(["/about", "/editorial-policy", "/privacy", "/contact"], (req, res) => {
+  const slug = req.path.replace(/^\//, "");
+  const html = renderInfoPage(slug);
+  if (!html) return res.status(404).send("Not found");
+  return res.type("html").send(html);
 });
 
 app.use(express.static(path.join(__dirname, "public")));

@@ -297,12 +297,12 @@ function syncResolvedPlace(place) {
 
 function buildLocalPageHref(place) {
   const city = place?.name || place?.display;
-  if (!city) return "/local.html";
+  if (!city) return "/local";
   const params = new URLSearchParams({ city });
   if (place?.state) {
     params.set("state", place.state);
   }
-  return `/local.html?${params.toString()}`;
+  return `/local?${params.toString()}`;
 }
 
 function isSamePlace(a, b) {
