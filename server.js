@@ -11,7 +11,10 @@ const {
   readApprovedStore,
 } = require("./lib/article-agents/approved-stories");
 const { runArticleAgents } = require("./lib/article-agents/pipeline");
-const { applyLiveNewsSummary } = require("./lib/article-agents/summary-agent");
+const {
+  applyLiveNewsSummariesToPayload,
+  applyLiveNewsSummary,
+} = require("./lib/article-agents/summary-agent");
 const {
   absoluteUrl,
   escapeHtml,
@@ -1218,14 +1221,6 @@ function refreshNewsSafely() {
   refreshNews().catch((error) => {
     cache.sourceErrors = [{ source: "system", message: error.message }];
   });
-}
-
-function applyLiveNewsSummariesToPayload(payload) {
-  return {
-    ...payload,
-    topStories: (payload.topStories || []).map(applyLiveNewsSummary),
-    feed: (payload.feed || []).map(applyLiveNewsSummary),
-  };
 }
 
 function buildCurrentNewsPayload() {

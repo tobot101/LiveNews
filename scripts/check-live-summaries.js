@@ -2,9 +2,16 @@ const fs = require("fs");
 const path = require("path");
 const {
   applyLiveNewsSummary,
+  applyLiveNewsSummariesToItems,
+  applyLiveNewsSummariesToPayload,
   buildLiveNewsSummary,
   evaluateLiveNewsSummary,
 } = require("../lib/article-agents/summary-agent");
+const {
+  FALLBACK_SUMMARY,
+  getFirstWords,
+  wordCount,
+} = require("../lib/article-agents/summary-quality");
 
 const root = path.join(__dirname, "..");
 const failures = [];
@@ -60,13 +67,14 @@ for (const sample of samples) {
   const result = buildLiveNewsSummary(sample);
   const text = result.text;
   expect(result.evaluation.passed, `${sample.id} summary should pass quality gates.`);
-  expect(!/Live News is tracking|It was updated|original source remains/i.test(text), `${sample.id} should not use old generic tracking copy.`);
-  expect(!/^Live News/i.test(text), `${sample.id} should not start every summary with the brand name.`);
-  expect(text.length >= 70 && text.length <= 340, `${sample.id} should keep a compact summary length.`);
+  expect(!/Live News is tracking|It was updated|original source remains|source-linked coverage/i.test(text), `${sample.id} should not use old generic tracking copy.`);
+  expect(!/^(Live News|This article discusses|The report says|According to|In a recent development|Officials announced|The story highlights|This update centers|The key development is)/i.test(text), `${sample.id} should not use a robotic opener.`);
+  expect(text === FALLBACK_SUMMARY || (wordCount(text) >= 18 && wordCount(text) <= 38), `${sample.id} should keep an 18-38 word summary unless using the neutral fallback.`);
   expect(
     /Trump|Witkoff|Kushner|Pakistan|Iran|Norfolk|profit|insurance|derailment|sanctions|refinery|Iranian oil|Natalie|Decker|Talladega/i.test(text),
     `${sample.id} should include article-specific details.`
   );
+  expect(text !== sample.summary, `${sample.id} should not copy the RSS description directly.`);
   const reevaluated = evaluateLiveNewsSummary(sample, text);
   expect(reevaluated.passed, `${sample.id} should pass reevaluation.`);
 }
@@ -81,19 +89,55 @@ expect(appJs.includes("if (item.liveNewsSummary)"), "UI summary rendering should
 expect(!appJs.includes("Live News is tracking this"), "Latest News fallback should not return the old generic tracking sentence.");
 expect(!categoryJs.includes("Live News found this result"), "Category results should not return the old generic result summary.");
 expect(!searchJs.includes("Live News found this result"), "Search results should not return the old generic result summary.");
+expect(serverJs.includes("applyLiveNewsSummariesToPayload"), "Server should apply summary agents across page sections so nearby cards can be checked for repetition.");
 
 const payload = {
   topStories: [samples[0]],
   feed: [samples[2], samples[3]],
 };
-const shapedPayload = {
-  topStories: payload.topStories.map(applyLiveNewsSummary),
-  feed: payload.feed.map(applyLiveNewsSummary),
-};
+const shapedPayload = applyLiveNewsSummariesToPayload(payload);
 expect(shapedPayload.feed.every((item) => item.liveNewsSummary), "Latest News Feed items should receive Live News summaries.");
 expect(
   shapedPayload.feed.every((item) => !/Live News is tracking|It was updated|original source remains/i.test(item.liveNewsSummary)),
   "Latest News Feed summaries should not use old generic tracking copy."
+);
+expect(
+  shapedPayload.feed.every((item) => item.liveNewsSummary === FALLBACK_SUMMARY || (wordCount(item.liveNewsSummary) >= 18 && wordCount(item.liveNewsSummary) <= 38)),
+  "Latest News Feed summaries should stay compact."
+);
+
+const repetitionSamples = [
+  {
+    id: "repeat-local-1",
+    title: "Local transit upgrades approved for downtown corridor",
+    summary: "Local transit upgrades were approved for the downtown corridor after a city review.",
+    sourceName: "City Desk",
+    category: "Local",
+    sourceCount: 1,
+  },
+  {
+    id: "repeat-local-2",
+    title: "Local transit upgrades delayed near airport station",
+    summary: "Local transit upgrades near the airport station were delayed as scheduling questions continued.",
+    sourceName: "City Desk",
+    category: "Local",
+    sourceCount: 1,
+  },
+];
+const repetitionChecked = applyLiveNewsSummariesToItems(repetitionSamples);
+const firstOpeners = repetitionChecked.map((item) => getFirstWords(item.liveNewsSummary));
+expect(new Set(firstOpeners).size === firstOpeners.length, "Nearby cards should not reuse the same first four words.");
+expect(
+  repetitionChecked.every((item) => item.summaryAgent.passed),
+  "Nearby-card repetition checks should still produce passing summaries."
+);
+
+const styleMemoryChecked = buildLiveNewsSummary(samples[0], {
+  styleMemory: { avoidPhrases: ["This story matters because"] },
+});
+expect(
+  styleMemoryChecked.evaluation.passed,
+  "Summary generation should honor editable style-memory avoid phrases without failing safe candidates."
 );
 
 if (failures.length) {
