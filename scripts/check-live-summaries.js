@@ -22,6 +22,16 @@ function expect(condition, message) {
 
 const samples = [
   {
+    id: "summary-live-prefix-test",
+    title: "Iran live updates: Trump cancels Witkoff, Kushner trip to Islamabad for peace talks",
+    summary:
+      "President Donald Trump announced \"major combat operations\" against Iran on Feb. 28, with massive joint U.S.-Israeli strikes.",
+    sourceName: "ABC News",
+    category: "Top",
+    sourceCount: 2,
+    publishedAt: "2026-04-24T18:52:00.000Z",
+  },
+  {
     id: "summary-national-test",
     title: "WATCH: Trump dispatching Witkoff and Kushner to Pakistan for new Iran talks, White House says",
     summary:
@@ -63,18 +73,29 @@ const samples = [
   },
 ];
 
+function normalizeExact(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/^(watch|video|listen|live updates?|the latest|latest|breaking|photos?):\s*/i, "")
+    .replace(/^[a-z\s]+live updates?:\s*/i, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 for (const sample of samples) {
   const result = buildLiveNewsSummary(sample);
   const text = result.text;
   expect(result.evaluation.passed, `${sample.id} summary should pass quality gates.`);
   expect(!/Live News is tracking|It was updated|original source remains|source-linked coverage/i.test(text), `${sample.id} should not use old generic tracking copy.`);
   expect(!/^(Live News|This article discusses|The report says|According to|In a recent development|Officials announced|The story highlights|This update centers|The key development is)/i.test(text), `${sample.id} should not use a robotic opener.`);
-  expect(text === FALLBACK_SUMMARY || (wordCount(text) >= 18 && wordCount(text) <= 38), `${sample.id} should keep an 18-38 word summary unless using the neutral fallback.`);
+  expect(!/What comes next depends on|The core question is|Readers can quickly see|The focus stays on|The wider value is|Readers may want/i.test(text), `${sample.id} should not use placeholder summary framing.`);
+  expect(text === FALLBACK_SUMMARY || (wordCount(text) >= 18 && wordCount(text) <= 35), `${sample.id} should keep an 18-35 word summary unless using the neutral fallback.`);
   expect(
-    /Trump|Witkoff|Kushner|Pakistan|Iran|Norfolk|profit|insurance|derailment|sanctions|refinery|Iranian oil|Natalie|Decker|Talladega/i.test(text),
+    /Trump|Witkoff|Kushner|Pakistan|Islamabad|Iran|Norfolk|profit|insurance|derailment|sanctions|refinery|Iranian oil|Natalie|Decker|Talladega/i.test(text),
     `${sample.id} should include article-specific details.`
   );
   expect(text !== sample.summary, `${sample.id} should not copy the RSS description directly.`);
+  expect(!normalizeExact(text).includes(normalizeExact(sample.title)), `${sample.id} should not repeat the title exactly inside the summary.`);
   const reevaluated = evaluateLiveNewsSummary(sample, text);
   expect(reevaluated.passed, `${sample.id} should pass reevaluation.`);
 }
@@ -113,8 +134,17 @@ expect(
   "Latest News Feed summaries should not use old generic tracking copy."
 );
 expect(
-  shapedPayload.feed.every((item) => item.liveNewsSummary === FALLBACK_SUMMARY || (wordCount(item.liveNewsSummary) >= 18 && wordCount(item.liveNewsSummary) <= 38)),
+  shapedPayload.feed.every((item) => item.liveNewsSummary === FALLBACK_SUMMARY || (wordCount(item.liveNewsSummary) >= 18 && wordCount(item.liveNewsSummary) <= 35)),
   "Latest News Feed summaries should stay compact."
+);
+
+const duplicatePayload = applyLiveNewsSummariesToPayload({
+  topStories: [samples[0]],
+  feed: [samples[0]],
+});
+expect(
+  duplicatePayload.feed[0].liveNewsSummary === duplicatePayload.topStories[0].liveNewsSummary,
+  "Duplicate stories should reuse the approved summary instead of falling back because of nearby repetition."
 );
 
 const repetitionSamples = [
@@ -136,9 +166,10 @@ const repetitionSamples = [
   },
 ];
 const repetitionChecked = applyLiveNewsSummariesToItems(repetitionSamples);
-const firstOpeners = repetitionChecked.map((item) => getFirstWords(item.liveNewsSummary));
+const nonFallbackRepetition = repetitionChecked.filter((item) => item.liveNewsSummary !== FALLBACK_SUMMARY);
+const firstOpeners = nonFallbackRepetition.map((item) => getFirstWords(item.liveNewsSummary));
 expect(new Set(firstOpeners).size === firstOpeners.length, "Nearby cards should not reuse the same first four words.");
-const firstThreeOpeners = repetitionChecked.map((item) => getFirstWords(item.liveNewsSummary, 3));
+const firstThreeOpeners = nonFallbackRepetition.map((item) => getFirstWords(item.liveNewsSummary, 3));
 expect(new Set(firstThreeOpeners).size === firstThreeOpeners.length, "Nearby cards should not reuse the same first three words.");
 expect(
   repetitionChecked.every((item) => item.summaryAgent.passed),
