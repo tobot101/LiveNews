@@ -16,6 +16,16 @@
   --chip: #e2e8f0;
   --brand-base: #2563eb;
   --brand-glow: rgba(59, 130, 246, 0.35);
+  --lead-bg-start: #172338;
+  --lead-bg-mid: #102033;
+  --lead-bg-end: #273d4f;
+  --lead-border: #48647d;
+  --lead-text: #f7fbff;
+  --lead-muted: #c6d5e6;
+  --lead-meta: #aebed1;
+  --lead-accent: #d89b5f;
+  --lead-action-bg: #f3d0a7;
+  --lead-action-ink: #172338;
   --shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
 }
 
@@ -37,6 +47,16 @@ html[data-theme="night"] {
   --chip: #17212d;
   --brand-base: #a9bcff;
   --brand-glow: rgba(143, 167, 201, 0.22);
+  --lead-bg-start: #101a29;
+  --lead-bg-mid: #0c1725;
+  --lead-bg-end: #203346;
+  --lead-border: #536d86;
+  --lead-text: #f5f9ff;
+  --lead-muted: #c9d7e7;
+  --lead-meta: #aab9ca;
+  --lead-accent: #c9826b;
+  --lead-action-bg: #e7b99d;
+  --lead-action-ink: #101a29;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
 }
 
@@ -78,6 +98,16 @@ html[data-theme="night"] body.local-theme {
   --chip: #17212d;
   --brand-base: #a9bcff;
   --brand-glow: rgba(143, 167, 201, 0.22);
+  --lead-bg-start: #101a29;
+  --lead-bg-mid: #0c1725;
+  --lead-bg-end: #203346;
+  --lead-border: #536d86;
+  --lead-text: #f5f9ff;
+  --lead-muted: #c9d7e7;
+  --lead-meta: #aab9ca;
+  --lead-accent: #c9826b;
+  --lead-action-bg: #e7b99d;
+  --lead-action-ink: #101a29;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
 }
 
@@ -572,17 +602,35 @@ html[data-theme="night"] .brand {
 }
 
 .lead-card {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(120px, 0.18fr);
   gap: 18px;
   align-items: stretch;
   padding: 22px;
-  border: 1px solid var(--border);
+  overflow: hidden;
+  border: 1px solid var(--lead-border);
   border-radius: 22px;
   background:
-    linear-gradient(135deg, rgba(2, 132, 199, 0.1), transparent 34%),
-    var(--surface);
-  box-shadow: var(--shadow);
+    radial-gradient(circle at 88% 10%, rgba(216, 155, 95, 0.34), transparent 36%),
+    radial-gradient(circle at 8% 6%, rgba(95, 143, 192, 0.26), transparent 46%),
+    linear-gradient(135deg, var(--lead-bg-start), var(--lead-bg-mid) 48%, var(--lead-bg-end));
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+}
+
+.lead-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 44%);
+}
+
+.lead-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .lead-copy {
@@ -597,14 +645,78 @@ html[data-theme="night"] .brand {
   font-size: clamp(30px, 4vw, 54px);
   line-height: 0.98;
   letter-spacing: -1.2px;
+  color: var(--lead-text);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.18);
 }
 
 .lead-card p {
   max-width: 780px;
   margin: 0;
-  color: var(--text-muted);
+  color: var(--lead-muted);
   font-size: 16px;
   line-height: 1.55;
+}
+
+.lead-card .story-eyebrow {
+  color: var(--lead-muted);
+}
+
+.lead-card .story-eyebrow span {
+  border-color: rgba(198, 213, 230, 0.36);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--lead-text);
+}
+
+.lead-card .story-eyebrow span:last-child {
+  border-color: rgba(216, 155, 95, 0.72);
+  background: rgba(216, 155, 95, 0.18);
+}
+
+.lead-card .story-meta {
+  color: var(--lead-meta);
+}
+
+.lead-card .story-action {
+  border-color: rgba(198, 213, 230, 0.36);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--lead-text);
+}
+
+.lead-card .story-action:hover {
+  border-color: var(--lead-accent);
+  color: var(--lead-action-bg);
+}
+
+.lead-card .story-action.source-action {
+  border-color: var(--lead-action-bg);
+  background: var(--lead-action-bg);
+  color: var(--lead-action-ink);
+}
+
+.lead-card .story-action.source-action:hover {
+  border-color: #f8dfbd;
+  background: #f8dfbd;
+  color: var(--lead-action-ink);
+}
+
+.lead-card .story-action.disabled {
+  color: var(--lead-muted);
+}
+
+.lead-card .story-visual {
+  border-color: rgba(216, 155, 95, 0.72);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+}
+
+.lead-card .story-visual.image-failed {
+  background:
+    radial-gradient(circle at 34% 18%, rgba(216, 155, 95, 0.2), transparent 38%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+}
+
+.lead-card .story-visual.image-failed figcaption,
+.lead-card .story-visual.image-failed figcaption small {
+  color: var(--lead-muted);
 }
 
 .lead-title:hover,
@@ -612,6 +724,10 @@ html[data-theme="night"] .brand {
 .lane-story-title:hover,
 .feed-title a:hover {
   color: var(--accent-cyan);
+}
+
+.lead-card .lead-title:hover {
+  color: var(--lead-action-bg);
 }
 
 .story-list {
