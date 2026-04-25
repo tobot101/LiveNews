@@ -1650,10 +1650,7 @@ function buildStoryActions(item) {
   const liveAction = liveUrl
     ? `<a class="story-action" href="${escapeHtml(liveUrl)}">Open Live News page</a>`
     : `<span class="story-action disabled">Live News page pending</span>`;
-  const sourceAction = item.link
-    ? `<a class="story-action source-action" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">Original source</a>`
-    : "";
-  return `<div class="story-actions">${liveAction}${sourceAction}</div>`;
+  return `<div class="story-actions">${liveAction}</div>`;
 }
 
 function renderLeadStory(item) {

@@ -140,8 +140,10 @@ function renderCategoryResults(items, category, total) {
 function renderResultCard(item) {
   const href = item.liveNewsUrl || item.link || "#";
   const target = item.liveNewsUrl ? "" : ` target="_blank" rel="noopener noreferrer"`;
-  const sourceHref = item.link || href;
   const time = item.publishedAt ? formatTime(item.publishedAt) : "";
+  const liveAction = item.liveNewsUrl
+    ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(item.liveNewsUrl)}">Open Live News page</a></div>`
+    : "";
   return `
     <article class="search-result-card">
       ${buildCategoryVisual(item)}
@@ -153,18 +155,7 @@ function renderResultCard(item) {
         <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(item.title || "Untitled story")}</a></h2>
         <p>${escapeHtml(getResultSummary(item))}</p>
         <div class="story-meta">${escapeHtml(item.sourceName || "Source")} • ${escapeHtml(time)}</div>
-        <div class="story-actions">
-          ${
-            item.liveNewsUrl
-              ? `<a class="story-action" href="${escapeHtml(item.liveNewsUrl)}">Open Live News page</a>`
-              : ""
-          }
-          ${
-            sourceHref
-              ? `<a class="story-action source-action" href="${escapeHtml(sourceHref)}" target="_blank" rel="noopener noreferrer">Original source</a>`
-              : ""
-          }
-        </div>
+        ${liveAction}
       </div>
     </article>
   `;

@@ -753,18 +753,6 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
   color: var(--lead-action-bg);
 }
 
-.lead-card .story-action.source-action {
-  border-color: var(--lead-action-bg);
-  background: var(--lead-action-bg);
-  color: var(--lead-action-ink);
-}
-
-.lead-card .story-action.source-action:hover {
-  border-color: #f8dfbd;
-  background: #f8dfbd;
-  color: var(--lead-action-ink);
-}
-
 .lead-card .story-action.disabled {
   color: var(--lead-muted);
 }
@@ -897,11 +885,6 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
 .story-action:hover {
   border-color: var(--accent-cyan);
   color: var(--accent-cyan);
-}
-
-.story-action.source-action {
-  background: transparent;
-  color: var(--text-muted);
 }
 
 .story-action.disabled {
