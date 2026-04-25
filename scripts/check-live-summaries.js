@@ -83,13 +83,24 @@ const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 const categoryJs = fs.readFileSync(path.join(root, "public", "category.js"), "utf8");
 const searchJs = fs.readFileSync(path.join(root, "public", "search.js"), "utf8");
+const localJs = fs.readFileSync(path.join(root, "public", "local.js"), "utf8");
+const localHtml = fs.readFileSync(path.join(root, "public", "local.html"), "utf8");
+const stylesCss = fs.readFileSync(path.join(root, "public", "styles.css"), "utf8");
 expect(serverJs.includes("applyLiveNewsSummary"), "Server should apply summary agents before stories reach the UI.");
 expect(appJs.includes("getDisplaySummary(item, 150)"), "Latest News Feed should render the shared Live News summary field.");
 expect(appJs.includes("if (item.liveNewsSummary)"), "UI summary rendering should prefer Live News agent summaries.");
 expect(!appJs.includes("Live News is tracking this"), "Latest News fallback should not return the old generic tracking sentence.");
+expect(!appJs.includes("if (item.summary) return truncateText(item.summary"), "Homepage cards should not fall back to RSS summaries as final copy.");
 expect(!categoryJs.includes("Live News found this result"), "Category results should not return the old generic result summary.");
 expect(!searchJs.includes("Live News found this result"), "Search results should not return the old generic result summary.");
+expect(!categoryJs.includes("Coverage centers on"), "Category results should not use generic database-style summary fallbacks.");
+expect(!searchJs.includes("Coverage centers on"), "Search results should not use generic database-style summary fallbacks.");
+expect(!localJs.includes("${item.summary ?"), "Local cards should not render raw RSS summaries directly.");
+expect(localHtml.includes("Live News summarizes source-linked coverage with attribution. Full reporting"), "Local page should use the source-respectful disclaimer.");
+expect(stylesCss.includes(".story-source-link"), "Article cards should style crawlable original-source links.");
 expect(serverJs.includes("applyLiveNewsSummariesToPayload"), "Server should apply summary agents across page sections so nearby cards can be checked for repetition.");
+expect(serverJs.includes("renderCrawlableHomepage"), "Homepage should render crawlable article cards before client hydration when possible.");
+expect(serverJs.includes("renderCrawlerSourceLink"), "Crawlable article cards should include original source links.");
 
 const payload = {
   topStories: [samples[0]],
@@ -127,6 +138,8 @@ const repetitionSamples = [
 const repetitionChecked = applyLiveNewsSummariesToItems(repetitionSamples);
 const firstOpeners = repetitionChecked.map((item) => getFirstWords(item.liveNewsSummary));
 expect(new Set(firstOpeners).size === firstOpeners.length, "Nearby cards should not reuse the same first four words.");
+const firstThreeOpeners = repetitionChecked.map((item) => getFirstWords(item.liveNewsSummary, 3));
+expect(new Set(firstThreeOpeners).size === firstThreeOpeners.length, "Nearby cards should not reuse the same first three words.");
 expect(
   repetitionChecked.every((item) => item.summaryAgent.passed),
   "Nearby-card repetition checks should still produce passing summaries."

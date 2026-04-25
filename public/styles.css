@@ -861,6 +861,21 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
   color: var(--text-muted);
 }
 
+.story-source-link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.story-source-link:hover {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+}
+
+.lead-card .story-source-link:hover {
+  color: var(--lead-action-bg);
+}
+
 .story-actions,
 .story-page-actions {
   display: flex;

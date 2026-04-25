@@ -12,6 +12,7 @@ const {
 } = require("./lib/article-agents/approved-stories");
 const { runArticleAgents } = require("./lib/article-agents/pipeline");
 const {
+  applyLiveNewsSummariesToItems,
   applyLiveNewsSummariesToPayload,
   applyLiveNewsSummary,
 } = require("./lib/article-agents/summary-agent");
@@ -1140,21 +1141,22 @@ async function fetchLocalNews(place) {
     maxPerSource: LOCAL_SOURCE_CAP,
     limit: LOCAL_POOL_LIMIT,
   });
+  const summarized = applyLiveNewsSummariesToItems(diversified);
 
   const payload = {
     updatedAt: new Date().toISOString(),
-    items: diversified,
+    items: summarized,
     query: place.display || [city, state].filter(Boolean).join(", "),
     place,
     variants,
-    sourceCount: new Set(diversified.map((item) => item.sourceName)).size,
+    sourceCount: new Set(summarized.map((item) => item.sourceName)).size,
     diagnostics: {
       queryVariants: variants.length,
       feedSuccesses: feeds.filter((result) => result.status === "fulfilled").length,
       feedFailures: feeds.filter((result) => result.status === "rejected").length,
       collectedItems: collected.length,
       dedupedItems: deduped.length,
-      diversifiedItems: diversified.length,
+      diversifiedItems: summarized.length,
     },
   };
   localCache.set(key, { fetchedAt: now, payload });
@@ -1264,16 +1266,164 @@ function getUniqueCurrentNewsItems(payload = buildCurrentNewsPayload()) {
   });
 }
 
+function readPublicHtml(fileName) {
+  return fs.readFileSync(path.join(__dirname, "public", fileName), "utf8");
+}
+
+function formatCrawlerTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatCrawlerDateBadge(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getCrawlerTitle(item) {
+  return item.liveNewsHeadline || item.title || "Untitled story";
+}
+
+function getCrawlerSummary(item) {
+  return (
+    item.liveNewsSummary ||
+    item.summaryShort ||
+    "Read the original source for the full report."
+  );
+}
+
+function getCrawlerCategory(item) {
+  return item.category || "Top";
+}
+
+function getCrawlerSourceName(item) {
+  return item.sourceName || item.source || item.sourceDomain || "Source";
+}
+
+function renderCrawlerSourceLink(item) {
+  const source = getCrawlerSourceName(item);
+  if (!item.link) return `<span>${escapeHtml(source)}</span>`;
+  return `<a class="story-source-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source)}</a>`;
+}
+
+function renderCrawlerMeta(item) {
+  const category = getCrawlerCategory(item);
+  const time = formatCrawlerTime(item.publishedAt);
+  const timeHtml = time
+    ? `<time datetime="${escapeHtml(item.publishedAt)}">${escapeHtml(time)}</time>`
+    : `<span>Time unavailable</span>`;
+  return `
+    <div class="story-meta">
+      ${renderCrawlerSourceLink(item)} • ${escapeHtml(category)} • ${timeHtml}
+    </div>
+  `;
+}
+
+function renderCrawlerTitleLink(item, className = "") {
+  const title = escapeHtml(getCrawlerTitle(item));
+  const href = item.approvedStoryUrl || item.liveNewsUrl || item.link || "";
+  if (!href) return `<span class="${className}">${title}</span>`;
+  const isSource = href === item.link;
+  const target = isSource ? ` target="_blank" rel="noopener noreferrer"` : "";
+  return `<a class="${className}" href="${escapeHtml(href)}"${target}>${title}</a>`;
+}
+
+function renderCrawlableLeadCard(item) {
+  if (!item) return "";
+  return `
+    <article class="lead-card" data-article-id="${escapeHtml(item.id || "")}">
+      <div class="lead-copy">
+        <div class="story-eyebrow">
+          <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
+        </div>
+        <h1>${renderCrawlerTitleLink(item, "lead-title")}</h1>
+        <p>${escapeHtml(getCrawlerSummary(item))}</p>
+        ${renderCrawlerMeta(item)}
+      </div>
+    </article>
+  `;
+}
+
+function renderCrawlableStoryCard(item, rank = 1) {
+  return `
+    <li class="story-card" data-article-id="${escapeHtml(item.id || "")}">
+      <div class="story-card-top">
+        <span class="story-rank">${rank}</span>
+        <div class="story-eyebrow">
+          <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
+        </div>
+      </div>
+      <h3>${renderCrawlerTitleLink(item, "story-card-title")}</h3>
+      <p>${escapeHtml(getCrawlerSummary(item))}</p>
+      ${renderCrawlerMeta(item)}
+    </li>
+  `;
+}
+
+function renderCrawlableFeedItem(item) {
+  return `
+    <article class="feed-item" data-article-id="${escapeHtml(item.id || "")}">
+      <div class="feed-item-main">
+        <div class="story-eyebrow">
+          <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
+        </div>
+        <div class="feed-title">${renderCrawlerTitleLink(item)}</div>
+        <p>${escapeHtml(getCrawlerSummary(item))}</p>
+        ${renderCrawlerMeta(item)}
+      </div>
+    </article>
+  `;
+}
+
+function renderCrawlableHomepage() {
+  const html = readPublicHtml("index.html");
+  const payload = buildCurrentNewsPayload();
+  const leadItem = (payload.topStories || [])[0] || null;
+  const topCards = (payload.topStories || []).slice(1, TOP_STORIES_LIMIT);
+  const topIds = new Set((payload.topStories || []).map((item) => item.id).filter(Boolean));
+  const feedCards = (payload.feed || [])
+    .filter((item) => !topIds.has(item.id))
+    .slice(0, 50);
+
+  return html
+    .replace(
+      '<section class="lead-news-band" id="leadStory" aria-label="Lead news story"></section>',
+      `<section class="lead-news-band" id="leadStory" aria-label="Lead news story">${renderCrawlableLeadCard(leadItem)}</section>`
+    )
+    .replace(
+      '<ol class="story-list" id="topStories"></ol>',
+      `<ol class="story-list" id="topStories">${topCards.map((item, index) => renderCrawlableStoryCard(item, index + 2)).join("")}</ol>`
+    )
+    .replace(
+      '<div class="feed" id="newsFeed"></div>',
+      `<div class="feed" id="newsFeed">${feedCards.map(renderCrawlableFeedItem).join("")}</div>`
+    );
+}
+
 function normalizeCategorySection(value) {
   const requested = String(value || "").trim().toLowerCase();
   return CATEGORY_SECTIONS.find((category) => category.toLowerCase() === requested) || "";
 }
 
 function serializeNewsResultItem(item, extra = {}) {
+  const summary = summarizeSearchResult(item);
   return {
     id: item.id,
     title: item.liveNewsHeadline || item.title,
-    summary: summarizeSearchResult(item),
+    summary,
+    liveNewsSummary: summary,
     category: item.category || "Top",
     sourceName: item.sourceName || item.source || "Source",
     sourceDomain: item.sourceDomain || getDomain(item.link || ""),
@@ -1510,6 +1660,10 @@ app.get("/stories/:slug", (req, res) => {
     return res.status(404).send(renderStoryNotFoundPage());
   }
   res.send(renderPublicStoryPage(story, { origin: getPublicBaseUrl(req) }));
+});
+
+app.get(["/", "/index.html"], (req, res) => {
+  res.type("html").send(renderCrawlableHomepage(req));
 });
 
 app.use(express.static(path.join(__dirname, "public")));

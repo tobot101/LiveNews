@@ -446,13 +446,10 @@ function renderLocalFeed() {
       const card = document.createElement("div");
       card.className = "feed-item";
       const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-      const titleHtml = item.link
-        ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
-        : item.title;
       card.innerHTML = `
-        <div class="feed-title">${titleHtml}</div>
-        <div class="feed-meta">${item.sourceName || item.sourceDomain || "Source"} • ${published}</div>
-        ${item.summary ? `<div class="local-summary">${item.summary}</div>` : ""}
+        <div class="feed-title">${buildTitleLink(item)}</div>
+        <div class="local-summary">${escapeHtml(getDisplaySummary(item))}</div>
+        ${buildLocalMeta(item, published)}
       `;
       list.appendChild(card);
     });
@@ -510,6 +507,41 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString();
+}
+
+function getDisplaySummary(item) {
+  if (item.liveNewsSummary) return item.liveNewsSummary;
+  if (item.summaryAgent?.version && item.summary) return item.summary;
+  return "Read the original source for the full report.";
+}
+
+function buildTitleLink(item) {
+  const title = escapeHtml(item.title || "Untitled story");
+  if (!item.link) return title;
+  return `<a href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title}</a>`;
+}
+
+function buildOriginalSourceLink(item) {
+  const source = item.sourceName || item.sourceDomain || "Source";
+  if (!item.link) return `<span>${escapeHtml(source)}</span>`;
+  return `<a class="story-source-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source)}</a>`;
+}
+
+function buildLocalMeta(item, published = "") {
+  return `
+    <div class="story-meta">
+      ${buildOriginalSourceLink(item)} • ${escapeHtml(item.category || "Local")} • ${escapeHtml(published || "Time unavailable")}
+    </div>
+  `;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 init();

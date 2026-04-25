@@ -1397,14 +1397,11 @@ function renderLocalFeed(items) {
   limited.forEach((item) => {
     const card = document.createElement("div");
     card.className = "local-item";
-    const sourceLabel = item.sourceName || item.sourceDomain || "Source";
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-    const titleHtml = item.link
-      ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>`
-      : item.title;
     card.innerHTML = `
-      <div class="feed-title">${titleHtml}</div>
-      <div class="feed-meta">${sourceLabel} • ${published}</div>
+      <div class="feed-title">${buildStoryTitleLink(item)}</div>
+      <div class="local-summary">${escapeHtml(getDisplaySummary(item, 130))}</div>
+      ${buildStoryMeta(item, published)}
     `;
     elements.localFeed.appendChild(card);
   });
@@ -1550,13 +1547,8 @@ function getDisplayTitle(item) {
 
 function getDisplaySummary(item, maxLength = 210) {
   if (item.liveNewsSummary) return truncateText(item.liveNewsSummary, maxLength);
-  const source = formatSourceLabel(item);
-  const title = getDisplayTitle(item);
-  if (item.summary) return truncateText(item.summary, maxLength);
-  return truncateText(
-    `Coverage centers on ${title}. ${source} is the lead source for confirmed details.`,
-    maxLength
-  );
+  if (item.summaryAgent?.version && item.summary) return truncateText(item.summary, maxLength);
+  return "Read the original source for the full report.";
 }
 
 function getPublishedDateBadge(item) {
@@ -1645,6 +1637,22 @@ function buildStoryTitleLink(item, className = "") {
   return `<span class="${className}">${title}</span>`;
 }
 
+function buildOriginalSourceLink(item) {
+  const sourceLabel = formatSourceLabel(item);
+  if (!item.link) return `<span>${escapeHtml(sourceLabel)}</span>`;
+  return `<a class="story-source-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceLabel)}</a>`;
+}
+
+function buildStoryMeta(item, published = "") {
+  const category = item.category || "Top";
+  const time = published || "Time unavailable";
+  return `
+    <div class="story-meta">
+      ${buildOriginalSourceLink(item)} • ${escapeHtml(category)} • ${escapeHtml(time)}
+    </div>
+  `;
+}
+
 function buildStoryActions(item) {
   const liveUrl = getLiveNewsUrl(item);
   const liveAction = liveUrl
@@ -1662,7 +1670,6 @@ function renderLeadStory(item) {
   }
   elements.leadStory.hidden = false;
   const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-  const sourceLabel = formatSourceLabel(item);
   elements.leadStory.innerHTML = `
     <article class="lead-card" data-article-id="${escapeHtml(item.id || "")}">
       <div class="lead-copy">
@@ -1671,7 +1678,7 @@ function renderLeadStory(item) {
         </div>
         <h1>${buildStoryTitleLink(item, "lead-title")}</h1>
         <p>${escapeHtml(getDisplaySummary(item, 340))}</p>
-        <div class="story-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
+        ${buildStoryMeta(item, published)}
         ${buildStoryActions(item)}
       </div>
       ${buildStoryVisual(item, "lead")}
@@ -1694,7 +1701,6 @@ function renderTopStories(items, options = {}) {
   const sorted = sortStoryPool(items);
   sorted.forEach((item, index) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-    const sourceLabel = formatSourceLabel(item);
     const li = document.createElement("li");
     li.className = "story-card";
     li.dataset.articleId = item.id;
@@ -1708,7 +1714,7 @@ function renderTopStories(items, options = {}) {
       </div>
       <h3>${buildStoryTitleLink(item, "story-card-title")}</h3>
       <p>${escapeHtml(getDisplaySummary(item, 190))}</p>
-      <div class="story-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
+      ${buildStoryMeta(item, published)}
       ${buildStoryVisual(item, "card")}
       ${buildStoryActions(item)}
     `;
@@ -1749,7 +1755,7 @@ function renderCategoryLanes() {
                     <div class="story-eyebrow"><span>${escapeHtml(getPublishedDateBadge(item))}</span></div>
                     <h4>${buildStoryTitleLink(item, "lane-story-title")}</h4>
                     <p>${escapeHtml(getDisplaySummary(item, 120))}</p>
-                    <div class="story-meta">${escapeHtml(formatSourceLabel(item))}</div>
+                    ${buildStoryMeta(item, item.publishedAt ? formatTime(item.publishedAt) : "")}
                   </article>
                 `
               )
@@ -1787,7 +1793,6 @@ function renderFeed(items) {
     list.className = "feed-section-list";
     group.items.forEach((item) => {
       const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-      const sourceLabel = formatSourceLabel(item);
       const card = document.createElement("div");
       card.className = "feed-item";
       card.dataset.articleId = item.id;
@@ -1798,7 +1803,7 @@ function renderFeed(items) {
           </div>
           <div class="feed-title">${buildStoryTitleLink(item)}</div>
           <p>${escapeHtml(getDisplaySummary(item, 150))}</p>
-          <div class="feed-meta">${escapeHtml(sourceLabel)} • ${escapeHtml(published)}</div>
+          ${buildStoryMeta(item, published)}
         </div>
         ${buildStoryActions(item)}
       `;

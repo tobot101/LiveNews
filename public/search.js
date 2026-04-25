@@ -257,7 +257,7 @@ function renderResultCard(item) {
         </div>
         <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(item.title || "Untitled story")}</a></h2>
         <p>${escapeHtml(getResultSummary(item))}</p>
-        <div class="story-meta">${escapeHtml(item.sourceName || "Source")} • ${escapeHtml(time)}</div>
+        ${buildResultMeta(item, time)}
         ${liveAction}
       </div>
     </article>
@@ -265,10 +265,23 @@ function renderResultCard(item) {
 }
 
 function getResultSummary(item) {
-  if (item.summary) return item.summary;
-  const title = item.title || `${item.category || "Top"} story`;
-  const source = item.sourceName || item.sourceDomain || "The lead source";
-  return `Coverage centers on ${title}. ${source} is the lead source for confirmed details.`;
+  if (item.liveNewsSummary) return item.liveNewsSummary;
+  if (item.summaryAgent?.version && item.summary) return item.summary;
+  return "Read the original source for the full report.";
+}
+
+function buildOriginalSourceLink(item) {
+  const source = item.sourceName || item.sourceDomain || "Source";
+  if (!item.link) return `<span>${escapeHtml(source)}</span>`;
+  return `<a class="story-source-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source)}</a>`;
+}
+
+function buildResultMeta(item, time = "") {
+  return `
+    <div class="story-meta">
+      ${buildOriginalSourceLink(item)} • ${escapeHtml(item.category || "Top")} • ${escapeHtml(time || "Time unavailable")}
+    </div>
+  `;
 }
 
 function buildSearchVisual(item) {
