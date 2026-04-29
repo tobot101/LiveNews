@@ -125,6 +125,33 @@ const liveRegressionSamples = [
   },
 ];
 
+const teacherSupervisorSamples = [
+  {
+    id: "teacher-local-housing",
+    title: "City council approves new housing plan after months of debate",
+    summary:
+      "The council approved a revised housing plan that adds 2,000 homes and changes zoning rules after months of public debate.",
+    sourceName: "City Desk",
+    category: "Local",
+  },
+  {
+    id: "teacher-tech-privacy",
+    title: "Company launches new tool for online privacy",
+    summary:
+      "The browser tool blocks third-party tracking scripts and lets users delete stored site data from one dashboard.",
+    sourceName: "Tech Wire",
+    category: "Tech",
+  },
+  {
+    id: "teacher-election-certification",
+    title: "Election board delays vote count certification",
+    summary:
+      "The board delayed certification after members requested additional ballot reviews and legal guidance from state officials.",
+    sourceName: "AP",
+    category: "National",
+  },
+];
+
 function normalizeExact(value) {
   return String(value || "")
     .toLowerCase()
@@ -161,6 +188,17 @@ for (const sample of liveRegressionSamples) {
   expect(wordCount(text) >= 18 && wordCount(text) <= 35, `${sample.id} should stay within 18-35 words.`);
 }
 
+for (const sample of teacherSupervisorSamples) {
+  const result = buildLiveNewsSummary(sample);
+  const text = result.text;
+  expect(result.evaluation.passed, `${sample.id} should pass after teacher supervision.`);
+  expect(text !== FALLBACK_SUMMARY, `${sample.id} should not fallback when useful source detail exists.`);
+  expect(result.supervisor?.status === "rescued", `${sample.id} should be marked as rescued by the parent/teacher check.`);
+  expect(result.style === "teacher_supervised", `${sample.id} should report the teacher-supervised style.`);
+  expect(!/Live News is tracking|What comes next|Readers can|The focus stays on|The account includes/i.test(text), `${sample.id} should avoid old generic or supervisor scaffolding language.`);
+  expect(wordCount(text) >= 18 && wordCount(text) <= 35, `${sample.id} should stay within 18-35 words.`);
+}
+
 const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 const categoryJs = fs.readFileSync(path.join(root, "public", "category.js"), "utf8");
@@ -183,6 +221,7 @@ expect(stylesCss.includes(".story-source-link"), "Article cards should style cra
 expect(serverJs.includes("applyLiveNewsSummariesToPayload"), "Server should apply summary agents across page sections so nearby cards can be checked for repetition.");
 expect(serverJs.includes("renderCrawlableHomepage"), "Homepage should render crawlable article cards before client hydration when possible.");
 expect(serverJs.includes("renderCrawlerSourceLink"), "Crawlable article cards should include original source links.");
+expect(serverJs.includes("summaryHealth: currentPayload.summaryHealth"), "Health checks should expose summary supervisor diagnostics.");
 
 const payload = {
   topStories: [samples[0]],
@@ -200,6 +239,8 @@ expect(
 );
 expect(shapedPayload.summaryHealth?.version, "Payloads should include summary health diagnostics.");
 expect(shapedPayload.summaryHealth.checkedCount === shapedPayload.topStories.length + shapedPayload.feed.length, "Summary health should count checked stories.");
+expect(typeof shapedPayload.summaryHealth.supervisedCount === "number", "Summary health should count teacher-supervised rescues.");
+expect(typeof shapedPayload.summaryHealth.needsReviewCount === "number", "Summary health should count summaries needing editor review.");
 
 const liveHealthItems = liveRegressionSamples.map((sample) => ({
   ...sample,
@@ -211,6 +252,19 @@ const liveHealthItems = liveRegressionSamples.map((sample) => ({
 }));
 const liveHealth = getSummaryHealth(liveHealthItems);
 expect(liveHealth.fallbackCount === 0, "Regression samples should report zero fallback summaries.");
+
+const supervisedPayload = applyLiveNewsSummariesToPayload({
+  topStories: [],
+  feed: teacherSupervisorSamples,
+});
+expect(
+  supervisedPayload.summaryHealth.supervisedCount === teacherSupervisorSamples.length,
+  "Teacher-supervised samples should be counted in summary health."
+);
+expect(
+  supervisedPayload.feed.every((item) => item.summaryAgent?.supervisor?.status === "rescued"),
+  "Teacher supervisor status should travel with each article card."
+);
 
 const duplicatePayload = applyLiveNewsSummariesToPayload({
   topStories: [samples[0]],
@@ -265,4 +319,4 @@ if (failures.length) {
 }
 
 console.log("Live News summary-agent check passed.");
-console.log(`Samples checked: ${samples.length + liveRegressionSamples.length}`);
+console.log(`Samples checked: ${samples.length + liveRegressionSamples.length + teacherSupervisorSamples.length}`);

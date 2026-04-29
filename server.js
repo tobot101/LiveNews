@@ -2225,6 +2225,7 @@ app.post("/api/internal/drafts/generate", requireAgentAccess, (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
+  const currentPayload = buildCurrentNewsPayload();
   res.json({
     ok: true,
     lastUpdated: cache.lastUpdated,
@@ -2246,6 +2247,7 @@ app.get("/api/health", (req, res) => {
       draftLimit: AGENT_DRAFT_LIMIT,
       approvedStories: listApprovedStories().length,
     },
+    summaryHealth: currentPayload.summaryHealth,
     imageResearch: imageQualityStats,
     localNews: localHealthStats,
     places: placesMeta.totalPlaces,
