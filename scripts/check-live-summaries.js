@@ -6,6 +6,7 @@ const {
   applyLiveNewsSummariesToPayload,
   buildLiveNewsSummary,
   evaluateLiveNewsSummary,
+  getSummaryHealth,
 } = require("../lib/article-agents/summary-agent");
 const {
   FALLBACK_SUMMARY,
@@ -73,6 +74,57 @@ const samples = [
   },
 ];
 
+const liveRegressionSamples = [
+  {
+    id: "live-king-address",
+    title: "Five takeaways from the King's historic address to Congress",
+    summary:
+      "There were some lines in the speech that may have buoyed Democrats – and raised eyebrows in the White House.",
+    sourceName: "BBC News",
+    category: "Top",
+  },
+  {
+    id: "live-damon-jones",
+    title: "Ex-player Damon Jones first to plead guilty in basketball gambling sweep",
+    summary:
+      "Former NBA player and assistant coach Damon Jones has become the first person to plead guilty in a gambling sweep that led to the arrests of more than 30 people.",
+    sourceName: "PBS NewsHour",
+    category: "National",
+  },
+  {
+    id: "live-phillies-manager",
+    title: "Slumping Phillies fire manager Rob Thomson after losing 11 of last 12 games",
+    summary:
+      "Thomson led team to World Series appearance in 2022 Phillies are tied for worst record in majors this season Rob Thomson, who led the Phillies to four straight playoff appearances, including the 2022 World Series, was fired as the team’s manager on Tuesday aft",
+    sourceName: "The Guardian",
+    category: "Sports",
+  },
+  {
+    id: "live-aws-openai",
+    title: "Amazon is already offering new OpenAI products on AWS",
+    summary:
+      "A day after OpenAI got Microsoft to agree to end exclusive rights, AWS announced a slate of OpenAI model offerings, including a new agent service.",
+    sourceName: "TechCrunch",
+    category: "Tech",
+  },
+  {
+    id: "live-apple-subscription",
+    title: "Apple introduces a cheaper option for App Store subscriptions",
+    summary:
+      "Apple is adding a new subscription option that lets app developers offer lower monthly pricing in exchange for a 12-month commitment.",
+    sourceName: "TechCrunch",
+    category: "Tech",
+  },
+  {
+    id: "live-supreme-geofence",
+    title: "US Supreme Court appears split over controversial use of ‘geofence’ search warrants",
+    summary:
+      "The U.S. top court is expected to rule on whether to allow police to identify criminal suspects by dragnet searching the databases of tech giants.",
+    sourceName: "TechCrunch",
+    category: "Tech",
+  },
+];
+
 function normalizeExact(value) {
   return String(value || "")
     .toLowerCase()
@@ -98,6 +150,15 @@ for (const sample of samples) {
   expect(!normalizeExact(text).includes(normalizeExact(sample.title)), `${sample.id} should not repeat the title exactly inside the summary.`);
   const reevaluated = evaluateLiveNewsSummary(sample, text);
   expect(reevaluated.passed, `${sample.id} should pass reevaluation.`);
+}
+
+for (const sample of liveRegressionSamples) {
+  const result = buildLiveNewsSummary(sample);
+  const text = result.text;
+  expect(result.evaluation.passed, `${sample.id} should pass the strengthened live-data quality gates.`);
+  expect(text !== FALLBACK_SUMMARY, `${sample.id} should produce a real Live News summary instead of fallback.`);
+  expect(!/Live News is tracking|Read the original source|What comes next|Readers can|The focus stays on/i.test(text), `${sample.id} should not use fallback or robotic filler.`);
+  expect(wordCount(text) >= 18 && wordCount(text) <= 35, `${sample.id} should stay within 18-35 words.`);
 }
 
 const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
@@ -137,6 +198,19 @@ expect(
   shapedPayload.feed.every((item) => item.liveNewsSummary === FALLBACK_SUMMARY || (wordCount(item.liveNewsSummary) >= 18 && wordCount(item.liveNewsSummary) <= 35)),
   "Latest News Feed summaries should stay compact."
 );
+expect(shapedPayload.summaryHealth?.version, "Payloads should include summary health diagnostics.");
+expect(shapedPayload.summaryHealth.checkedCount === shapedPayload.topStories.length + shapedPayload.feed.length, "Summary health should count checked stories.");
+
+const liveHealthItems = liveRegressionSamples.map((sample) => ({
+  ...sample,
+  ...buildLiveNewsSummary(sample),
+})).map((sample) => ({
+  ...sample,
+  liveNewsSummary: sample.text,
+  summaryAgent: { version: sample.agentVersion, style: sample.style },
+}));
+const liveHealth = getSummaryHealth(liveHealthItems);
+expect(liveHealth.fallbackCount === 0, "Regression samples should report zero fallback summaries.");
 
 const duplicatePayload = applyLiveNewsSummariesToPayload({
   topStories: [samples[0]],
@@ -191,4 +265,4 @@ if (failures.length) {
 }
 
 console.log("Live News summary-agent check passed.");
-console.log(`Samples checked: ${samples.length}`);
+console.log(`Samples checked: ${samples.length + liveRegressionSamples.length}`);
