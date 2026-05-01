@@ -12,10 +12,16 @@ const {
 } = require("./lib/article-agents/approved-stories");
 const { runArticleAgents } = require("./lib/article-agents/pipeline");
 const {
+  FALLBACK_SUMMARY,
   applyLiveNewsSummariesToItems,
   applyLiveNewsSummariesToPayload,
   applyLiveNewsSummary,
+  buildLiveNewsSummary,
 } = require("./lib/article-agents/summary-agent");
+const {
+  createSummaryResearchStats,
+  hydrateSummaryResearch,
+} = require("./lib/article-agents/summary-research-agent");
 const {
   absoluteUrl,
   escapeHtml,
@@ -70,8 +76,12 @@ const IMAGE_LOOKUP_LIMIT = Number(process.env.IMAGE_LOOKUP_LIMIT || 18);
 const IMAGE_LOOKUP_CONCURRENCY = Number(process.env.IMAGE_LOOKUP_CONCURRENCY || 4);
 const IMAGE_LOOKUP_TIMEOUT_MS = Number(process.env.IMAGE_LOOKUP_TIMEOUT_MS || 1800);
 const IMAGE_VALIDATION_TIMEOUT_MS = Number(process.env.IMAGE_VALIDATION_TIMEOUT_MS || 1400);
+const SUMMARY_RESEARCH_LIMIT = Number(process.env.SUMMARY_RESEARCH_LIMIT || FEED_LIMIT);
+const SUMMARY_RESEARCH_CONCURRENCY = Number(process.env.SUMMARY_RESEARCH_CONCURRENCY || 3);
+const SUMMARY_RESEARCH_TIMEOUT_MS = Number(process.env.SUMMARY_RESEARCH_TIMEOUT_MS || 1800);
 const AGENT_DRAFT_LIMIT = Number(process.env.LIVE_NEWS_DRAFT_LIMIT || 16);
 const AGENT_MODE = process.env.LIVE_NEWS_AGENT_MODE || "review_only";
+const SUMMARY_ADMIN_TOKEN = process.env.LIVE_NEWS_ADMIN_TOKEN || process.env.LIVE_NEWS_REVIEW_TOKEN || "";
 const CATEGORY_SECTIONS = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
 const PUBLIC_CANONICAL_ORIGIN = "https://newsmorenow.com";
 const SITEMAP_STABLE_PAGES = [
@@ -300,6 +310,7 @@ let placesMeta = {
 const localCache = new Map();
 const articleImageCache = new Map();
 const articleImageMetadataCache = new Map();
+const summaryResearchCache = new Map();
 let localHealthStats = {
   requests: 0,
   emptyResponses: 0,
@@ -319,6 +330,7 @@ let imageQualityStats = {
   fallbacks: 0,
   rejectionReasons: {},
 };
+let summaryResearchStats = createSummaryResearchStats();
 
 function loadSources() {
   const raw = fs.readFileSync(sourcesPath, "utf8");
@@ -1009,6 +1021,8 @@ function chooseLeadStory(items) {
 function serializeSupportLink(item) {
   return {
     sourceName: item.sourceName,
+    title: item.title,
+    summary: item.summary || "",
     link: item.link,
     publishedAt: item.publishedAt,
     category: item.category,
@@ -1137,6 +1151,48 @@ function diversifyBySource(items, { maxPerSource = 0, limit } = {}) {
   }
 
   return result;
+}
+
+function needsSummaryResearch(item) {
+  if (!item?.link) return false;
+  if (item.summaryResearch?.status === "ready") return false;
+  const rawSummaryWords = String(item.summary || "").split(/\s+/).filter(Boolean).length;
+  if (rawSummaryWords < 18) return true;
+  const result = buildLiveNewsSummary(item);
+  return (
+    result.text === FALLBACK_SUMMARY ||
+    result.supervisor?.status === "needs_editor_review" ||
+    result.style === "fallback"
+  );
+}
+
+function buildSummaryResearchTargets(items) {
+  const seen = new Set();
+  const priority = [];
+  const backup = [];
+  for (const item of items || []) {
+    if (!item?.link || seen.has(item.link)) continue;
+    seen.add(item.link);
+    if (needsSummaryResearch(item)) {
+      priority.push(item);
+    } else {
+      backup.push(item);
+    }
+  }
+  return [...priority, ...backup].slice(0, Math.max(0, SUMMARY_RESEARCH_LIMIT));
+}
+
+async function hydrateSummaryResearchForItems(items) {
+  summaryResearchStats = createSummaryResearchStats();
+  const targets = buildSummaryResearchTargets(items);
+  if (!targets.length) return;
+  await hydrateSummaryResearch(targets, {
+    cache: summaryResearchCache,
+    stats: summaryResearchStats,
+    limit: targets.length,
+    concurrency: SUMMARY_RESEARCH_CONCURRENCY,
+    timeoutMs: SUMMARY_RESEARCH_TIMEOUT_MS,
+  });
 }
 
 function normalizeItem(source, item) {
@@ -1330,6 +1386,7 @@ async function refreshNews() {
     maxPerSource: Math.max(12, Math.ceil(FEED_LIMIT / 6)),
     limit: FEED_LIMIT,
   });
+  await hydrateSummaryResearchForItems([...cache.topStories, ...cache.feed]);
   await hydrateArticleImages([...cache.topStories, ...cache.feed]);
   cache.lastUpdated = new Date().toISOString();
   cache.lastFetched = new Date().toISOString();
@@ -1382,6 +1439,106 @@ function getUniqueCurrentNewsItems(payload = buildCurrentNewsPayload()) {
     seen.add(key);
     return true;
   });
+}
+
+function getSummaryReviewQueue(payload = buildCurrentNewsPayload()) {
+  return getUniqueCurrentNewsItems(payload)
+    .filter(
+      (item) =>
+        item.liveNewsSummary === FALLBACK_SUMMARY ||
+        item.summaryAgent?.supervisor?.status === "needs_editor_review"
+    )
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      sourceName: item.sourceName,
+      category: item.category,
+      publishedAt: item.publishedAt,
+      link: item.link,
+      currentSummary: item.liveNewsSummary,
+      rawSummary: item.summary || "",
+      failures: item.summaryAgent?.supervisor?.failures || item.summaryAgent?.failures || [],
+      supervisor: item.summaryAgent?.supervisor || {},
+      research: {
+        status: item.summaryResearch?.status || "missing",
+        facts: item.summaryResearch?.facts || [],
+        stages: item.summaryResearch?.stages || [],
+        sourceUrl: item.summaryResearch?.sourceUrl || "",
+      },
+    }));
+}
+
+function requireSummaryAdmin(req, res, next) {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const provided = req.get("x-live-news-admin-key") || req.query.key || "";
+  if (!SUMMARY_ADMIN_TOKEN || provided !== SUMMARY_ADMIN_TOKEN) {
+    return res.status(401).type("text/plain").send("Private Live News editor area.");
+  }
+  return next();
+}
+
+function renderSummaryReviewPage(payload = buildCurrentNewsPayload()) {
+  const queue = getSummaryReviewQueue(payload);
+  const health = payload.summaryHealth || {};
+  const rows = queue
+    .slice(0, 120)
+    .map((item) => {
+      const facts = (item.research.facts || [])
+        .slice(0, 3)
+        .map((fact) => `<li>${escapeHtml(fact)}</li>`)
+        .join("");
+      const failures = (item.failures || []).map((failure) => escapeHtml(failure)).join(", ") || "Needs review";
+      return `
+        <article class="admin-review-card">
+          <p class="eyebrow">${escapeHtml(item.category || "Story")} • ${escapeHtml(item.sourceName || "Source")}</p>
+          <h2><a href="${escapeHtml(item.link || "#")}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || "Untitled story")}</a></h2>
+          <p><strong>Current public summary:</strong> ${escapeHtml(item.currentSummary || "")}</p>
+          <p><strong>Why flagged:</strong> ${failures}</p>
+          <p><strong>Research status:</strong> ${escapeHtml(item.research.status)}</p>
+          ${facts ? `<ul>${facts}</ul>` : `<p>No usable research facts captured yet.</p>`}
+        </article>
+      `;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Live News Summary Review</title>
+  <style>
+    body { margin: 0; background: #eef3f8; color: #101827; font-family: Georgia, "Times New Roman", serif; }
+    main { max-width: 1120px; margin: 0 auto; padding: 32px 18px; }
+    .panel, .admin-review-card { background: #fff; border: 1px solid #c8d6e6; border-radius: 18px; padding: 18px; margin: 0 0 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .metric { background: #f6f8fb; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; }
+    .metric strong { display: block; font-size: 1.65rem; }
+    h1, h2, p { margin-top: 0; }
+    h2 { font-size: 1.15rem; }
+    a { color: #0b5f8f; }
+    .eyebrow { color: #5b708b; font-size: 0.78rem; letter-spacing: .08em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <p class="eyebrow">Private editor dashboard</p>
+      <h1>Live News Summary Review</h1>
+      <p>This page is private, noindex, and only available with the editor key. It is not linked from public navigation or the sitemap.</p>
+      <div class="grid">
+        <div class="metric"><strong>${Number(health.checkedCount || 0)}</strong> checked</div>
+        <div class="metric"><strong>${Number(health.humanSummaryCount || 0)}</strong> public summaries</div>
+        <div class="metric"><strong>${Number(health.supervisedCount || 0)}</strong> teacher rescues</div>
+        <div class="metric"><strong>${queue.length}</strong> needs review</div>
+      </div>
+    </section>
+    ${rows || '<section class="panel"><h2>No summary review items right now.</h2></section>'}
+  </main>
+</body>
+</html>`;
 }
 
 function readPublicHtml(fileName) {
@@ -2053,6 +2210,20 @@ app.get(["/about", "/editorial-policy", "/privacy", "/contact"], (req, res) => {
   return res.type("html").send(html);
 });
 
+app.get("/admin/summaries", requireSummaryAdmin, (req, res) => {
+  res.type("html").send(renderSummaryReviewPage());
+});
+
+app.get("/api/internal/summary-review", requireSummaryAdmin, (req, res) => {
+  const payload = buildCurrentNewsPayload();
+  res.json({
+    updatedAt: payload.updatedAt,
+    summaryHealth: payload.summaryHealth,
+    summaryResearch: summaryResearchStats,
+    reviewQueue: getSummaryReviewQueue(payload),
+  });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/news", (req, res) => {
@@ -2248,6 +2419,7 @@ app.get("/api/health", (req, res) => {
       approvedStories: listApprovedStories().length,
     },
     summaryHealth: currentPayload.summaryHealth,
+    summaryResearch: summaryResearchStats,
     imageResearch: imageQualityStats,
     localNews: localHealthStats,
     places: placesMeta.totalPlaces,

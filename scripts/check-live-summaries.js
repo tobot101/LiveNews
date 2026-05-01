@@ -13,6 +13,10 @@ const {
   getFirstWords,
   wordCount,
 } = require("../lib/article-agents/summary-quality");
+const {
+  extractResearchFromHtml,
+  mergeResearchEvidence,
+} = require("../lib/article-agents/summary-research-agent");
 
 const root = path.join(__dirname, "..");
 const failures = [];
@@ -152,6 +156,30 @@ const teacherSupervisorSamples = [
   },
 ];
 
+const sourceResearchSample = {
+  id: "research-stagecoach",
+  title: "Ella Langley surprises Stagecoach crowd by bringing out Theo Von instead of expected Morgan Wallen",
+  summary: "Fans expected a different guest during the festival set.",
+  sourceName: "Fox News",
+  category: "Entertainment",
+  link: "https://example.com/stagecoach",
+};
+
+const sourceResearchHtml = `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="Ella Langley brings Theo Von onstage at Stagecoach" />
+    <meta property="og:description" content="Ella Langley brought comedian Theo Von on stage at Stagecoach after fans expected Morgan Wallen. The surprise guest joined her during the festival set." />
+    <script type="application/ld+json">{"@type":"NewsArticle","headline":"Stagecoach surprise","description":"Theo Von appeared during Ella Langley's Stagecoach performance, surprising fans who had expected Morgan Wallen."}</script>
+  </head>
+  <body>
+    <article>
+      <p>Ella Langley brought comedian Theo Von on stage during her Stagecoach set after fans expected Morgan Wallen.</p>
+      <p>The surprise guest appearance became one of the festival set's talked-about moments.</p>
+    </article>
+  </body>
+</html>`;
+
 function normalizeExact(value) {
   return String(value || "")
     .toLowerCase()
@@ -199,6 +227,20 @@ for (const sample of teacherSupervisorSamples) {
   expect(wordCount(text) >= 18 && wordCount(text) <= 35, `${sample.id} should stay within 18-35 words.`);
 }
 
+const extractedResearch = extractResearchFromHtml(sourceResearchHtml, sourceResearchSample.link);
+expect(extractedResearch.facts.length >= 2, "Source-page research should extract useful metadata and article-page facts.");
+const researchedSample = {
+  ...sourceResearchSample,
+  summaryResearch: mergeResearchEvidence(sourceResearchSample, extractedResearch),
+};
+const researchedResult = buildLiveNewsSummary(researchedSample);
+expect(researchedResult.text !== FALLBACK_SUMMARY, "Source-page research should keep a thin RSS item from falling back.");
+expect(researchedResult.evaluation.passed, "Source-page research summary should pass quality gates.");
+expect(
+  /Ella Langley|Theo Von|Stagecoach|festival/i.test(researchedResult.text),
+  "Source-page research summary should use facts discovered from the article page."
+);
+
 const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 const categoryJs = fs.readFileSync(path.join(root, "public", "category.js"), "utf8");
@@ -222,6 +264,11 @@ expect(serverJs.includes("applyLiveNewsSummariesToPayload"), "Server should appl
 expect(serverJs.includes("renderCrawlableHomepage"), "Homepage should render crawlable article cards before client hydration when possible.");
 expect(serverJs.includes("renderCrawlerSourceLink"), "Crawlable article cards should include original source links.");
 expect(serverJs.includes("summaryHealth: currentPayload.summaryHealth"), "Health checks should expose summary supervisor diagnostics.");
+expect(serverJs.includes("hydrateSummaryResearchForItems"), "Server should run summary source research during refresh before public rendering.");
+expect(serverJs.includes("summaryResearch: summaryResearchStats"), "Health checks should expose summary research diagnostics.");
+expect(serverJs.includes("requireSummaryAdmin"), "Summary review routes should require private editor authentication.");
+expect(serverJs.includes("X-Robots-Tag"), "Private summary review pages should send noindex headers.");
+expect(!serverJs.includes('SITEMAP_STABLE_PAGES.push("/admin/summaries")'), "Private summary review pages should not be added to the sitemap.");
 
 const payload = {
   topStories: [samples[0]],
@@ -319,4 +366,4 @@ if (failures.length) {
 }
 
 console.log("Live News summary-agent check passed.");
-console.log(`Samples checked: ${samples.length + liveRegressionSamples.length + teacherSupervisorSamples.length}`);
+console.log(`Samples checked: ${samples.length + liveRegressionSamples.length + teacherSupervisorSamples.length + 1}`);
