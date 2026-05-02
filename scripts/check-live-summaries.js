@@ -10,9 +10,14 @@ const {
 } = require("../lib/article-agents/summary-agent");
 const {
   FALLBACK_SUMMARY,
+  GRAMMAR_GUARD_PATTERNS,
   getFirstWords,
   wordCount,
 } = require("../lib/article-agents/summary-quality");
+const {
+  AUDIENCE_INTELLIGENCE_VERSION,
+  deriveAudienceIntelligence,
+} = require("../lib/article-agents/audience-intelligence");
 const {
   extractResearchFromHtml,
   mergeResearchEvidence,
@@ -120,6 +125,14 @@ const liveRegressionSamples = [
     category: "Tech",
   },
   {
+    id: "live-grammar-has-says",
+    title: "Trump to remove whisky tariffs after King's visit",
+    summary:
+      "Donald Trump has says he will remove all tariffs and restrictions on whisky imports in honour of King Charles and Queen Camilla's state visit to the U.S.",
+    sourceName: "BBC News",
+    category: "Business",
+  },
+  {
     id: "live-supreme-geofence",
     title: "US Supreme Court appears split over controversial use of ‘geofence’ search warrants",
     summary:
@@ -213,8 +226,16 @@ for (const sample of liveRegressionSamples) {
   expect(result.evaluation.passed, `${sample.id} should pass the strengthened live-data quality gates.`);
   expect(text !== FALLBACK_SUMMARY, `${sample.id} should produce a real Live News summary instead of fallback.`);
   expect(!/Live News is tracking|Read the original source|What comes next|Readers can|The focus stays on/i.test(text), `${sample.id} should not use fallback or robotic filler.`);
+  expect(!/\bhas\s+says\b/i.test(text), `${sample.id} should repair broken grammar before publishing.`);
   expect(wordCount(text) >= 18 && wordCount(text) <= 35, `${sample.id} should stay within 18-35 words.`);
+  expect(result.audienceIntelligence?.version === AUDIENCE_INTELLIGENCE_VERSION, `${sample.id} should carry audience intelligence metadata.`);
+  expect(result.audienceIntelligence?.primaryPattern?.id, `${sample.id} should identify a primary audience pattern.`);
 }
+
+expect(
+  GRAMMAR_GUARD_PATTERNS.some((pattern) => pattern.test("Donald Trump has says he will remove whisky tariffs.")),
+  "Grammar guard should catch has-says phrasing."
+);
 
 for (const sample of teacherSupervisorSamples) {
   const result = buildLiveNewsSummary(sample);
@@ -266,6 +287,8 @@ expect(serverJs.includes("renderCrawlerSourceLink"), "Crawlable article cards sh
 expect(serverJs.includes("summaryHealth: currentPayload.summaryHealth"), "Health checks should expose summary supervisor diagnostics.");
 expect(serverJs.includes("hydrateSummaryResearchForItems"), "Server should run summary source research during refresh before public rendering.");
 expect(serverJs.includes("summaryResearch: summaryResearchStats"), "Health checks should expose summary research diagnostics.");
+expect(serverJs.includes("audienceIntelligence"), "Health checks should expose audience-intelligence diagnostics.");
+expect(serverJs.includes("feedCandidates") && serverJs.includes("topStoryKeys"), "Latest feed should exclude stories already shown in Top Stories.");
 expect(serverJs.includes("requireSummaryAdmin"), "Summary review routes should require private editor authentication.");
 expect(serverJs.includes("X-Robots-Tag"), "Private summary review pages should send noindex headers.");
 expect(!serverJs.includes('SITEMAP_STABLE_PAGES.push("/admin/summaries")'), "Private summary review pages should not be added to the sitemap.");
@@ -288,6 +311,22 @@ expect(shapedPayload.summaryHealth?.version, "Payloads should include summary he
 expect(shapedPayload.summaryHealth.checkedCount === shapedPayload.topStories.length + shapedPayload.feed.length, "Summary health should count checked stories.");
 expect(typeof shapedPayload.summaryHealth.supervisedCount === "number", "Summary health should count teacher-supervised rescues.");
 expect(typeof shapedPayload.summaryHealth.needsReviewCount === "number", "Summary health should count summaries needing editor review.");
+expect(shapedPayload.summaryHealth.audienceIntelligence?.version === AUDIENCE_INTELLIGENCE_VERSION, "Summary health should include audience-intelligence metrics.");
+expect(shapedPayload.feed.every((item) => item.summaryAgent?.audience?.version === AUDIENCE_INTELLIGENCE_VERSION), "Every public feed summary should include audience-intelligence metadata.");
+
+const audienceSample = {
+  id: "audience-money-workers",
+  title: "Factory workers face layoffs as company cuts costs after profit drop",
+  summary: "The company said falling profit and higher costs led to layoffs affecting factory workers and nearby suppliers.",
+  sourceName: "Business Desk",
+  category: "Business",
+};
+const audienceIntelligence = deriveAudienceIntelligence(audienceSample);
+expect(
+  ["jobs_and_workers", "money_and_prices"].includes(audienceIntelligence.primaryPattern.id),
+  "Audience intelligence should prioritize worker or money patterns when the evidence supports them."
+);
+expect(audienceIntelligence.status === "patterned", "Audience intelligence should mark strong evidence as patterned.");
 
 const liveHealthItems = liveRegressionSamples.map((sample) => ({
   ...sample,

@@ -1085,6 +1085,13 @@ function dedupeItems(items) {
   return Array.from(deduped.values());
 }
 
+function getStoryIdentityKey(item) {
+  const titleKey = String(item?.title || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  return item?.link || item?.id || `${item?.sourceDomain || item?.domain || item?.sourceName || "source"}:${titleKey}`;
+}
+
 function buildSourceMix(items) {
   return items.reduce((acc, item) => {
     const key = item.sourceName || "Unknown";
@@ -1382,7 +1389,9 @@ async function refreshNews() {
 
   cache.items = clustered;
   cache.topStories = diversifyBySource(ranked, { maxPerSource: 2, limit: TOP_STORIES_LIMIT });
-  cache.feed = diversifyBySource(recent, {
+  const topStoryKeys = new Set(cache.topStories.map(getStoryIdentityKey));
+  const feedCandidates = recent.filter((item) => !topStoryKeys.has(getStoryIdentityKey(item)));
+  cache.feed = diversifyBySource(feedCandidates, {
     maxPerSource: Math.max(12, Math.ceil(FEED_LIMIT / 6)),
     limit: FEED_LIMIT,
   });
@@ -2219,6 +2228,7 @@ app.get("/api/internal/summary-review", requireSummaryAdmin, (req, res) => {
   res.json({
     updatedAt: payload.updatedAt,
     summaryHealth: payload.summaryHealth,
+    audienceIntelligence: payload.summaryHealth?.audienceIntelligence,
     summaryResearch: summaryResearchStats,
     reviewQueue: getSummaryReviewQueue(payload),
   });
@@ -2419,6 +2429,7 @@ app.get("/api/health", (req, res) => {
       approvedStories: listApprovedStories().length,
     },
     summaryHealth: currentPayload.summaryHealth,
+    audienceIntelligence: currentPayload.summaryHealth?.audienceIntelligence,
     summaryResearch: summaryResearchStats,
     imageResearch: imageQualityStats,
     localNews: localHealthStats,

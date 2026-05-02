@@ -1,0 +1,199 @@
+{
+  "schemaVersion": "live-news-audience-patterns-v1",
+  "updatedAt": "2026-05-02",
+  "principle": "Extract human-relevance patterns from source-backed evidence. Do not copy random public comments, invent opinions, or add unsupported facts.",
+  "patterns": [
+    {
+      "id": "public_safety",
+      "label": "public safety",
+      "priority": 95,
+      "categories": ["local", "national", "world", "international", "top"],
+      "keywords": ["shooting", "stabbing", "fire", "crash", "storm", "tornado", "flood", "evacuation", "police", "suspect", "injured", "killed", "hospital", "emergency", "threat", "security"],
+      "humanQuestions": ["Who is in danger?", "What happened to residents or victims?", "What changes for public safety?"]
+    },
+    {
+      "id": "health_and_care",
+      "label": "health and care",
+      "priority": 92,
+      "categories": ["local", "national", "world", "international", "top"],
+      "keywords": ["health", "hospital", "doctor", "patient", "vaccine", "medicine", "drug", "disease", "cancer", "mental health", "care", "insurance", "medicaid", "medicare", "abortion pill"],
+      "humanQuestions": ["Who may need care?", "What changes for patients?", "What is the health risk or access issue?"]
+    },
+    {
+      "id": "money_and_prices",
+      "label": "money and prices",
+      "priority": 90,
+      "categories": ["business", "national", "local", "top"],
+      "keywords": ["price", "prices", "cost", "costs", "inflation", "tariff", "tariffs", "tax", "taxes", "rates", "profit", "loss", "revenue", "market", "shares", "stock", "bank", "loan", "mortgage", "insurance"],
+      "humanQuestions": ["Who pays more or less?", "Which company or market is affected?", "What money pressure changed?"]
+    },
+    {
+      "id": "jobs_and_workers",
+      "label": "jobs and workers",
+      "priority": 88,
+      "categories": ["business", "tech", "national", "local"],
+      "keywords": ["jobs", "workers", "employees", "layoff", "layoffs", "strike", "union", "wages", "pay", "hiring", "workforce", "labor", "staff", "workplace"],
+      "humanQuestions": ["What changes for workers?", "Who is losing or gaining jobs?", "What workplace pressure matters?"]
+    },
+    {
+      "id": "consumer_impact",
+      "label": "consumer impact",
+      "priority": 84,
+      "categories": ["business", "tech", "local", "national"],
+      "keywords": ["customers", "consumers", "users", "shoppers", "subscribers", "app", "service", "product", "recall", "store", "subscription", "fees", "pricing"],
+      "humanQuestions": ["What changes for users or customers?", "What product or service is affected?", "Is there a price, access, or safety impact?"]
+    },
+    {
+      "id": "rights_and_law",
+      "label": "rights and law",
+      "priority": 89,
+      "categories": ["national", "local", "world", "international", "top"],
+      "keywords": ["court", "judge", "lawsuit", "ruling", "law", "legal", "rights", "constitution", "appeals", "supreme court", "trial", "sentence", "charged", "indicted", "asylum", "immigration"],
+      "humanQuestions": ["What legal decision changed?", "Whose rights or status are affected?", "What case moves next?"]
+    },
+    {
+      "id": "government_accountability",
+      "label": "government accountability",
+      "priority": 86,
+      "categories": ["national", "local", "world", "international", "top"],
+      "keywords": ["president", "white house", "congress", "senate", "governor", "mayor", "council", "agency", "department", "administration", "policy", "probe", "investigation", "oversight", "election"],
+      "humanQuestions": ["Which public decision changed?", "Who is accountable?", "What public policy is affected?"]
+    },
+    {
+      "id": "local_residents",
+      "label": "local residents",
+      "priority": 91,
+      "categories": ["local"],
+      "keywords": ["city", "county", "neighborhood", "residents", "school", "road", "traffic", "housing", "transit", "police", "fire", "council", "downtown", "community"],
+      "humanQuestions": ["What changes for people nearby?", "Which place is affected?", "What should residents know first?"]
+    },
+    {
+      "id": "housing_and_cost_of_living",
+      "label": "housing and cost of living",
+      "priority": 87,
+      "categories": ["local", "business", "national"],
+      "keywords": ["housing", "rent", "home", "homes", "mortgage", "zoning", "construction", "homeless", "shelter", "property", "utilities", "cost of living"],
+      "humanQuestions": ["What changes for renters or homeowners?", "Does supply, price, or access change?", "Which community is affected?"]
+    },
+    {
+      "id": "weather_and_disruption",
+      "label": "weather disruption",
+      "priority": 88,
+      "categories": ["local", "national", "top"],
+      "keywords": ["weather", "storm", "tornado", "hurricane", "flood", "wildfire", "heat", "snow", "rain", "power outage", "closed roads", "evacuation", "damage"],
+      "humanQuestions": ["What disruption happened?", "Who needs to prepare or recover?", "What damage or closure is known?"]
+    },
+    {
+      "id": "technology_users",
+      "label": "technology users",
+      "priority": 86,
+      "categories": ["tech", "technology", "business"],
+      "keywords": ["ai", "artificial intelligence", "app", "platform", "software", "privacy", "data", "security", "users", "device", "iphone", "android", "algorithm", "browser", "cloud", "openai"],
+      "humanQuestions": ["What changes for users?", "Is privacy, access, or tooling affected?", "Which product or platform is involved?"]
+    },
+    {
+      "id": "privacy_and_security",
+      "label": "privacy and security",
+      "priority": 89,
+      "categories": ["tech", "technology", "business", "national"],
+      "keywords": ["privacy", "data", "breach", "hack", "cyber", "spyware", "surveillance", "tracking", "security", "password", "database", "location", "geofence"],
+      "humanQuestions": ["What personal data or security issue is involved?", "Who could be exposed?", "What protection or restriction changed?"]
+    },
+    {
+      "id": "schools_and_students",
+      "label": "schools and students",
+      "priority": 84,
+      "categories": ["local", "national"],
+      "keywords": ["school", "student", "students", "teacher", "college", "university", "campus", "education", "classroom", "scholarship", "district"],
+      "humanQuestions": ["What changes for students or families?", "Which school or campus is affected?", "Is safety, cost, or learning involved?"]
+    },
+    {
+      "id": "family_and_children",
+      "label": "family and children",
+      "priority": 85,
+      "categories": ["local", "national", "entertainment", "top"],
+      "keywords": ["children", "child", "kids", "family", "parents", "mother", "father", "baby", "teen", "youth", "pregnancy", "care"],
+      "humanQuestions": ["How are families or children affected?", "Is safety, care, or opportunity involved?", "What human stakes are known?"]
+    },
+    {
+      "id": "sports_result_stakes",
+      "label": "sports stakes",
+      "priority": 84,
+      "categories": ["sports"],
+      "keywords": ["win", "loss", "beat", "defeat", "score", "game", "match", "season", "playoffs", "draft", "coach", "player", "injury", "title", "final", "champion"],
+      "humanQuestions": ["What result changed?", "Which player or team is affected?", "What does it mean for the next game or season?"]
+    },
+    {
+      "id": "entertainment_audience",
+      "label": "entertainment audience",
+      "priority": 80,
+      "categories": ["entertainment"],
+      "keywords": ["movie", "film", "music", "album", "show", "concert", "festival", "actor", "singer", "artist", "audience", "fans", "release", "streaming", "netflix"],
+      "humanQuestions": ["What changed for fans or audiences?", "Who is involved?", "Is this about a release, event, or public reaction?"]
+    },
+    {
+      "id": "global_conflict",
+      "label": "global conflict",
+      "priority": 91,
+      "categories": ["world", "international", "top", "national"],
+      "keywords": ["war", "conflict", "ceasefire", "strike", "missile", "military", "troops", "border", "sanctions", "nato", "iran", "ukraine", "russia", "israel", "gaza", "china"],
+      "humanQuestions": ["Which country or group is affected?", "Does the conflict risk widen?", "What diplomatic or military move changed?"]
+    },
+    {
+      "id": "travel_and_transportation",
+      "label": "travel and transportation",
+      "priority": 78,
+      "categories": ["local", "business", "national", "world"],
+      "keywords": ["flight", "airport", "airline", "road", "highway", "bridge", "train", "transit", "traffic", "port", "shipping", "canal", "travel", "cruise"],
+      "humanQuestions": ["What movement or route is affected?", "Who faces delays or costs?", "Which service or place changed?"]
+    },
+    {
+      "id": "environment_and_climate",
+      "label": "environment and climate",
+      "priority": 82,
+      "categories": ["local", "national", "world", "business", "tech"],
+      "keywords": ["climate", "emissions", "pollution", "environment", "wildlife", "forest", "water", "energy", "oil", "gas", "solar", "nuclear", "clean tech"],
+      "humanQuestions": ["What environmental condition changed?", "Who or what ecosystem is affected?", "Is there energy, health, or safety impact?"]
+    },
+    {
+      "id": "public_services",
+      "label": "public services",
+      "priority": 80,
+      "categories": ["local", "national"],
+      "keywords": ["benefits", "social security", "medicaid", "medicare", "food aid", "public program", "agency", "service", "funding", "budget", "shutdown"],
+      "humanQuestions": ["Which public service is affected?", "Who may lose or gain access?", "What funding or rule changed?"]
+    },
+    {
+      "id": "identity_and_culture",
+      "label": "identity and culture",
+      "priority": 75,
+      "categories": ["entertainment", "national", "local", "world"],
+      "keywords": ["culture", "religion", "race", "gender", "identity", "community", "history", "civil rights", "protest", "speech", "representation"],
+      "humanQuestions": ["What community or identity issue is involved?", "Is the story about representation, rights, or public reaction?", "What context is known?"]
+    },
+    {
+      "id": "science_and_discovery",
+      "label": "science and discovery",
+      "priority": 74,
+      "categories": ["tech", "technology", "national", "world"],
+      "keywords": ["science", "research", "study", "space", "nasa", "discovery", "experiment", "scientists", "climate research", "medical research"],
+      "humanQuestions": ["What did researchers find?", "Why could the finding matter?", "Who or what field is affected?"]
+    },
+    {
+      "id": "trust_and_misinformation",
+      "label": "trust and misinformation",
+      "priority": 83,
+      "categories": ["tech", "national", "world", "entertainment"],
+      "keywords": ["misinformation", "conspiracy", "false", "fake", "deepfake", "ai-generated", "trust", "media", "platform", "moderation", "election claims"],
+      "humanQuestions": ["What claim or trust issue is involved?", "Who may be misled?", "What platform or institution is affected?"]
+    },
+    {
+      "id": "reader_clarity",
+      "label": "reader clarity",
+      "priority": 50,
+      "categories": ["top", "national", "world", "international", "business", "tech", "technology", "sports", "entertainment", "local"],
+      "keywords": ["change", "decision", "plan", "update", "new", "first", "major", "latest", "review", "report"],
+      "humanQuestions": ["What changed?", "Who is affected?", "Why does it matter?"]
+    }
+  ]
+}
