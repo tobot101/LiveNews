@@ -17,6 +17,7 @@ const {
   applyLiveNewsSummariesToPayload,
   applyLiveNewsSummary,
   buildLiveNewsSummary,
+  getSummaryHealth,
 } = require("./lib/article-agents/summary-agent");
 const {
   createSummaryResearchStats,
@@ -280,7 +281,52 @@ const LOCAL_BLOCKED_DOMAINS = new Set([
   "www.echovita.com",
   "nationaltoday.com",
   "www.nationaltoday.com",
+  "aviglianonews.it",
+  "www.aviglianonews.it",
+  "flashscore.co.za",
+  "www.flashscore.co.za",
+  "nfhsnetwork.com",
+  "www.nfhsnetwork.com",
+  "docsports.com",
+  "www.docsports.com",
+  "maxpreps.com",
+  "www.maxpreps.com",
+  "draftkings.com",
+  "www.draftkings.com",
 ]);
+
+const LOCAL_CITY_ALIASES = {
+  "new york": ["nyc", "brooklyn", "queens", "bronx", "manhattan", "staten island", "yankees", "mets", "knicks", "nets", "rangers", "islanders", "liberty"],
+  "los angeles": ["l.a.", "dodgers", "lakers", "clippers", "rams", "chargers", "angels", "lafc", "galaxy", "hollywood"],
+  chicago: ["cubs", "white sox", "bears", "bulls", "blackhawks", "chicago fire"],
+  houston: ["astros", "texans", "rockets", "dynamo"],
+  phoenix: ["suns", "cardinals", "diamondbacks", "d-backs", "mercury"],
+  philadelphia: ["phillies", "eagles", "76ers", "sixers", "flyers", "union"],
+  "san antonio": ["spurs"],
+  "san diego": ["padres", "san diego fc", "sdsu", "aztecs", "scripps", "la jolla", "chula vista", "el cajon", "north county", "lake hodges", "mission bay", "scripps ranch", "core columbia", "del mar", "encinitas", "carlsbad", "escondido"],
+  dallas: ["cowboys", "mavericks", "mavs", "stars", "fc dallas", "wings"],
+  jacksonville: ["jaguars", "jags"],
+  austin: ["austin fc", "longhorns"],
+  "fort worth": ["tcu", "horned frogs"],
+  "san jose": ["sharks", "earthquakes"],
+  columbus: ["blue jackets", "crew"],
+  charlotte: ["panthers", "hornets", "fc charlotte"],
+  indianapolis: ["colts", "pacers"],
+  "san francisco": ["49ers", "giants", "warriors", "bay area"],
+  seattle: ["seahawks", "mariners", "kraken", "sounders", "storm"],
+  denver: ["broncos", "nuggets", "rockies", "avalanche", "rapids"],
+  "oklahoma city": ["okc", "thunder"],
+  nashville: ["titans", "predators", "nashville sc"],
+  "el paso": ["locomotive"],
+  washington: ["commanders", "nationals", "wizards", "capitals", "mystics", "d.c. united"],
+  boston: ["red sox", "celtics", "bruins", "patriots", "revolution"],
+  "las vegas": ["raiders", "golden knights", "aces"],
+  portland: ["trail blazers", "blazers", "timbers", "thorns"],
+  detroit: ["tigers", "lions", "pistons", "red wings"],
+  louisville: ["cardinals"],
+  memphis: ["grizzlies"],
+  baltimore: ["ravens", "orioles"],
+};
 
 const parser = new Parser({
   timeout: 10000,
@@ -319,6 +365,9 @@ let localHealthStats = {
   lastResultCount: 0,
   lastSourceCount: 0,
   lastError: null,
+  lastSummaryHealth: null,
+  lastSummaryResearch: null,
+  lastAudienceIntelligence: null,
   lastUpdated: null,
 };
 let imageQualityStats = {
@@ -1259,14 +1308,85 @@ function isBlockedLocalItem({ title, sourceName, link }) {
   const domain = getDomain(link);
   if (LOCAL_BLOCKED_DOMAINS.has(domain)) return true;
   const haystack = `${title} ${sourceName} ${link}`.toLowerCase();
+  const titleWordCount = String(title || "").split(/\s+/).filter(Boolean).length;
+  if (/^\d{3,6}\s+.+,\s*[a-z .]+,\s*[a-z]{2}\s+\d{5}/i.test(String(title || ""))) return true;
+  if (/\bvs\.\s+.+\([A-Za-z]+\s+\d{1,2}/.test(String(title || ""))) return true;
+  if (/^game\s+\d+:/i.test(String(title || ""))) return true;
   return (
+    titleWordCount <= 2 ||
     haystack.includes("legacy obituary") ||
     haystack.includes("tribute archive") ||
     haystack.includes("obituaries") ||
     haystack.includes("obituary") ||
     haystack.includes("funeral home") ||
-    haystack.includes("national today")
+    haystack.includes("national today") ||
+    haystack.includes("collectible") ||
+    haystack.includes("shot cup") ||
+    haystack.includes("travel souvenir") ||
+    haystack.includes("aazon.co") ||
+    haystack.includes("citizen: keeping you safe") ||
+    haystack.includes("weekend guide") ||
+    haystack.includes(" like a local") ||
+    haystack.includes("homes for sale") ||
+    haystack.includes("property for sale") ||
+    haystack.includes("live & on demand") ||
+    haystack.includes(" live and on demand") ||
+    haystack.includes("live stream") ||
+    haystack.includes("where to watch") ||
+    haystack.includes("tv channel") ||
+    haystack.includes("best bets") ||
+    haystack.includes("betting odds") ||
+    haystack.includes("prediction,") ||
+    haystack.includes("game info") ||
+    haystack.includes("videos -") ||
+    haystack.includes("varsity") ||
+    haystack.includes("wide receiver") ||
+    haystack.includes("draftkings network") ||
+    haystack.includes("doc's sports") ||
+    haystack.includes("247sports") ||
+    haystack.includes("maxpreps") ||
+    haystack.includes("nfhs network") ||
+    haystack.includes(" live 03/") ||
+    haystack.includes(" live 04/") ||
+    haystack.includes(" live 05/") ||
+    haystack.includes(" live 06/") ||
+    haystack.includes("events -")
   );
+}
+
+function normalizeLocalMatchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&amp;/g, " and ")
+    .replace(/[^a-z0-9.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getLocalAliasTerms(place) {
+  const city = normalizeLocalMatchText(place?.name || "");
+  return LOCAL_CITY_ALIASES[city] || [];
+}
+
+function hasLocalRelevance(item, place) {
+  const city = normalizeLocalMatchText(place?.name || "");
+  const state = normalizeLocalMatchText(place?.stateName || place?.state || "");
+  const stateCode = normalizeLocalMatchText(place?.state || "");
+  const title = normalizeLocalMatchText(item?.title || "");
+  const sourceName = normalizeLocalMatchText(item?.sourceName || item?.source || "");
+  const summary = normalizeLocalMatchText(item?.summary || item?.sourceSummary || "");
+  const link = normalizeLocalMatchText(item?.link || "");
+  const haystack = `${title} ${summary} ${sourceName} ${link}`;
+
+  if (city && haystack.includes(city)) return true;
+  if (city && city.split(" ").length > 1 && city.split(" ").every((part) => haystack.includes(part))) return true;
+  if (state && title.includes(state) && sourceName.includes(city.split(" ")[0] || city)) return true;
+  if (stateCode && title.includes(` ${stateCode} `) && sourceName.includes(city.split(" ")[0] || city)) return true;
+
+  return getLocalAliasTerms(place).some((alias) => {
+    const normalized = normalizeLocalMatchText(alias);
+    return normalized && haystack.includes(normalized);
+  });
 }
 
 function resolveLocalRequestPlace(city, state) {
@@ -1278,7 +1398,15 @@ function resolveLocalRequestPlace(city, state) {
   });
 }
 
-function recordLocalHealth({ query, place, itemCount = 0, sourceCount = 0, error = null }) {
+function recordLocalHealth({
+  query,
+  place,
+  itemCount = 0,
+  sourceCount = 0,
+  summaryHealth = null,
+  summaryResearch = null,
+  error = null,
+}) {
   localHealthStats = {
     requests: localHealthStats.requests + 1,
     emptyResponses: localHealthStats.emptyResponses + (itemCount === 0 ? 1 : 0),
@@ -1287,6 +1415,9 @@ function recordLocalHealth({ query, place, itemCount = 0, sourceCount = 0, error
     lastResultCount: itemCount,
     lastSourceCount: sourceCount,
     lastError: error ? String(error.message || error) : null,
+    lastSummaryHealth: summaryHealth,
+    lastSummaryResearch: summaryResearch,
+    lastAudienceIntelligence: summaryHealth?.audienceIntelligence || null,
     lastUpdated: new Date().toISOString(),
   };
 }
@@ -1316,13 +1447,23 @@ async function fetchLocalNews(place) {
     collected.push(...items.map(normalizeLocalItem).filter(Boolean));
   }
 
-  const deduped = dedupeItems(collected);
+  const locallyRelevant = collected.filter((item) => hasLocalRelevance(item, place));
+  const deduped = dedupeItems(locallyRelevant);
   const recent = deduped.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   const diversified = diversifyBySource(recent, {
     maxPerSource: LOCAL_SOURCE_CAP,
     limit: LOCAL_POOL_LIMIT,
   });
+  const localSummaryResearchStats = createSummaryResearchStats();
+  await hydrateSummaryResearch(diversified, {
+    cache: summaryResearchCache,
+    stats: localSummaryResearchStats,
+    limit: diversified.length,
+    concurrency: 3,
+    enableTopicResearch: false,
+  });
   const summarized = applyLiveNewsSummariesToItems(diversified);
+  const summaryHealth = getSummaryHealth(summarized);
 
   const payload = {
     updatedAt: new Date().toISOString(),
@@ -1331,6 +1472,9 @@ async function fetchLocalNews(place) {
     place,
     variants,
     sourceCount: new Set(summarized.map((item) => item.sourceName)).size,
+    summaryHealth,
+    audienceIntelligence: summaryHealth.audienceIntelligence,
+    summaryResearch: localSummaryResearchStats,
     diagnostics: {
       queryVariants: variants.length,
       feedSuccesses: feeds.filter((result) => result.status === "fulfilled").length,
@@ -1338,6 +1482,9 @@ async function fetchLocalNews(place) {
       collectedItems: collected.length,
       dedupedItems: deduped.length,
       diversifiedItems: summarized.length,
+      summaryResearchReady: localSummaryResearchStats.ready,
+      summaryFallbacks: summaryHealth.fallbackCount,
+      audiencePatterned: summaryHealth.audienceIntelligence?.patternedCount || 0,
     },
   };
   localCache.set(key, { fetchedAt: now, payload });
@@ -2327,6 +2474,8 @@ app.get("/api/local", async (req, res) => {
       place: payload.place,
       itemCount: payload.items.length,
       sourceCount: payload.sourceCount,
+      summaryHealth: payload.summaryHealth,
+      summaryResearch: payload.summaryResearch,
     });
     res.json(payload);
   } catch (error) {

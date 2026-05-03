@@ -61,9 +61,17 @@ const localJs = fs.readFileSync(path.join(root, "public", "local.js"), "utf8");
 
 expect(serverJs.includes("resolveLocalRequestPlace"), "Server local API should resolve typed city/state input.");
 expect(serverJs.includes("localHealthStats"), "Server health should include local-news stability diagnostics.");
+expect(serverJs.includes("hydrateSummaryResearch(diversified"), "Local news should run source-page summary research before generating summaries.");
+expect(serverJs.includes("const summaryHealth = getSummaryHealth(summarized)"), "Local API should return summary health for local stories.");
+expect(serverJs.includes("lastAudienceIntelligence"), "Server health should expose local audience-intelligence diagnostics.");
+expect(serverJs.includes("hasLocalRelevance(item, place)"), "Local feeds should filter weak city matches before summary agents run.");
+expect(serverJs.includes("LOCAL_CITY_ALIASES"), "Local feeds should keep city-specific aliases for teams and neighborhoods.");
+expect(serverJs.includes("live & on demand"), "Local feeds should block event listings that cannot produce useful news summaries.");
 expect(appJs.includes("syncResolvedLocalPlace(data.place)"), "Homepage local preview should accept canonical server place data.");
+expect(appJs.includes("getDisplaySummary(item, 130)"), "Homepage local preview should render Live News local summaries.");
 expect(localJs.includes("syncResolvedPlace(data.place)"), "Dedicated local page should accept canonical server place data.");
 expect(localJs.includes("buildManualPlace(value)"), "Dedicated local page should parse manual city input before fetching.");
+expect(localJs.includes("getDisplaySummary(item)"), "Dedicated local page should render shared Live News local summaries.");
 
 if (failures.length) {
   console.error("Live News local-news check failed:");

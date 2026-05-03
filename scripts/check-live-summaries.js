@@ -169,6 +169,44 @@ const teacherSupervisorSamples = [
   },
 ];
 
+const localSummarySamples = [
+  {
+    id: "local-mission-fire",
+    title: "Update: Mission Fire in San Diego County hits 100% containment by Sunday morning",
+    summary: "Update: Mission Fire in San Diego County hits 100% containment by Sunday morning Sacramento Bee",
+    sourceName: "Sacramento Bee",
+    category: "Local",
+  },
+  {
+    id: "local-ebike-safety",
+    title: "12-year-old e-bike rider suffers brain bleeds, serious injuries after colliding with Tesla",
+    summary: "12-year-old e-bike rider suffers brain bleeds, serious injuries after colliding with Tesla fox5sandiego.com",
+    sourceName: "fox5sandiego.com",
+    category: "Local",
+  },
+  {
+    id: "local-lake-hodges",
+    title: "San Diego landmark Lake Hodges is a disaster waiting to happen",
+    summary: "San Diego landmark Lake Hodges is a disaster waiting to happen inewsource",
+    sourceName: "inewsource",
+    category: "Local",
+  },
+  {
+    id: "local-scrippshenge",
+    title: "Spectators gather as Scrippshenge returns to San Diego",
+    summary: "Spectators gather as Scrippshenge returns to San Diego cbs8.com",
+    sourceName: "cbs8.com",
+    category: "Local",
+  },
+  {
+    id: "local-kratom-complaint",
+    title: "State public health officials file complaint against kratom business in San Diego area",
+    summary: "State public health officials file complaint against kratom business in San Diego area KESQ",
+    sourceName: "KESQ",
+    category: "Local",
+  },
+];
+
 const sourceResearchSample = {
   id: "research-stagecoach",
   title: "Ella Langley surprises Stagecoach crowd by bringing out Theo Von instead of expected Morgan Wallen",
@@ -245,6 +283,15 @@ for (const sample of teacherSupervisorSamples) {
   expect(result.supervisor?.status === "rescued", `${sample.id} should be marked as rescued by the parent/teacher check.`);
   expect(result.style === "teacher_supervised", `${sample.id} should report the teacher-supervised style.`);
   expect(!/Live News is tracking|What comes next|Readers can|The focus stays on|The account includes/i.test(text), `${sample.id} should avoid old generic or supervisor scaffolding language.`);
+  expect(wordCount(text) >= 18 && wordCount(text) <= 35, `${sample.id} should stay within 18-35 words.`);
+}
+
+for (const sample of localSummarySamples) {
+  const result = buildLiveNewsSummary(sample);
+  const text = result.text;
+  expect(result.evaluation.passed, `${sample.id} local summary should pass quality gates.`);
+  expect(text !== FALLBACK_SUMMARY, `${sample.id} should not fall back when the local headline has enough safe detail.`);
+  expect(!/Read the original source|Live News is tracking|What comes next|Readers can/i.test(text), `${sample.id} should avoid fallback and robotic local copy.`);
   expect(wordCount(text) >= 18 && wordCount(text) <= 35, `${sample.id} should stay within 18-35 words.`);
 }
 
@@ -405,4 +452,4 @@ if (failures.length) {
 }
 
 console.log("Live News summary-agent check passed.");
-console.log(`Samples checked: ${samples.length + liveRegressionSamples.length + teacherSupervisorSamples.length + 1}`);
+console.log(`Samples checked: ${samples.length + liveRegressionSamples.length + teacherSupervisorSamples.length + localSummarySamples.length + 1}`);
