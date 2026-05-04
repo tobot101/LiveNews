@@ -252,6 +252,59 @@ const sourceResearchHtml = `<!doctype html>
   </body>
 </html>`;
 
+const truncationResearchSample = {
+  id: "research-morocco-truncation",
+  title: "Two US service members reported missing in Morocco, officials say",
+  summary:
+    "A search and rescue operation is underway for the service members, who are believed to have been involved in an accident, according to authorities.",
+  sourceName: "BBC News",
+  category: "National",
+  summaryResearch: {
+    facts: [
+      "Two US service members have gone missing during military exercises in Morocco, the US African Command has said.",
+      "Officials said they were last seen near ocean cliffs close to the Cap Draa Training Area.",
+      "Initial reports indicate the missing soldiers, who were participating in African Lion 2026, an annual joint training exercise, may have fallen into the ocean.",
+      "A search and rescue mission involving ground, air, and maritime resources from the US, Morocco and other countries is under way.",
+    ],
+    sourceMetadata: {
+      title: "Two US service members reported missing in Morocco, officials say",
+      description:
+        "A search and rescue operation is underway for the service members, who are believed to have been involved in an accident.",
+    },
+  },
+};
+
+const sidebarResearchSample = {
+  id: "research-sidebar-filter",
+  title: "Senate quietly bans lawmakers from betting on prediction markets",
+  summary:
+    "Senators can no longer bet on prediction markets like Kalshi and Polymarket after the Senate unanimously passed new rules banning insider wagering.",
+  sourceName: "Fox News",
+  category: "National",
+  link: "https://example.com/prediction-markets",
+  supportingLinks: [
+    {
+      title: "Senate quietly bans lawmakers from betting on prediction markets",
+      summary:
+        "Senators can no longer bet on prediction markets like Kalshi and Polymarket after the Senate passed new rules.",
+      sourceName: "Fox News",
+    },
+  ],
+};
+
+const sidebarSourceResearch = {
+  title: "Senate quietly bans lawmakers from betting on prediction markets",
+  description:
+    "Senators can no longer bet on prediction markets like Kalshi and Polymarket after the Senate unanimously passed new rules banning insider wagering.",
+  facts: [
+    "Senators can no longer use insider information to profit on emerging prediction market platforms.",
+    "The Senate passed legislation that would prevent senators and staff from betting on prediction markets like Kalshi and Polymarket.",
+    "California leaders mum on $1B high-speed rail detour aimed at preserving a labor leader's memorial.",
+    "State Department fires back at accusations of empty planes rescuing Americans from conflict zones.",
+  ],
+  stages: [{ stage: "source_page_body", status: "found", facts: 4 }],
+};
+
 function normalizeExact(value) {
   return String(value || "")
     .toLowerCase()
@@ -329,6 +382,33 @@ expect(
   /Ella Langley|Theo Von|Stagecoach|festival/i.test(researchedResult.text),
   "Source-page research summary should use facts discovered from the article page."
 );
+
+const badTruncatedSummary =
+  "Initial reports indicate the missing soldiers, who were participating in African Lion 2026, an annual joint training exercise, may have fallen into. Two U.S. service members have gone missing during military exercises in Morocco, the.";
+const badTruncatedEvaluation = evaluateLiveNewsSummary(truncationResearchSample, badTruncatedSummary);
+expect(!badTruncatedEvaluation.passed, "Quality gate should reject summaries that end source fragments mid-thought.");
+expect(
+  badTruncatedEvaluation.failures.includes("dangling_sentence_end") ||
+    badTruncatedEvaluation.failures.includes("fragmented_source_sentence"),
+  "Truncated summaries should be marked with a sentence-integrity failure."
+);
+const truncationResult = buildLiveNewsSummary(truncationResearchSample);
+expect(truncationResult.text !== FALLBACK_SUMMARY, "Teacher should still produce a safe summary when complete source facts exist.");
+expect(truncationResult.evaluation.passed, "Rescued truncation summary should pass the strengthened quality gate.");
+expect(!/\b(?:into|the|of|which)\.$/i.test(truncationResult.text), "Rescued summary should not end on a dangling connector.");
+
+const sidebarMerged = mergeResearchEvidence(sidebarResearchSample, sidebarSourceResearch);
+expect(!/California leaders|State Department fires/i.test(sidebarMerged.evidenceText), "Research merge should remove unrelated sidebar facts from summary evidence.");
+expect(
+  sidebarMerged.facts.every((fact) => !/California leaders|State Department fires/i.test(fact)),
+  "Research facts should stay focused on the article rather than neighboring links."
+);
+const sidebarResult = buildLiveNewsSummary({
+  ...sidebarResearchSample,
+  summaryResearch: sidebarMerged,
+});
+expect(sidebarResult.evaluation.passed, "Sidebar-filtered summary should still pass when real article facts remain.");
+expect(!/California|State Department|conflict zones/i.test(sidebarResult.text), "Summary should not use unrelated sidebar or neighboring-story facts.");
 
 const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
