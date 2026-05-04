@@ -1329,6 +1329,10 @@ function isBlockedLocalItem({ title, sourceName, link }) {
     haystack.includes(" like a local") ||
     haystack.includes("homes for sale") ||
     haystack.includes("property for sale") ||
+    haystack.includes("best desserts") ||
+    haystack.includes("top sweet spots") ||
+    haystack.includes("near you (202") ||
+    haystack.includes("things to do") ||
     haystack.includes("live & on demand") ||
     haystack.includes(" live and on demand") ||
     haystack.includes("live stream") ||
@@ -1338,6 +1342,15 @@ function isBlockedLocalItem({ title, sourceName, link }) {
     haystack.includes("betting odds") ||
     haystack.includes("prediction,") ||
     haystack.includes("game info") ||
+    haystack.includes("final score") ||
+    haystack.includes("match highlights") ||
+    haystack.includes("match report") ||
+    haystack.includes("match snapshot") ||
+    haystack.includes("post-match facts") ||
+    haystack.includes("game summary") ||
+    haystack.includes(" live score") ||
+    haystack.includes(" goal -") ||
+    haystack.includes("wnba matchup") ||
     haystack.includes("videos -") ||
     haystack.includes("varsity") ||
     haystack.includes("wide receiver") ||

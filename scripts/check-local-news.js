@@ -58,6 +58,7 @@ expect(!variants.some((variant) => variant.includes("San Diego, CA CA")), "Local
 const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 const localJs = fs.readFileSync(path.join(root, "public", "local.js"), "utf8");
+const stylesCss = fs.readFileSync(path.join(root, "public", "styles.css"), "utf8");
 
 expect(serverJs.includes("resolveLocalRequestPlace"), "Server local API should resolve typed city/state input.");
 expect(serverJs.includes("localHealthStats"), "Server health should include local-news stability diagnostics.");
@@ -72,6 +73,9 @@ expect(appJs.includes("getDisplaySummary(item, 130)"), "Homepage local preview s
 expect(localJs.includes("syncResolvedPlace(data.place)"), "Dedicated local page should accept canonical server place data.");
 expect(localJs.includes("buildManualPlace(value)"), "Dedicated local page should parse manual city input before fetching.");
 expect(localJs.includes("getDisplaySummary(item)"), "Dedicated local page should render shared Live News local summaries.");
+expect(localJs.includes("local-story-card"), "Dedicated local page should render local stories with organized card markup.");
+expect(localJs.includes("getPublishedDateBadge(item)"), "Dedicated local page should display a clear published-date badge.");
+expect(stylesCss.includes(".local-story-card"), "Dedicated local page should style local stories like readable Live News cards.");
 
 if (failures.length) {
   console.error("Live News local-news check failed:");

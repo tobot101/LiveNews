@@ -205,6 +205,27 @@ const localSummarySamples = [
     sourceName: "KESQ",
     category: "Local",
   },
+  {
+    id: "local-new-york-transit",
+    title: "New York subway delays continue after signal issue",
+    summary: "New York subway delays continue after signal issue Local Transit Desk",
+    sourceName: "Local Transit Desk",
+    category: "Local",
+  },
+  {
+    id: "local-chicago-libraries",
+    title: "Chicago public libraries extend weekend hours under proposed budget",
+    summary: "Chicago public libraries extend weekend hours under proposed budget City Desk",
+    sourceName: "City Desk",
+    category: "Local",
+  },
+  {
+    id: "local-houston-firefighters",
+    title: "Houston firefighters respond to warehouse fire in East End",
+    summary: "Houston firefighters respond to warehouse fire in East End Local Source",
+    sourceName: "Local Source",
+    category: "Local",
+  },
 ];
 
 const sourceResearchSample = {

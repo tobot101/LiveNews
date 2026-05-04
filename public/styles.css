@@ -1525,6 +1525,41 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
   justify-self: start;
 }
 
+.local-page .feed-section-list {
+  gap: 14px;
+}
+
+.local-story-card {
+  min-height: auto;
+  grid-template-columns: 1fr;
+  gap: 9px;
+  padding: 16px 18px;
+  border-radius: 16px;
+}
+
+.local-story-card-top {
+  justify-content: flex-start;
+}
+
+.local-story-card h3 {
+  margin: 0;
+  max-width: 940px;
+  font-size: clamp(19px, 2.1vw, 25px);
+  line-height: 1.16;
+}
+
+.local-story-card p {
+  max-width: 880px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.local-story-card .story-meta {
+  margin-top: 2px;
+}
+
 .story-body-page {
   background:
     radial-gradient(circle at 20% 0%, rgba(2, 132, 199, 0.12), transparent 36%),

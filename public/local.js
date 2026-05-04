@@ -424,7 +424,7 @@ function renderLocalFeed() {
 
   if (!limited.length) {
     const empty = document.createElement("div");
-    empty.className = "feed-item";
+    empty.className = "story-card local-story-card empty-card";
     empty.textContent = "No local stories in the last 48 hours.";
     elements.feedList.appendChild(empty);
     return;
@@ -443,12 +443,19 @@ function renderLocalFeed() {
     const list = document.createElement("div");
     list.className = "feed-section-list";
     group.items.forEach((item) => {
-      const card = document.createElement("div");
-      card.className = "feed-item";
+      const card = document.createElement("article");
+      card.className = "story-card local-story-card";
       const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+      const dateBadge = getPublishedDateBadge(item);
       card.innerHTML = `
-        <div class="feed-title">${buildTitleLink(item)}</div>
-        <div class="local-summary">${escapeHtml(getDisplaySummary(item))}</div>
+        <div class="story-card-top local-story-card-top">
+          <div class="story-eyebrow">
+            <span>${escapeHtml(dateBadge)}</span>
+            <span>${escapeHtml(item.category || "Local")}</span>
+          </div>
+        </div>
+        <h3>${buildTitleLink(item, "story-card-title")}</h3>
+        <p>${escapeHtml(getDisplaySummary(item))}</p>
         ${buildLocalMeta(item, published)}
       `;
       list.appendChild(card);
@@ -509,16 +516,27 @@ function formatTime(value) {
   return date.toLocaleString();
 }
 
+function getPublishedDateBadge(item) {
+  const date = new Date(item?.publishedAt || "");
+  if (Number.isNaN(date.getTime())) return "Local";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function getDisplaySummary(item) {
   if (item.liveNewsSummary) return item.liveNewsSummary;
   if (item.summaryAgent?.version && item.summary) return item.summary;
   return "Read the original source for the full report.";
 }
 
-function buildTitleLink(item) {
+function buildTitleLink(item, className = "") {
   const title = escapeHtml(item.title || "Untitled story");
   if (!item.link) return title;
-  return `<a href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title}</a>`;
+  const classAttr = className ? ` class="${escapeHtml(className)}"` : "";
+  return `<a${classAttr} href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title}</a>`;
 }
 
 function buildOriginalSourceLink(item) {
