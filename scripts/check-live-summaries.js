@@ -352,6 +352,9 @@ expect(stylesCss.includes(".story-source-link"), "Article cards should style cra
 expect(serverJs.includes("applyLiveNewsSummariesToPayload"), "Server should apply summary agents across page sections so nearby cards can be checked for repetition.");
 expect(serverJs.includes("renderCrawlableHomepage"), "Homepage should render crawlable article cards before client hydration when possible.");
 expect(serverJs.includes("renderCrawlerSourceLink"), "Crawlable article cards should include original source links.");
+expect(serverJs.includes("topStoryOfDay") && serverJs.includes("TOP_STORY_DAY_HOURS"), "Server should expose a 24-hour top story of the day.");
+expect(serverJs.includes("topStoryOfWeek") && serverJs.includes("TOP_STORY_WEEK_HOURS"), "Server should expose a 7-day top story of the week.");
+expect(appJs.includes("Top Story of the Day") && appJs.includes("Top Story of the Week"), "Homepage should render split day/week spotlight labels.");
 expect(serverJs.includes("summaryHealth: currentPayload.summaryHealth"), "Health checks should expose summary supervisor diagnostics.");
 expect(serverJs.includes("hydrateSummaryResearchForItems"), "Server should run summary source research during refresh before public rendering.");
 expect(serverJs.includes("summaryResearch: summaryResearchStats"), "Health checks should expose summary research diagnostics.");

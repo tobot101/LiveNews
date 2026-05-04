@@ -68,6 +68,8 @@ const fallbackPath = path.join(__dirname, "data", "news.json");
 const placesPath = path.join(__dirname, "data", "us-places.json");
 
 const MAX_AGE_HOURS = Number(process.env.NEWS_MAX_AGE_HOURS || 48);
+const TOP_STORY_DAY_HOURS = Number(process.env.NEWS_TOP_STORY_DAY_HOURS || 24);
+const TOP_STORY_WEEK_HOURS = Number(process.env.NEWS_TOP_STORY_WEEK_HOURS || 24 * 7);
 const REFRESH_MINUTES = Number(process.env.NEWS_REFRESH_INTERVAL_MINUTES || 10);
 const TOP_STORIES_LIMIT = Number(process.env.NEWS_TOP_STORIES_LIMIT || 8);
 const FEED_LIMIT = Number(process.env.NEWS_FEED_LIMIT || 170);
@@ -337,6 +339,8 @@ const parser = new Parser({
 
 const cache = {
   items: [],
+  topStoryOfDay: null,
+  topStoryOfWeek: null,
   topStories: [],
   feed: [],
   lastUpdated: null,
@@ -424,19 +428,23 @@ function parseDate(value) {
   return date;
 }
 
-function withinMaxAge(date) {
+function withinHours(date, hours) {
   if (!date) return false;
   const ageMs = Date.now() - date.getTime();
-  return ageMs <= MAX_AGE_HOURS * 60 * 60 * 1000;
+  return ageMs <= Math.max(1, Number(hours || MAX_AGE_HOURS)) * 60 * 60 * 1000;
+}
+
+function withinMaxAge(date, maxAgeHours = MAX_AGE_HOURS) {
+  return withinHours(date, maxAgeHours);
 }
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function computeBaseScore(source, publishedAt) {
+function computeBaseScore(source, publishedAt, scoreAgeHours = MAX_AGE_HOURS) {
   const hoursOld = Math.max(0, (Date.now() - publishedAt.getTime()) / 3600000);
-  const freshness = Math.max(0, 1 - hoursOld / MAX_AGE_HOURS);
+  const freshness = Math.max(0, 1 - hoursOld / Math.max(1, Number(scoreAgeHours || MAX_AGE_HOURS)));
   const weight = Number(source.weight || 1);
   const weightScore = clamp((weight - 0.85) / 0.45, 0, 1);
   const recencyBoost =
@@ -1209,6 +1217,28 @@ function diversifyBySource(items, { maxPerSource = 0, limit } = {}) {
   return result;
 }
 
+function rankSpotlightStories(items) {
+  return [...(items || [])].sort(
+    (a, b) =>
+      (b.sourceCount || 1) - (a.sourceCount || 1) ||
+      (b.score || 0) - (a.score || 0) ||
+      new Date(b.publishedAt) - new Date(a.publishedAt)
+  );
+}
+
+function isStoryWithinHours(item, hours) {
+  return withinHours(parseDate(item?.publishedAt), hours);
+}
+
+function pickSpotlightStory(items, { maxAgeHours, exclude = [] } = {}) {
+  const blocked = new Set(exclude.filter(Boolean).map(getStoryIdentityKey));
+  return (
+    rankSpotlightStories(items)
+      .filter((item) => !maxAgeHours || isStoryWithinHours(item, maxAgeHours))
+      .find((item) => !blocked.has(getStoryIdentityKey(item))) || null
+  );
+}
+
 function needsSummaryResearch(item) {
   if (!item?.link) return false;
   if (item.summaryResearch?.status === "ready") return false;
@@ -1251,9 +1281,11 @@ async function hydrateSummaryResearchForItems(items) {
   });
 }
 
-function normalizeItem(source, item) {
+function normalizeItem(source, item, options = {}) {
+  const maxAgeHours = Number(options.maxAgeHours || MAX_AGE_HOURS);
+  const scoreAgeHours = Number(options.scoreAgeHours || maxAgeHours || MAX_AGE_HOURS);
   const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
-  if (!publishedAt || !withinMaxAge(publishedAt)) return null;
+  if (!publishedAt || !withinMaxAge(publishedAt, maxAgeHours)) return null;
   const link = item.link || item.guid;
   if (!link) return null;
   const title = item.title ? String(item.title).trim() : "";
@@ -1271,7 +1303,7 @@ function normalizeItem(source, item) {
     domain: getDomain(link),
     imageUrl: extractItemImageUrl(item),
     summary: buildSummary(item.contentSnippet || item.content || item.summary || ""),
-    baseScore: computeBaseScore(source, publishedAt),
+    baseScore: computeBaseScore(source, publishedAt, scoreAgeHours),
     titleTokens: tokenizeTitle(title),
   };
 }
@@ -1504,24 +1536,39 @@ async function fetchLocalNews(place) {
   return payload;
 }
 
-async function fetchSource(source) {
+function normalizeSourceItems(source, items, options = {}) {
+  return items.map((item) => normalizeItem(source, item, options)).filter(Boolean);
+}
+
+async function fetchSourceWindows(source) {
   const feed = await parser.parseURL(source.feedUrl);
   const items = Array.isArray(feed.items) ? feed.items : [];
-  return items.map((item) => normalizeItem(source, item)).filter(Boolean);
+  return {
+    recent: normalizeSourceItems(source, items, {
+      maxAgeHours: MAX_AGE_HOURS,
+      scoreAgeHours: MAX_AGE_HOURS,
+    }),
+    weekly: normalizeSourceItems(source, items, {
+      maxAgeHours: TOP_STORY_WEEK_HOURS,
+      scoreAgeHours: TOP_STORY_WEEK_HOURS,
+    }),
+  };
 }
 
 async function refreshNews() {
   resetImageQualityStats();
   const sources = loadSources();
   const collected = [];
+  const weeklyCollected = [];
   const errors = [];
 
   cache.configuredSources = sources.length;
 
   for (const source of sources) {
     try {
-      const items = await fetchSource(source);
-      collected.push(...items);
+      const { recent, weekly } = await fetchSourceWindows(source);
+      collected.push(...recent);
+      weeklyCollected.push(...weekly);
     } catch (error) {
       errors.push({
         source: source.name,
@@ -1533,6 +1580,8 @@ async function refreshNews() {
 
   const deduped = dedupeItems(collected);
   const clustered = buildClusters(deduped);
+  const weeklyDeduped = dedupeItems(weeklyCollected);
+  const weeklyClustered = buildClusters(weeklyDeduped);
 
   const ranked = [...clustered].sort(
     (a, b) =>
@@ -1548,6 +1597,12 @@ async function refreshNews() {
   );
 
   cache.items = clustered;
+  cache.topStoryOfDay =
+    pickSpotlightStory(ranked, { maxAgeHours: TOP_STORY_DAY_HOURS }) || ranked[0] || null;
+  cache.topStoryOfWeek = pickSpotlightStory(weeklyClustered, {
+    maxAgeHours: TOP_STORY_WEEK_HOURS,
+    exclude: [cache.topStoryOfDay],
+  });
   cache.topStories = diversifyBySource(ranked, { maxPerSource: 2, limit: TOP_STORIES_LIMIT });
   const topStoryKeys = new Set(cache.topStories.map(getStoryIdentityKey));
   const feedCandidates = recent.filter((item) => !topStoryKeys.has(getStoryIdentityKey(item)));
@@ -1555,8 +1610,18 @@ async function refreshNews() {
     maxPerSource: Math.max(12, Math.ceil(FEED_LIMIT / 6)),
     limit: FEED_LIMIT,
   });
-  await hydrateSummaryResearchForItems([...cache.topStories, ...cache.feed]);
-  await hydrateArticleImages([...cache.topStories, ...cache.feed]);
+  await hydrateSummaryResearchForItems([
+    cache.topStoryOfDay,
+    cache.topStoryOfWeek,
+    ...cache.topStories,
+    ...cache.feed,
+  ].filter(Boolean));
+  await hydrateArticleImages([
+    cache.topStoryOfDay,
+    cache.topStoryOfWeek,
+    ...cache.topStories,
+    ...cache.feed,
+  ].filter(Boolean));
   cache.lastUpdated = new Date().toISOString();
   cache.lastFetched = new Date().toISOString();
   cache.sourceErrors = errors;
@@ -1580,6 +1645,8 @@ function buildCurrentNewsPayload() {
         topStories: TOP_STORIES_LIMIT,
         feed: FEED_LIMIT,
       },
+      topStoryOfDay: (fallback.topStories || [])[0] || null,
+      topStoryOfWeek: (fallback.topStories || [])[1] || null,
       ...fallback,
     }));
   }
@@ -1592,6 +1659,8 @@ function buildCurrentNewsPayload() {
       topStories: TOP_STORIES_LIMIT,
       feed: FEED_LIMIT,
     },
+    topStoryOfDay: cache.topStoryOfDay || cache.topStories[0] || null,
+    topStoryOfWeek: cache.topStoryOfWeek || cache.topStories[1] || null,
     topStories: cache.topStories,
     feed: cache.feed,
     sourceErrors: cache.sourceErrors,
@@ -1784,19 +1853,50 @@ function renderCrawlerTitleLink(item, className = "") {
   return `<a class="${className}" href="${escapeHtml(href)}"${target}>${title}</a>`;
 }
 
-function renderCrawlableLeadCard(item) {
+function renderCrawlableLeadCard(item, { label = "Top Story", headingTag = "h1", variant = "day" } = {}) {
   if (!item) return "";
+  const Heading = headingTag === "h2" ? "h2" : "h1";
   return `
-    <article class="lead-card" data-article-id="${escapeHtml(item.id || "")}">
+    <article class="lead-card lead-card-${escapeHtml(variant)}" data-article-id="${escapeHtml(item.id || "")}">
       <div class="lead-copy">
         <div class="story-eyebrow">
+          <span>${escapeHtml(label)}</span>
           <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
         </div>
-        <h1>${renderCrawlerTitleLink(item, "lead-title")}</h1>
+        <${Heading}>${renderCrawlerTitleLink(item, "lead-title")}</${Heading}>
         <p>${escapeHtml(getCrawlerSummary(item))}</p>
         ${renderCrawlerMeta(item)}
       </div>
     </article>
+  `;
+}
+
+function getUniqueCrawlerStories(items) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = getStoryIdentityKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderCrawlableLeadSpotlights(items) {
+  const stories = getUniqueCrawlerStories(items);
+  if (!stories.length) return "";
+  const labels = ["Top Story of the Day", "Top Story of the Week"];
+  return `
+    <div class="lead-spotlights" data-count="${stories.length}">
+      ${stories
+        .map((item, index) =>
+          renderCrawlableLeadCard(item, {
+            label: labels[index] || "Top Story",
+            headingTag: index === 0 ? "h1" : "h2",
+            variant: index === 0 ? "day" : "week",
+          })
+        )
+        .join("")}
+    </div>
   `;
 }
 
@@ -1834,21 +1934,30 @@ function renderCrawlableFeedItem(item) {
 function renderCrawlableHomepage() {
   const html = readPublicHtml("index.html");
   const payload = buildCurrentNewsPayload();
-  const leadItem = (payload.topStories || [])[0] || null;
-  const topCards = (payload.topStories || []).slice(1, TOP_STORIES_LIMIT);
-  const topIds = new Set((payload.topStories || []).map((item) => item.id).filter(Boolean));
+  const spotlightStories = getUniqueCrawlerStories([
+    payload.topStoryOfDay || (payload.topStories || [])[0] || null,
+    payload.topStoryOfWeek || null,
+  ]);
+  const spotlightKeys = new Set(spotlightStories.map(getStoryIdentityKey));
+  const topCards = (payload.topStories || [])
+    .filter((item) => !spotlightKeys.has(getStoryIdentityKey(item)))
+    .slice(0, Math.max(0, TOP_STORIES_LIMIT - spotlightStories.length));
+  const topIds = new Set([
+    ...spotlightStories.map((item) => item.id).filter(Boolean),
+    ...(payload.topStories || []).map((item) => item.id).filter(Boolean),
+  ]);
   const feedCards = (payload.feed || [])
     .filter((item) => !topIds.has(item.id))
     .slice(0, 50);
 
   return html
     .replace(
-      '<section class="lead-news-band" id="leadStory" aria-label="Lead news story"></section>',
-      `<section class="lead-news-band" id="leadStory" aria-label="Lead news story">${renderCrawlableLeadCard(leadItem)}</section>`
+      '<section class="lead-news-band" id="leadStory" aria-label="Top story spotlights"></section>',
+      `<section class="lead-news-band" id="leadStory" aria-label="Top story spotlights">${renderCrawlableLeadSpotlights(spotlightStories)}</section>`
     )
     .replace(
       '<ol class="story-list" id="topStories"></ol>',
-      `<ol class="story-list" id="topStories">${topCards.map((item, index) => renderCrawlableStoryCard(item, index + 2)).join("")}</ol>`
+      `<ol class="story-list" id="topStories">${topCards.map((item, index) => renderCrawlableStoryCard(item, index + 1 + spotlightStories.length)).join("")}</ol>`
     )
     .replace(
       '<div class="feed" id="newsFeed"></div>',
@@ -2582,6 +2691,8 @@ app.get("/api/health", (req, res) => {
       topStories: TOP_STORIES_LIMIT,
       feed: FEED_LIMIT,
       maxAgeHours: MAX_AGE_HOURS,
+      topStoryOfDayHours: TOP_STORY_DAY_HOURS,
+      topStoryOfWeekHours: TOP_STORY_WEEK_HOURS,
     },
     agents: {
       mode: AGENT_MODE,

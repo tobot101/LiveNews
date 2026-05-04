@@ -668,10 +668,21 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
   color: var(--text);
 }
 
+.lead-spotlights {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.lead-spotlights[data-count="1"] {
+  grid-template-columns: 1fr;
+}
+
 .lead-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.18fr);
+  grid-template-columns: minmax(0, 1fr) minmax(116px, 0.28fr);
   gap: 18px;
   align-items: stretch;
   padding: 22px;
@@ -683,6 +694,13 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
     radial-gradient(circle at 8% 6%, rgba(95, 143, 192, 0.26), transparent 46%),
     linear-gradient(135deg, var(--lead-bg-start), var(--lead-bg-mid) 48%, var(--lead-bg-end));
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+}
+
+.lead-card-week {
+  background:
+    radial-gradient(circle at 88% 8%, rgba(186, 155, 106, 0.34), transparent 34%),
+    radial-gradient(circle at 6% 4%, rgba(95, 143, 192, 0.22), transparent 44%),
+    linear-gradient(135deg, #26364a, #182636 48%, #101b29);
 }
 
 .lead-card::before {
@@ -705,15 +723,21 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
   gap: 12px;
 }
 
-.lead-card h1 {
+.lead-card h1,
+.lead-card h2 {
   margin: 0;
   max-width: 920px;
   font-family: "Newsreader", serif;
-  font-size: clamp(30px, 4vw, 54px);
+  font-size: clamp(28px, 3vw, 46px);
   line-height: 0.98;
   letter-spacing: -1.2px;
   color: var(--lead-text);
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.18);
+}
+
+.lead-spotlights[data-count="1"] .lead-card h1,
+.lead-spotlights[data-count="1"] .lead-card h2 {
+  font-size: clamp(30px, 4vw, 54px);
 }
 
 .lead-card p {
@@ -2041,6 +2065,10 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
     flex-wrap: wrap;
   }
 
+  .lead-spotlights {
+    grid-template-columns: 1fr;
+  }
+
   .lead-card {
     grid-template-columns: 1fr;
   }
@@ -2103,7 +2131,8 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
     border-radius: 18px;
   }
 
-  .lead-card h1 {
+  .lead-card h1,
+  .lead-card h2 {
     font-size: 32px;
   }
 

@@ -38,6 +38,8 @@ const state = {
   localFeed: [],
   localLastFetched: 0,
   localLoading: false,
+  topStoryOfDay: null,
+  topStoryOfWeek: null,
   currentTopStories: [],
   currentFeed: [],
   approvedStories: [],
@@ -1237,8 +1239,13 @@ function refreshAllowed() {
 
 function hasUpdates(incoming) {
   const incomingIds = new Set(
-    [...(incoming.topStories || []), ...(incoming.feed || [])]
-      .map((item) => item.id)
+    [
+      incoming.topStoryOfDay,
+      incoming.topStoryOfWeek,
+      ...(incoming.topStories || []),
+      ...(incoming.feed || []),
+    ]
+      .map((item) => item?.id)
       .filter(Boolean)
   );
   const existingIds = new Set(currentIds());
@@ -1421,6 +1428,8 @@ function renderLocalFeed(items) {
 }
 
 function applyNewsData(data) {
+  state.topStoryOfDay = data.topStoryOfDay || null;
+  state.topStoryOfWeek = data.topStoryOfWeek || null;
   state.currentTopStories = data.topStories || [];
   state.currentFeed = data.feed || [];
   state.approvedStories = data.approvedStories || [];
@@ -1521,11 +1530,36 @@ function getCategoryScore(category) {
   return state.profile.scores[category] || 0;
 }
 
+function getStoryKey(item) {
+  if (!item) return "";
+  return item.id || item.link || item.title || "";
+}
+
+function getUniqueStories(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = getStoryKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function renderCurrent() {
   const filteredTop = buildCategoryTopStories();
-  const leadItem = filteredTop[0] || null;
-  const topCards = filteredTop.slice(1, 8);
-  const topIds = new Set(filteredTop.map((item) => item.id).filter(Boolean));
+  const isDefaultView = state.category === "Top" && !state.searchQuery;
+  const spotlightStories = isDefaultView
+    ? getUniqueStories([state.topStoryOfDay || filteredTop[0] || null, state.topStoryOfWeek || null])
+    : getUniqueStories([filteredTop[0] || null]);
+  const spotlightKeys = new Set(spotlightStories.map(getStoryKey).filter(Boolean));
+  const visibleStoryBudget = Math.max(0, 8 - spotlightStories.length);
+  const topCards = filteredTop
+    .filter((item) => !spotlightKeys.has(getStoryKey(item)))
+    .slice(0, visibleStoryBudget);
+  const topIds = new Set([
+    ...spotlightStories.map((item) => item.id).filter(Boolean),
+    ...topCards.map((item) => item.id).filter(Boolean),
+  ]);
   const feedPool = state.searchQuery ? getAllNewsItems() : state.currentFeed;
   let filteredFeed = applyActiveFilters(feedPool).filter((item) => !topIds.has(item.id));
   if (state.consent.personalization) {
@@ -1534,11 +1568,11 @@ function renderCurrent() {
   const feedTotal = filteredFeed.length;
   const feedLimit = Number(state.feedLimit) || 50;
   const limitedFeed = filteredFeed.slice(0, feedLimit);
-  renderLeadStory(leadItem);
-  renderTopStories(topCards, { rankOffset: leadItem ? 1 : 0 });
+  renderLeadStories(spotlightStories, { splitSpotlight: isDefaultView });
+  renderTopStories(topCards, { rankOffset: spotlightStories.length });
   renderCategoryLanes();
   renderFeed(limitedFeed);
-  const combined = [leadItem, ...topCards, ...limitedFeed].filter(Boolean);
+  const combined = [...spotlightStories, ...topCards, ...limitedFeed].filter(Boolean);
   const deduped = new Map();
   combined.forEach((item) => {
     if (item && item.id && !deduped.has(item.id)) {
@@ -1674,22 +1708,17 @@ function buildStoryActions(item) {
   return `<div class="story-actions">${liveAction}</div>`;
 }
 
-function renderLeadStory(item) {
-  if (!elements.leadStory) return;
-  if (!item) {
-    elements.leadStory.hidden = true;
-    elements.leadStory.innerHTML = "";
-    return;
-  }
-  elements.leadStory.hidden = false;
+function renderLeadStoryCard(item, { label = "Top Story", headingTag = "h1", variant = "day" } = {}) {
   const published = item.publishedAt ? formatTime(item.publishedAt) : "";
-  elements.leadStory.innerHTML = `
-    <article class="lead-card" data-article-id="${escapeHtml(item.id || "")}">
+  const Heading = headingTag === "h2" ? "h2" : "h1";
+  return `
+    <article class="lead-card lead-card-${escapeHtml(variant)}" data-article-id="${escapeHtml(item.id || "")}">
       <div class="lead-copy">
         <div class="story-eyebrow">
+          <span>${escapeHtml(label)}</span>
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
-        <h1>${buildStoryTitleLink(item, "lead-title")}</h1>
+        <${Heading}>${buildStoryTitleLink(item, "lead-title")}</${Heading}>
         <p>${escapeHtml(getDisplaySummary(item, 340))}</p>
         ${buildStoryMeta(item, published)}
         ${buildStoryActions(item)}
@@ -1697,9 +1726,36 @@ function renderLeadStory(item) {
       ${buildStoryVisual(item, "lead")}
     </article>
   `;
+}
+
+function renderLeadStories(items, options = {}) {
+  if (!elements.leadStory) return;
+  const stories = getUniqueStories(items || []);
+  if (!stories.length) {
+    elements.leadStory.hidden = true;
+    elements.leadStory.innerHTML = "";
+    return;
+  }
+  elements.leadStory.hidden = false;
+  const labels = options.splitSpotlight
+    ? ["Top Story of the Day", "Top Story of the Week"]
+    : ["Lead Story"];
+  elements.leadStory.innerHTML = `
+    <div class="lead-spotlights" data-count="${stories.length}">
+      ${stories
+        .map((item, index) =>
+          renderLeadStoryCard(item, {
+            label: labels[index] || "Top Story",
+            headingTag: index === 0 ? "h1" : "h2",
+            variant: index === 0 ? "day" : "week",
+          })
+        )
+        .join("")}
+    </div>
+  `;
   elements.leadStory
-    .querySelector("[data-article-id]")
-    ?.addEventListener("click", () => markSeenById(item.id));
+    .querySelectorAll("[data-article-id]")
+    .forEach((card) => card.addEventListener("click", () => markSeenById(card.dataset.articleId)));
 }
 
 function renderTopStories(items, options = {}) {
