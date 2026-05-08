@@ -2463,7 +2463,12 @@ function getProvidedAgentToken(req) {
 }
 
 function requireAgentAccess(req, res, next) {
-  const token = String(process.env.LIVE_NEWS_INTERNAL_TOKEN || "").trim();
+  const token = String(
+    process.env.LIVE_NEWS_INTERNAL_TOKEN ||
+    process.env.LIVE_NEWS_ADMIN_TOKEN ||
+    process.env.LIVE_NEWS_REVIEW_TOKEN ||
+    ""
+  ).trim();
   const provided = getProvidedAgentToken(req);
   if (token && provided === token) return next();
   if (!token && isLocalRequest(req)) return next();
@@ -2803,7 +2808,14 @@ app.get("/api/agents/status", (req, res) => {
     articlePagesCreated: approvedCount,
     approvedStories: approvedCount,
     internalAccess:
-      Boolean(String(process.env.LIVE_NEWS_INTERNAL_TOKEN || "").trim()) || isLocalRequest(req),
+      Boolean(
+        String(
+          process.env.LIVE_NEWS_INTERNAL_TOKEN ||
+          process.env.LIVE_NEWS_ADMIN_TOKEN ||
+          process.env.LIVE_NEWS_REVIEW_TOKEN ||
+          ""
+        ).trim()
+      ) || isLocalRequest(req),
     draftLimit: AGENT_DRAFT_LIMIT,
     safety: {
       humanReviewRequired: true,
