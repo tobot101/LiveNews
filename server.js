@@ -102,6 +102,7 @@ const SITEMAP_STABLE_PAGES = [
   { path: "/editorial-policy", changefreq: "monthly", priority: "0.5" },
   { path: "/sources", changefreq: "weekly", priority: "0.5" },
   { path: "/privacy", changefreq: "monthly", priority: "0.5" },
+  { path: "/data-deletion", changefreq: "monthly", priority: "0.4" },
   { path: "/contact", changefreq: "monthly", priority: "0.5" },
 ];
 const CATEGORY_ROUTE_CONFIG = {
@@ -177,6 +178,19 @@ const STATIC_INFO_PAGES = {
       "Live News does not serve ads and does not sell personal data.",
       "Functional settings may remember theme, refresh, feed size, city selection, and cookie choices on your device.",
       "Personalization and analytics are optional. They help improve browsing, but the site remains usable without them.",
+    ],
+  },
+  "data-deletion": {
+    title: "Live News Data Deletion",
+    description:
+      "Learn how to request deletion of Live News app or website data connected to Meta, Instagram, or Facebook access.",
+    heading: "Data Deletion",
+    kicker: "Account and app data",
+    body: [
+      "Live News uses source-linked coverage and does not sell personal data.",
+      "If you connect a Meta, Instagram, or Facebook account to a Live News social publishing tool, you can request deletion of data connected to that access.",
+      "Send a deletion request through the Live News contact page with the email connected to your Meta account and the words data deletion request.",
+      "After verification, Live News will remove stored access records or app-related account data that is no longer needed for safety, security, or legal reasons.",
     ],
   },
   "editorial-policy": {
@@ -2022,6 +2036,7 @@ function renderPageShell({ canonicalPath, title, description, kicker, h1, bodyHt
         <a href="/editorial-policy">Editorial Policy</a> •
         <a href="/sources">Sources</a> •
         <a href="/privacy">Privacy</a> •
+        <a href="/data-deletion">Data Deletion</a> •
         <a href="/contact">Contact</a>
       </div>
     </footer>
@@ -2481,7 +2496,7 @@ app.get("/sources", (req, res) => {
   res.type("html").send(renderSourcesPage());
 });
 
-app.get(["/about", "/editorial-policy", "/privacy", "/contact"], (req, res) => {
+app.get(["/about", "/editorial-policy", "/privacy", "/data-deletion", "/contact"], (req, res) => {
   const slug = req.path.replace(/^\//, "");
   const html = renderInfoPage(slug);
   if (!html) return res.status(404).send("Not found");
