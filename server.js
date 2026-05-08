@@ -31,6 +31,11 @@ const {
 } = require("./lib/article-agents/story-renderer");
 const { STORE_PATHS, readJson, saveAgentRun } = require("./lib/article-agents/store");
 const {
+  buildSocialPublisherRun,
+  readSocialDraftStore,
+  saveSocialPublisherRun,
+} = require("./lib/social-publisher");
+const {
   getArticleImageRejectionReason,
   getImageDimensionHints,
   isAuthenticArticleImageUrl,
@@ -1807,6 +1812,101 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload()) {
 </html>`;
 }
 
+function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
+  const liveRun = buildSocialPublisherRun(payload, {
+    origin: getCanonicalOrigin(),
+    limit: AGENT_DRAFT_LIMIT,
+  });
+  const stored = readSocialDraftStore();
+  const cards = liveRun.drafts
+    .map((draft) => {
+      const ready = draft.supervisor?.shareableNow;
+      const failures = (draft.supervisor?.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
+      const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
+      return `
+        <article class="social-card">
+          <div class="social-card-top">
+            <span class="pill">${escapeHtml(draft.placementLabel)}</span>
+            <span class="status ${ready ? "ready" : "blocked"}">${ready ? "Ready for review" : "Blocked until article page"}</span>
+          </div>
+          <h2>${escapeHtml(draft.title)}</h2>
+          <p>${escapeHtml(draft.summary || "No summary available yet.")}</p>
+          <div class="meta">${escapeHtml(draft.sourceAttribution)} • ${escapeHtml(draft.category)} • ${escapeHtml(formatCrawlerDateBadge(draft.publishedAt))}</div>
+          <div class="link-box">
+            <strong>Exact article link</strong>
+            <span>${escapeHtml(draft.linkState?.exactArticleUrl || draft.linkState?.futureArticleUrl || "Pending")}</span>
+            <small>${escapeHtml(draft.linkState?.reason || "")}</small>
+          </div>
+          <details>
+            <summary>Instagram draft</summary>
+            <pre>${escapeHtml(draft.platforms?.instagram?.caption || "")}</pre>
+          </details>
+          <details>
+            <summary>Facebook draft</summary>
+            <pre>${escapeHtml(draft.platforms?.facebook?.caption || "")}</pre>
+          </details>
+          ${failures ? `<div class="review-box fail"><strong>Failures</strong><ul>${failures}</ul></div>` : ""}
+          ${warnings ? `<div class="review-box warn"><strong>Warnings</strong><ul>${warnings}</ul></div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Live News Social Publisher</title>
+  <style>
+    body { margin: 0; background: #edf3f8; color: #101827; font-family: Georgia, "Times New Roman", serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 30px 18px; }
+    .panel, .social-card { background: #fff; border: 1px solid #c8d6e6; border-radius: 20px; padding: 18px; margin: 0 0 16px; box-shadow: 0 10px 30px rgba(44, 68, 98, .06); }
+    h1, h2, p { margin-top: 0; }
+    h2 { font-size: 1.18rem; line-height: 1.2; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .metric { background: #f6f8fb; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; }
+    .metric strong { display: block; font-size: 1.7rem; }
+    .social-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; align-items: start; }
+    .social-card-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pill, .status { border-radius: 999px; border: 1px solid #c8d6e6; padding: 6px 10px; font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; }
+    .status.ready { background: #dfeee7; color: #255b43; border-color: #bfd8ca; }
+    .status.blocked { background: #f3ead7; color: #735329; border-color: #dfc99d; }
+    .meta { color: #526984; font-size: .9rem; margin-bottom: 12px; }
+    .link-box { display: grid; gap: 5px; background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; margin: 12px 0; overflow-wrap: anywhere; }
+    .link-box small { color: #627893; }
+    details { border-top: 1px solid #e1e9f2; padding-top: 10px; margin-top: 10px; }
+    summary { cursor: pointer; font-weight: 700; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #101827; color: #edf6ff; border-radius: 14px; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+    .review-box { border-radius: 14px; padding: 12px; margin-top: 10px; }
+    .review-box.fail { background: #fff1f1; border: 1px solid #f2c2c2; }
+    .review-box.warn { background: #fff8e8; border: 1px solid #ead4a2; }
+    code { background: #e7eef6; border-radius: 8px; padding: 2px 6px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <p class="pill">Private social traffic engine</p>
+      <h1>Live News Social Publisher</h1>
+      <p>This dashboard is private, noindex, and review-only. It creates Instagram and Facebook draft packages from Live News stories, but it cannot auto-post or publish anything public.</p>
+      <div class="grid">
+        <div class="metric"><strong>${liveRun.run.draftCount}</strong> drafts now</div>
+        <div class="metric"><strong>${liveRun.run.readyForManualReview}</strong> ready with exact links</div>
+        <div class="metric"><strong>${liveRun.run.blockedUntilArticlePage}</strong> need article pages</div>
+        <div class="metric"><strong>${stored.drafts?.length || 0}</strong> saved last run</div>
+      </div>
+      <p>To save this run privately, call <code>POST /api/internal/social-drafts/generate?persist=true</code> with the internal token.</p>
+    </section>
+    <section class="social-grid">
+      ${cards || '<article class="social-card"><h2>No social drafts available.</h2></article>'}
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
 function readPublicHtml(fileName) {
   return fs.readFileSync(path.join(__dirname, "public", fileName), "utf8");
 }
@@ -2545,6 +2645,39 @@ app.get("/api/internal/summary-review", requireSummaryAdmin, (req, res) => {
   });
 });
 
+app.get("/admin/social", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  res.type("html").send(renderSocialPublisherPage());
+});
+
+app.get("/api/internal/social-drafts", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  res.json(readSocialDraftStore());
+});
+
+app.post("/api/internal/social-drafts/generate", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const limit = Math.min(
+    Math.max(Number(req.body?.limit || req.query.limit || AGENT_DRAFT_LIMIT), 1),
+    50
+  );
+  const persist = req.body?.persist === true || req.query.persist === "true";
+  const result = buildSocialPublisherRun(buildCurrentNewsPayload(), {
+    origin: getCanonicalOrigin(),
+    limit,
+  });
+  if (persist) {
+    saveSocialPublisherRun(result);
+  }
+  res.json({
+    ...result,
+    persisted: persist,
+  });
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/news", (req, res) => {
@@ -2661,6 +2794,7 @@ app.get("/api/local", async (req, res) => {
 
 app.get("/api/agents/status", (req, res) => {
   const approvedCount = listApprovedStories().length;
+  const socialDrafts = readSocialDraftStore();
   res.json({
     ok: true,
     mode: AGENT_MODE,
@@ -2676,6 +2810,14 @@ app.get("/api/agents/status", (req, res) => {
       sourceAttributionRequired: true,
       originalSourceLinksRequired: true,
       publisherWordingCopyingAllowed: false,
+    },
+    socialPublisher: {
+      mode: "private_review_only",
+      autoPost: false,
+      publicVisible: false,
+      savedDrafts: socialDrafts.drafts?.length || 0,
+      lastGeneratedAt: socialDrafts.updatedAt || null,
+      requiresHumanApproval: true,
     },
   });
 });
