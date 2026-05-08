@@ -102,6 +102,7 @@ const SITEMAP_STABLE_PAGES = [
   { path: "/editorial-policy", changefreq: "monthly", priority: "0.5" },
   { path: "/sources", changefreq: "weekly", priority: "0.5" },
   { path: "/privacy", changefreq: "monthly", priority: "0.5" },
+  { path: "/terms", changefreq: "monthly", priority: "0.4" },
   { path: "/data-deletion", changefreq: "monthly", priority: "0.4" },
   { path: "/contact", changefreq: "monthly", priority: "0.5" },
 ];
@@ -178,6 +179,19 @@ const STATIC_INFO_PAGES = {
       "Live News does not serve ads and does not sell personal data.",
       "Functional settings may remember theme, refresh, feed size, city selection, and cookie choices on your device.",
       "Personalization and analytics are optional. They help improve browsing, but the site remains usable without them.",
+    ],
+  },
+  terms: {
+    title: "Live News Terms",
+    description:
+      "Read the Live News terms for using source-linked coverage, browsing summaries, and following original publisher links.",
+    heading: "Terms",
+    kicker: "Use of Live News",
+    body: [
+      "Live News organizes source-linked coverage for readable browsing and does not replace the original publisher's reporting.",
+      "Story summaries, categories, local previews, and social publishing tools are provided to help readers discover coverage and follow links back to the original source.",
+      "Users should not misuse Live News to copy publisher work, remove attribution, scrape the service aggressively, or present summaries as full original reporting.",
+      "Live News may update features, feeds, summaries, local coverage, social tools, and policies as the service improves.",
     ],
   },
   "data-deletion": {
@@ -2502,13 +2516,14 @@ app.get(["/data-deletion/", "/data-deletion.html"], (req, res) => {
   return res.type("html").send(html);
 });
 
-app.get("/privacy.html", (req, res) => {
-  const html = renderInfoPage("privacy");
+app.get(["/privacy.html", "/terms.html"], (req, res) => {
+  const slug = req.path.includes("terms") ? "terms" : "privacy";
+  const html = renderInfoPage(slug);
   if (!html) return res.status(404).send("Not found");
   return res.type("html").send(html);
 });
 
-app.get(["/about", "/editorial-policy", "/privacy", "/data-deletion", "/contact"], (req, res) => {
+app.get(["/about", "/editorial-policy", "/privacy", "/terms", "/data-deletion", "/contact"], (req, res) => {
   const slug = req.path.replace(/^\//, "");
   const html = renderInfoPage(slug);
   if (!html) return res.status(404).send("Not found");
