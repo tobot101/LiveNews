@@ -2502,6 +2502,12 @@ app.get(["/data-deletion/", "/data-deletion.html"], (req, res) => {
   return res.type("html").send(html);
 });
 
+app.get("/privacy.html", (req, res) => {
+  const html = renderInfoPage("privacy");
+  if (!html) return res.status(404).send("Not found");
+  return res.type("html").send(html);
+});
+
 app.get(["/about", "/editorial-policy", "/privacy", "/data-deletion", "/contact"], (req, res) => {
   const slug = req.path.replace(/^\//, "");
   const html = renderInfoPage(slug);
