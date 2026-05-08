@@ -2496,7 +2496,7 @@ app.get("/sources", (req, res) => {
   res.type("html").send(renderSourcesPage());
 });
 
-app.get("/data-deletion/", (req, res) => {
+app.get(["/data-deletion/", "/data-deletion.html"], (req, res) => {
   const html = renderInfoPage("data-deletion");
   if (!html) return res.status(404).send("Not found");
   return res.type("html").send(html);
