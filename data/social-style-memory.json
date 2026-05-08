@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "live-news-social-style-memory-v1",
+  "mode": "aggregate_safe_learning_only",
+  "updatedAt": "2026-05-08T00:00:00.000Z",
+  "autoPostAllowed": false,
+  "protectedRules": [
+    "Never publish without a human-approved exact Live News article URL.",
+    "Never copy publisher wording, random comments, or private user information.",
+    "Never add facts that are missing from Live News story data, source metadata, or approved source research.",
+    "Never optimize for anger, panic, jealousy, or cheap engagement."
+  ],
+  "approvedLearningSignals": [
+    "reach",
+    "views",
+    "likes",
+    "comments",
+    "shares",
+    "saves",
+    "link_clicks",
+    "profile_visits",
+    "follows",
+    "hides",
+    "reports",
+    "posting_time",
+    "category",
+    "caption_shape",
+    "media_shape"
+  ],
+  "blockedLearningSignals": [
+    "private messages",
+    "personal profiles",
+    "individual user identities",
+    "private contact details",
+    "copied public comments"
+  ],
+  "captionShapeMemory": [
+    {
+      "id": "title_first",
+      "useWhen": "The headline is clear, factual, and strong enough to carry the post.",
+      "avoidWhen": "The title is long, vague, or needs context before it makes sense."
+    },
+    {
+      "id": "context_first",
+      "useWhen": "The summary contains the most useful human detail.",
+      "avoidWhen": "The summary only repeats the title or lacks safe detail."
+    },
+    {
+      "id": "source_first",
+      "useWhen": "Trust and attribution are the main reason to click.",
+      "avoidWhen": "The source line would make the caption feel stiff or robotic."
+    }
+  ],
+  "recentCaptionSignatures": [],
+  "performanceLessons": [],
+  "editorLessons": [
+    "Live News social posts must send people to exact article pages, not only the homepage.",
+    "The system should learn from repeated aggregate patterns across posts, not one loud reaction.",
+    "Human approval remains part of the machine until quality is proven over time."
+  ]
+}

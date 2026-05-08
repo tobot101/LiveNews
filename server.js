@@ -1823,6 +1823,18 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
       const ready = draft.supervisor?.shareableNow;
       const failures = (draft.supervisor?.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
       const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
+      const patterns = (draft.audiencePlan?.matchedPatterns || [])
+        .map((pattern) => `<span>${escapeHtml(pattern.label)}</span>`)
+        .join("");
+      const teacherChecks = (draft.teacherReport?.checks || [])
+        .map((check) => `<li class="${check.passed ? "pass" : "needs"}">${escapeHtml(check.name)}: ${escapeHtml(check.passed ? "passed" : "needs attention")}</li>`)
+        .join("");
+      const instagramVariants = (draft.platforms?.instagram?.variants || [])
+        .map((variant) => `<li><strong>${escapeHtml(variant.shape || variant.id)}</strong><pre>${escapeHtml(variant.text || "")}</pre></li>`)
+        .join("");
+      const facebookVariants = (draft.platforms?.facebook?.variants || [])
+        .map((variant) => `<li><strong>${escapeHtml(variant.shape || variant.id)}</strong><pre>${escapeHtml(variant.text || "")}</pre></li>`)
+        .join("");
       return `
         <article class="social-card">
           <div class="social-card-top">
@@ -1832,18 +1844,35 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
           <h2>${escapeHtml(draft.title)}</h2>
           <p>${escapeHtml(draft.summary || "No summary available yet.")}</p>
           <div class="meta">${escapeHtml(draft.sourceAttribution)} • ${escapeHtml(draft.category)} • ${escapeHtml(formatCrawlerDateBadge(draft.publishedAt))}</div>
+          <div class="audience-box">
+            <strong>Audience intelligence</strong>
+            <span>${escapeHtml(draft.audiencePlan?.postShape || "Social draft")} • ${escapeHtml(draft.audiencePlan?.emotionalRegister || "source-first")}</span>
+            <small>Primary angle: ${escapeHtml(draft.audiencePlan?.primaryHumanAngle || "reader clarity")}</small>
+            ${patterns ? `<div class="pattern-row">${patterns}</div>` : ""}
+          </div>
           <div class="link-box">
             <strong>Exact article link</strong>
             <span>${escapeHtml(draft.linkState?.exactArticleUrl || draft.linkState?.futureArticleUrl || "Pending")}</span>
             <small>${escapeHtml(draft.linkState?.reason || "")}</small>
           </div>
           <details>
-            <summary>Instagram draft</summary>
+            <summary>Instagram primary draft</summary>
             <pre>${escapeHtml(draft.platforms?.instagram?.caption || "")}</pre>
           </details>
           <details>
-            <summary>Facebook draft</summary>
+            <summary>Facebook primary draft</summary>
             <pre>${escapeHtml(draft.platforms?.facebook?.caption || "")}</pre>
+          </details>
+          <details>
+            <summary>Caption variants</summary>
+            <ul class="variant-list">
+              ${instagramVariants ? `<li><strong>Instagram options</strong><ul>${instagramVariants}</ul></li>` : ""}
+              ${facebookVariants ? `<li><strong>Facebook options</strong><ul>${facebookVariants}</ul></li>` : ""}
+            </ul>
+          </details>
+          <details>
+            <summary>Teacher checks</summary>
+            <ul class="teacher-list">${teacherChecks}</ul>
           </details>
           ${failures ? `<div class="review-box fail"><strong>Failures</strong><ul>${failures}</ul></div>` : ""}
           ${warnings ? `<div class="review-box warn"><strong>Warnings</strong><ul>${warnings}</ul></div>` : ""}
@@ -1874,6 +1903,10 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
     .status.ready { background: #dfeee7; color: #255b43; border-color: #bfd8ca; }
     .status.blocked { background: #f3ead7; color: #735329; border-color: #dfc99d; }
     .meta { color: #526984; font-size: .9rem; margin-bottom: 12px; }
+    .audience-box { display: grid; gap: 5px; background: #f9f4e8; border: 1px solid #e4d2a9; border-radius: 14px; padding: 12px; margin: 12px 0; }
+    .audience-box small { color: #6c5a33; }
+    .pattern-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pattern-row span { background: #fffaf0; border: 1px solid #e6d8b8; color: #5f4c24; border-radius: 999px; padding: 4px 8px; font-size: .78rem; }
     .link-box { display: grid; gap: 5px; background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; margin: 12px 0; overflow-wrap: anywhere; }
     .link-box small { color: #627893; }
     details { border-top: 1px solid #e1e9f2; padding-top: 10px; margin-top: 10px; }
@@ -1882,6 +1915,9 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
     .review-box { border-radius: 14px; padding: 12px; margin-top: 10px; }
     .review-box.fail { background: #fff1f1; border: 1px solid #f2c2c2; }
     .review-box.warn { background: #fff8e8; border: 1px solid #ead4a2; }
+    .teacher-list, .variant-list, .variant-list ul { padding-left: 18px; }
+    .teacher-list .pass { color: #285d43; }
+    .teacher-list .needs { color: #8a4d19; }
     code { background: #e7eef6; border-radius: 8px; padding: 2px 6px; }
   </style>
 </head>
