@@ -2496,6 +2496,12 @@ app.get("/sources", (req, res) => {
   res.type("html").send(renderSourcesPage());
 });
 
+app.get("/data-deletion/", (req, res) => {
+  const html = renderInfoPage("data-deletion");
+  if (!html) return res.status(404).send("Not found");
+  return res.type("html").send(html);
+});
+
 app.get(["/about", "/editorial-policy", "/privacy", "/data-deletion", "/contact"], (req, res) => {
   const slug = req.path.replace(/^\//, "");
   const html = renderInfoPage(slug);
