@@ -1849,7 +1849,10 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
       const ready = draft.supervisor?.shareableNow;
       const facebookPlan = buildFacebookPublishPlan(draft);
       const instagramPlan = buildInstagramPublishPlan(draft);
-      const metaBlockedReasons = [...new Set([...(facebookPlan.failures || []), ...(instagramPlan.failures || [])])]
+      const facebookBlockedReasons = [...new Set(facebookPlan.failures || [])]
+        .map((failure) => `<li>${escapeHtml(failure)}</li>`)
+        .join("");
+      const instagramBlockedReasons = [...new Set(instagramPlan.failures || [])]
         .map((failure) => `<li>${escapeHtml(failure)}</li>`)
         .join("");
       const facebookDisabled = !facebookPlan.ready;
@@ -1910,17 +1913,18 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           </details>
           <div class="meta-api-box">
             <strong>Meta posting options</strong>
-            <small>${metaReadiness.postingEnabled ? "Manual API posting is enabled. Review the caption before posting." : "Locked until Meta variables, App Review, and posting switch are ready."}</small>
-            ${metaBlockedReasons ? `<ul>${metaBlockedReasons}</ul>` : ""}
+            <small>Facebook: ${metaReadiness.platforms?.facebook?.status || "not checked"} • Instagram: ${metaReadiness.platforms?.instagram?.status || "not checked"}. Human review is still required before any post.</small>
             <div class="platform-actions">
               <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/facebook") : "/admin/meta/publish/facebook")}">
                 <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
                 <button type="submit" ${facebookDisabled ? "disabled" : ""}>Post to Facebook</button>
+                ${facebookBlockedReasons ? `<ul>${facebookBlockedReasons}</ul>` : ""}
               </form>
               <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/instagram") : "/admin/meta/publish/instagram")}">
                 <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
                 <input name="imageUrl" value="${escapeHtml(imageUrl)}" placeholder="Public Instagram image URL" />
                 <button type="submit" ${instagramDisabled ? "disabled" : ""}>Post to Instagram</button>
+                ${instagramBlockedReasons ? `<ul>${instagramBlockedReasons}</ul>` : ""}
               </form>
             </div>
           </div>
@@ -2409,6 +2413,16 @@ function renderMetaReadinessPage(req) {
         </li>`
     )
     .join("");
+  const platformRows = Object.entries(readiness.platforms || {})
+    .map(([platform, state]) => {
+      const missing = (state.missing || []).length ? state.missing.join(", ") : "none";
+      return `
+        <li>
+          <strong>${escapeHtml(platform)} • ${escapeHtml(state.status || "not checked")}</strong>
+          <span>Posting: ${state.postingEnabled ? "enabled for private manual testing" : "locked"} • Missing: ${escapeHtml(missing)}</span>
+        </li>`;
+    })
+    .join("");
   const posts = (postStore.posts || [])
     .slice(0, 12)
     .map(
@@ -2454,6 +2468,7 @@ function renderMetaReadinessPage(req) {
       <p><strong>Manual API posting:</strong> ${readiness.postingEnabled ? "enabled for private testing" : "locked"}</p>
       <p><strong>Automatic posting:</strong> off. A human must still choose Facebook or Instagram from the private Social Publisher.</p>
       <p><strong>Exact link rule:</strong> every social post must point to a public Live News <code>/stories/...</code> page, not the homepage.</p>
+      <ul>${platformRows}</ul>
     </section>
     <section class="panel">
       <h2>Required private setup</h2>
@@ -3710,6 +3725,7 @@ app.get("/api/agents/status", (req, res) => {
       postingEnabled: metaReadiness.postingEnabled,
       autoPostAllowed: false,
       missingCount: metaReadiness.missing.length,
+      platforms: metaReadiness.platforms,
       recordedMetaPosts: metaPostStore.posts?.length || 0,
     },
   });

@@ -12,6 +12,9 @@ if (empty.autoPostAllowed !== false || empty.publicVisible !== false) {
 if (!empty.missing.includes("META_PAGE_ACCESS_TOKEN")) {
   failures.push("Meta readiness should require a private Page access token for later API testing.");
 }
+if (empty.platforms.facebook.readyForApiTesting || empty.platforms.instagram.readyForApiTesting) {
+  failures.push("Meta readiness should keep each platform locked without private configuration.");
+}
 
 const configured = buildMetaReadiness({
   META_APP_ID: "123",
@@ -24,6 +27,26 @@ const configured = buildMetaReadiness({
 
 if (!configured.readyForApiTesting || !configured.postingEnabled) {
   failures.push("Meta readiness should recognize a fully configured private API test setup.");
+}
+if (!configured.platforms.facebook.postingEnabled || !configured.platforms.instagram.postingEnabled) {
+  failures.push("Meta readiness should recognize both platforms when fully configured.");
+}
+
+const facebookOnly = buildMetaReadiness({
+  META_APP_ID: "123",
+  META_PAGE_ID: "456",
+  META_PAGE_ACCESS_TOKEN: "secret-token-value",
+  META_APP_REVIEW_APPROVED: "true",
+  LIVE_NEWS_META_POSTING_ENABLED: "true",
+});
+if (!facebookOnly.readyForApiTesting || !facebookOnly.postingEnabled) {
+  failures.push("Meta readiness should allow Facebook testing without blocking on Instagram setup.");
+}
+if (!facebookOnly.platforms.facebook.postingEnabled) {
+  failures.push("Facebook platform readiness should pass with Facebook variables.");
+}
+if (facebookOnly.platforms.instagram.postingEnabled) {
+  failures.push("Instagram platform readiness should stay locked until the Instagram business account is connected.");
 }
 
 const serialized = JSON.stringify(configured);

@@ -63,6 +63,21 @@ if (JSON.stringify(facebookPlan).includes(env.META_PAGE_ACCESS_TOKEN)) {
   failures.push("Facebook publish plan must not expose the private Page access token.");
 }
 
+const facebookOnlyPlan = buildFacebookPublishPlan(
+  draft,
+  {},
+  {
+    META_APP_ID: "123456",
+    META_PAGE_ID: "987654",
+    META_PAGE_ACCESS_TOKEN: "mock-private-page-token",
+    META_APP_REVIEW_APPROVED: "true",
+    LIVE_NEWS_META_POSTING_ENABLED: "true",
+  }
+);
+if (!facebookOnlyPlan.ready) {
+  failures.push("Facebook publish plan should not be blocked by a missing Instagram business account ID.");
+}
+
 const instagramPlan = buildInstagramPublishPlan(draft, {}, env);
 if (!instagramPlan.ready || !instagramPlan.mediaContainerEndpoint.includes("/112233/media")) {
   failures.push("Instagram publish plan should be ready with a media container endpoint when configured.");
