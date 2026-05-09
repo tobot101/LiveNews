@@ -4,11 +4,14 @@ const express = require("express");
 const crypto = require("crypto");
 const Parser = require("rss-parser");
 const {
+  approveDraft,
   enrichNewsPayloadWithApprovedStories,
   findApprovedStoryBySlug,
   getApprovedStorySummaries,
   listApprovedStories,
+  matchApprovedStoryForItem,
   readApprovedStore,
+  validateDraftForApproval,
 } = require("./lib/article-agents/approved-stories");
 const { runArticleAgents } = require("./lib/article-agents/pipeline");
 const {
@@ -30,6 +33,7 @@ const {
   renderStoryNotFoundPage,
 } = require("./lib/article-agents/story-renderer");
 const { STORE_PATHS, readJson, saveAgentRun } = require("./lib/article-agents/store");
+const { cleanText } = require("./lib/article-agents/text-utils");
 const {
   buildSocialPublisherRun,
   readSocialDraftStore,
@@ -67,6 +71,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: "256kb" }));
+app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 
 const sourcesPath = path.join(__dirname, "data", "sources.json");
 const fallbackPath = path.join(__dirname, "data", "news.json");
@@ -1943,6 +1948,179 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
 </html>`;
 }
 
+function readDraftReviewStore() {
+  return readJson(STORE_PATHS.drafts, {
+    schemaVersion: "live-news-drafts-store-v1",
+    mode: "review_only",
+    autoPublish: false,
+    updatedAt: null,
+    run: null,
+    drafts: [],
+  });
+}
+
+function getDraftSourceItem(draft) {
+  return {
+    id: draft.storyId,
+    storyId: draft.storyId,
+    slug: draft.slug,
+    link: draft.sourceBlock?.originalSourceUrl,
+    originalSourceUrl: draft.sourceBlock?.originalSourceUrl,
+    approvedStoryUrl: draft.canonicalLiveNewsUrl,
+  };
+}
+
+function getApprovedStoryForDraft(draft) {
+  return matchApprovedStoryForItem(getDraftSourceItem(draft), listApprovedStories());
+}
+
+function findSavedDraft(identifier) {
+  const target = String(identifier || "").trim();
+  if (!target) return null;
+  const store = readDraftReviewStore();
+  return (store.drafts || []).find(
+    (draft) =>
+      draft.storyId === target ||
+      draft.slug === target ||
+      draft.canonicalLiveNewsUrl === target ||
+      draft.headline === target
+  ) || null;
+}
+
+function buildAdminUrl(req, pathname, params = {}) {
+  const query = new URLSearchParams();
+  const token = getProvidedAgentToken(req);
+  if (token) query.set("token", token);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") query.set(key, value);
+  }
+  const text = query.toString();
+  return `${pathname}${text ? `?${text}` : ""}`;
+}
+
+function refreshSocialDraftsForApprovedStories(limit = AGENT_DRAFT_LIMIT) {
+  const socialRun = buildSocialPublisherRun(buildCurrentNewsPayload(), {
+    origin: getCanonicalOrigin(),
+    limit,
+  });
+  saveSocialPublisherRun(socialRun);
+  return socialRun;
+}
+
+function renderStoryApprovalPage(req) {
+  const store = readDraftReviewStore();
+  const drafts = store.drafts || [];
+  const approvedStories = listApprovedStories();
+  const notice = cleanText(req.query.approved || req.query.generated || req.query.error || "");
+  const noticeClass = req.query.error ? "fail" : "ok";
+  const rows = drafts
+    .map((draft) => {
+      const validation = validateDraftForApproval(draft);
+      const approvedStory = getApprovedStoryForDraft(draft);
+      const failures = (validation.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
+      const summary = Array.isArray(draft.summary) ? draft.summary.join(" ") : draft.summary;
+      const score = Number(draft.evaluation?.overall || 0);
+      const sourceUrl = draft.sourceBlock?.originalSourceUrl || "";
+      const publicUrl = approvedStory?.liveNewsUrl || draft.canonicalLiveNewsUrl || `/stories/${draft.slug}`;
+      const status = approvedStory
+        ? "Approved public story"
+        : validation.ok
+          ? "Ready for approval"
+          : "Needs cleanup before approval";
+      return `
+        <article class="approval-card">
+          <div class="approval-card-top">
+            <span class="pill">${escapeHtml(draft.category || "Top")}</span>
+            <span class="status ${approvedStory ? "approved" : validation.ok ? "ready" : "blocked"}">${escapeHtml(status)}</span>
+          </div>
+          <h2>${escapeHtml(draft.headline || "Untitled Live News draft")}</h2>
+          <p>${escapeHtml(summary || draft.dek || "No draft summary available yet.")}</p>
+          <div class="approval-meta">
+            <span>Score ${escapeHtml(score)}</span>
+            <span>${escapeHtml(draft.sourceAttribution || draft.primarySourceName || "Source pending")}</span>
+            <span>${escapeHtml(formatCrawlerDateBadge(draft.updatedAt || draft.publishedAt || draft.generatedAt))}</span>
+          </div>
+          <div class="link-box">
+            <strong>Exact Live News article URL</strong>
+            <span>${escapeHtml(getCanonicalUrl(publicUrl))}</span>
+            ${approvedStory ? `<a href="${escapeHtml(publicUrl)}" target="_blank" rel="noopener noreferrer">Open public story</a>` : `<small>URL stays private until approval creates the public story page.</small>`}
+          </div>
+          <div class="link-box">
+            <strong>Original source</strong>
+            ${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceUrl)}</a>` : "<span>Missing original source URL</span>"}
+          </div>
+          ${approvedStory ? "" : validation.ok ? `
+            <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/stories/approve"))}">
+              <input type="hidden" name="storyId" value="${escapeHtml(draft.storyId)}" />
+              <button class="approve-button" type="submit">Approve public story page</button>
+            </form>
+          ` : `<div class="review-box fail"><strong>Approval blockers</strong><ul>${failures}</ul></div>`}
+        </article>
+      `;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Live News Story Approval</title>
+  <style>
+    body { margin: 0; background: #edf3f8; color: #101827; font-family: Georgia, "Times New Roman", serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 30px 18px; }
+    .panel, .approval-card { background: #fff; border: 1px solid #c8d6e6; border-radius: 20px; padding: 18px; margin: 0 0 16px; box-shadow: 0 10px 30px rgba(44, 68, 98, .06); }
+    h1, h2, p { margin-top: 0; }
+    h2 { font-size: 1.24rem; line-height: 1.18; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; }
+    .metric { background: #f6f8fb; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; }
+    .metric strong { display: block; font-size: 1.7rem; }
+    .approval-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; align-items: start; }
+    .approval-card-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pill, .status { border-radius: 999px; border: 1px solid #c8d6e6; padding: 6px 10px; font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; }
+    .status.approved { background: #dfeee7; color: #255b43; border-color: #bfd8ca; }
+    .status.ready { background: #e6f4ff; color: #14547a; border-color: #bfd8ea; }
+    .status.blocked { background: #f3ead7; color: #735329; border-color: #dfc99d; }
+    .approval-meta { display: flex; flex-wrap: wrap; gap: 8px; color: #526984; font-size: .9rem; margin-bottom: 12px; }
+    .link-box { display: grid; gap: 5px; background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; margin: 12px 0; overflow-wrap: anywhere; }
+    .link-box small { color: #627893; }
+    .review-box { border-radius: 14px; padding: 12px; margin-top: 10px; }
+    .review-box.fail { background: #fff1f1; border: 1px solid #f2c2c2; }
+    .notice.ok { background: #e8f5ee; border: 1px solid #bad8c6; color: #24573d; }
+    .notice.fail { background: #fff1f1; border: 1px solid #f2c2c2; color: #782828; }
+    .notice { border-radius: 14px; padding: 12px; margin: 12px 0; }
+    button, .approve-button { border: 1px solid #9eb6d0; background: #0f4d75; color: #fff; border-radius: 999px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+    .secondary-button { background: #fff; color: #0f2437; }
+    code { background: #e7eef6; border-radius: 8px; padding: 2px 6px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <p class="pill">Private article approval</p>
+      <h1>Live News Story Approval</h1>
+      <p>This page is private, noindex, and review-only. It turns approved source-respectful drafts into exact public <code>/stories/...</code> pages, then refreshes social drafts so Instagram and Facebook packages can point to the article instead of the homepage.</p>
+      ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
+      <div class="grid">
+        <div class="metric"><strong>${drafts.length}</strong> saved drafts</div>
+        <div class="metric"><strong>${drafts.filter((draft) => validateDraftForApproval(draft).ok).length}</strong> ready</div>
+        <div class="metric"><strong>${approvedStories.length}</strong> public stories</div>
+        <div class="metric"><strong>${readSocialDraftStore().drafts?.length || 0}</strong> social drafts saved</div>
+      </div>
+      <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/stories/generate"))}">
+        <p><button type="submit">Generate current private story drafts</button></p>
+      </form>
+      <p>Next safe path: generate drafts, approve only those with source links and quality gates, then open <a href="${escapeHtml(buildAdminUrl(req, "/admin/social"))}">Social Publisher</a> to review exact-link social packages.</p>
+    </section>
+    <section class="approval-grid">
+      ${rows || '<article class="approval-card"><h2>No saved drafts yet.</h2><p>Generate current private story drafts to begin.</p></article>'}
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
 function readPublicHtml(fileName) {
   return fs.readFileSync(path.join(__dirname, "public", fileName), "utf8");
 }
@@ -2692,6 +2870,61 @@ app.get("/admin/social", requireAgentAccess, (req, res) => {
   res.type("html").send(renderSocialPublisherPage());
 });
 
+app.get("/admin/stories", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  res.type("html").send(renderStoryApprovalPage(req));
+});
+
+app.post("/admin/stories/generate", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const limit = Math.min(
+    Math.max(Number(req.body?.limit || req.query.limit || AGENT_DRAFT_LIMIT), 1),
+    50
+  );
+  const result = runArticleAgents(buildCurrentNewsPayload(), { limit });
+  saveAgentRun(result);
+  res.redirect(
+    303,
+    buildAdminUrl(req, "/admin/stories", {
+      generated: `Generated ${result.run.draftCount} private story drafts. ${result.run.passedQualityGates} passed publishing gates.`,
+    })
+  );
+});
+
+app.post("/admin/stories/approve", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const storyId = req.body?.storyId || req.query.storyId;
+  try {
+    const draft = findSavedDraft(storyId);
+    if (!draft) {
+      return res.redirect(
+        303,
+        buildAdminUrl(req, "/admin/stories", { error: "Draft was not found. Generate the current private draft queue first." })
+      );
+    }
+    const story = approveDraft(draft, {
+      approvedBy: "Live News editor",
+    });
+    const socialRun = refreshSocialDraftsForApprovedStories();
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/stories", {
+        approved: `Approved ${story.headline}. Social drafts refreshed: ${socialRun.run.readyForManualReview} ready with exact links.`,
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/stories", {
+        error: error.failures?.join(" ") || error.message || "Approval failed.",
+      })
+    );
+  }
+});
+
 app.get("/api/internal/social-drafts", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
@@ -2880,16 +3113,7 @@ app.get("/api/internal/story-packets", requireAgentAccess, (req, res) => {
 });
 
 app.get("/api/internal/drafts", requireAgentAccess, (req, res) => {
-  res.json(
-    readJson(STORE_PATHS.drafts, {
-      schemaVersion: "live-news-drafts-store-v1",
-      mode: "review_only",
-      autoPublish: false,
-      updatedAt: null,
-      run: null,
-      drafts: [],
-    })
-  );
+  res.json(readDraftReviewStore());
 });
 
 app.post("/api/internal/drafts/generate", requireAgentAccess, (req, res) => {
@@ -2906,6 +3130,67 @@ app.post("/api/internal/drafts/generate", requireAgentAccess, (req, res) => {
     ...result,
     persisted: persist,
   });
+});
+
+app.get("/api/internal/story-approval", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const store = readDraftReviewStore();
+  const drafts = (store.drafts || []).map((draft) => {
+    const validation = validateDraftForApproval(draft);
+    const approvedStory = getApprovedStoryForDraft(draft);
+    return {
+      storyId: draft.storyId,
+      slug: draft.slug,
+      headline: draft.headline,
+      sourceAttribution: draft.sourceAttribution,
+      originalSourceUrl: draft.sourceBlock?.originalSourceUrl || "",
+      evaluation: draft.evaluation || null,
+      approval: {
+        ready: validation.ok,
+        failures: validation.failures,
+        approved: Boolean(approvedStory),
+        liveNewsUrl: approvedStory?.liveNewsUrl || draft.canonicalLiveNewsUrl || `/stories/${draft.slug}`,
+      },
+    };
+  });
+  res.json({
+    schemaVersion: "live-news-story-approval-review-v1",
+    updatedAt: store.updatedAt || null,
+    mode: "private_review_only",
+    autoPublish: false,
+    drafts,
+    approvedStories: getApprovedStorySummaries(),
+  });
+});
+
+app.post("/api/internal/stories/approve", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const storyId = req.body?.storyId || req.query.storyId;
+  const draft = findSavedDraft(storyId);
+  if (!draft) {
+    return res.status(404).json({
+      error: "Draft was not found. Generate private story drafts first.",
+    });
+  }
+  try {
+    const story = approveDraft(draft, {
+      approvedBy: cleanText(req.body?.approvedBy || "Live News editor"),
+    });
+    const socialRun = refreshSocialDraftsForApprovedStories();
+    return res.json({
+      schemaVersion: "live-news-story-approval-result-v1",
+      approved: true,
+      story,
+      socialRun: socialRun.run,
+    });
+  } catch (error) {
+    return res.status(422).json({
+      error: "Draft is not ready for approval.",
+      failures: error.failures || [error.message],
+    });
+  }
 });
 
 app.get("/api/health", (req, res) => {
