@@ -48,6 +48,13 @@ const {
 } = require("./lib/social-performance-memory");
 const { buildMetaReadiness } = require("./lib/meta-readiness");
 const {
+  buildFacebookPublishPlan,
+  buildInstagramPublishPlan,
+  publishFacebookDraft,
+  publishInstagramDraft,
+  readMetaPostStore,
+} = require("./lib/meta-publisher");
+const {
   getArticleImageRejectionReason,
   getImageDimensionHints,
   isAuthenticArticleImageUrl,
@@ -1831,12 +1838,23 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     limit: AGENT_DRAFT_LIMIT,
   });
   const stored = readSocialDraftStore();
+  const metaReadiness = buildMetaReadiness();
   const storyApprovalUrl = req ? buildAdminUrl(req, "/admin/stories") : "/admin/stories";
   const performanceUrl = req ? buildAdminUrl(req, "/admin/performance") : "/admin/performance";
   const metaUrl = req ? buildAdminUrl(req, "/admin/meta") : "/admin/meta";
+  const notice = cleanText(req?.query?.posted || req?.query?.error || "");
+  const noticeClass = req?.query?.error ? "fail" : "ok";
   const cards = liveRun.drafts
     .map((draft) => {
       const ready = draft.supervisor?.shareableNow;
+      const facebookPlan = buildFacebookPublishPlan(draft);
+      const instagramPlan = buildInstagramPublishPlan(draft);
+      const metaBlockedReasons = [...new Set([...(facebookPlan.failures || []), ...(instagramPlan.failures || [])])]
+        .map((failure) => `<li>${escapeHtml(failure)}</li>`)
+        .join("");
+      const facebookDisabled = !facebookPlan.ready;
+      const instagramDisabled = !instagramPlan.ready;
+      const imageUrl = draft.platforms?.instagram?.mediaCard?.imageUrl || "";
       const failures = (draft.supervisor?.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
       const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
       const patterns = (draft.audiencePlan?.matchedPatterns || [])
@@ -1867,7 +1885,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
             ${patterns ? `<div class="pattern-row">${patterns}</div>` : ""}
           </div>
           <div class="link-box">
-            <strong>Exact article link</strong>
+            <strong>${draft.linkState?.shareableNow ? "Exact article link" : "Planned article link"}</strong>
             <span>${escapeHtml(draft.linkState?.exactArticleUrl || draft.linkState?.futureArticleUrl || "Pending")}</span>
             <small>${escapeHtml(draft.linkState?.reason || "")}</small>
           </div>
@@ -1890,6 +1908,22 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
             <summary>Teacher checks</summary>
             <ul class="teacher-list">${teacherChecks}</ul>
           </details>
+          <div class="meta-api-box">
+            <strong>Meta posting options</strong>
+            <small>${metaReadiness.postingEnabled ? "Manual API posting is enabled. Review the caption before posting." : "Locked until Meta variables, App Review, and posting switch are ready."}</small>
+            ${metaBlockedReasons ? `<ul>${metaBlockedReasons}</ul>` : ""}
+            <div class="platform-actions">
+              <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/facebook") : "/admin/meta/publish/facebook")}">
+                <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
+                <button type="submit" ${facebookDisabled ? "disabled" : ""}>Post to Facebook</button>
+              </form>
+              <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/instagram") : "/admin/meta/publish/instagram")}">
+                <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
+                <input name="imageUrl" value="${escapeHtml(imageUrl)}" placeholder="Public Instagram image URL" />
+                <button type="submit" ${instagramDisabled ? "disabled" : ""}>Post to Instagram</button>
+              </form>
+            </div>
+          </div>
           ${failures ? `<div class="review-box fail"><strong>Failures</strong><ul>${failures}</ul></div>` : ""}
           ${warnings ? `<div class="review-box warn"><strong>Warnings</strong><ul>${warnings}</ul></div>` : ""}
         </article>
@@ -1931,6 +1965,17 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .review-box { border-radius: 14px; padding: 12px; margin-top: 10px; }
     .review-box.fail { background: #fff1f1; border: 1px solid #f2c2c2; }
     .review-box.warn { background: #fff8e8; border: 1px solid #ead4a2; }
+    .notice { border-radius: 14px; padding: 12px; margin: 12px 0; }
+    .notice.ok { background: #e8f5ee; border: 1px solid #bad8c6; color: #24573d; }
+    .notice.fail { background: #fff1f1; border: 1px solid #f2c2c2; color: #782828; }
+    .meta-api-box { display: grid; gap: 8px; background: #eef5f7; border: 1px solid #c8dbe4; border-radius: 14px; padding: 12px; margin-top: 12px; }
+    .meta-api-box small { color: #526984; }
+    .meta-api-box ul { margin: 0; padding-left: 18px; color: #79512b; }
+    .platform-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+    .platform-actions form { display: grid; gap: 8px; align-content: end; }
+    .platform-actions input { border: 1px solid #c6d5e4; border-radius: 12px; padding: 10px 12px; }
+    button { border: 1px solid #8fb0c8; background: #275a72; color: #fff; border-radius: 999px; padding: 10px 12px; font-weight: 700; cursor: pointer; }
+    button:disabled { background: #d5e0e8; color: #687d8f; cursor: not-allowed; }
     .teacher-list, .variant-list, .variant-list ul { padding-left: 18px; }
     .teacher-list .pass { color: #285d43; }
     .teacher-list .needs { color: #8a4d19; }
@@ -1942,7 +1987,8 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     <section class="panel">
       <p class="pill">Private social traffic engine</p>
       <h1>Live News Social Publisher</h1>
-      <p>This dashboard is private, noindex, and review-only. It creates Instagram and Facebook draft packages from Live News stories, but it cannot auto-post or publish anything public.</p>
+      <p>This dashboard is private, noindex, and review-only. It creates Instagram and Facebook draft packages from Live News stories, then unlocks manual API posting only after Meta setup is ready.</p>
+      ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
       <p><a href="${escapeHtml(storyApprovalUrl)}">Story approval</a> • <a href="${escapeHtml(performanceUrl)}">Performance Memory</a> • <a href="${escapeHtml(metaUrl)}">Meta readiness</a></p>
       <div class="grid">
         <div class="metric"><strong>${liveRun.run.draftCount}</strong> drafts now</div>
@@ -2010,6 +2056,13 @@ function buildAdminUrl(req, pathname, params = {}) {
   return `${pathname}${text ? `?${text}` : ""}`;
 }
 
+function safeAdminMessage(value) {
+  return cleanText(value)
+    .replace(/EA[A-Za-z0-9_-]{20,}/g, "[redacted-token]")
+    .replace(/access_token=[^&\s]+/gi, "access_token=[redacted]")
+    .slice(0, 260);
+}
+
 function refreshSocialDraftsForApprovedStories(limit = AGENT_DRAFT_LIMIT) {
   const socialRun = buildSocialPublisherRun(buildCurrentNewsPayload(), {
     origin: getCanonicalOrigin(),
@@ -2017,6 +2070,18 @@ function refreshSocialDraftsForApprovedStories(limit = AGENT_DRAFT_LIMIT) {
   });
   saveSocialPublisherRun(socialRun);
   return socialRun;
+}
+
+function findSocialDraftForMetaPublish(identifier) {
+  const target = cleanText(identifier);
+  if (!target) return null;
+  const liveRun = buildSocialPublisherRun(buildCurrentNewsPayload(), {
+    origin: getCanonicalOrigin(),
+    limit: Math.max(AGENT_DRAFT_LIMIT, 30),
+  });
+  const stored = readSocialDraftStore();
+  const drafts = [...(liveRun.drafts || []), ...(stored.drafts || [])];
+  return drafts.find((draft) => draft.socialDraftId === target || draft.storyId === target) || null;
 }
 
 function renderStoryApprovalPage(req) {
@@ -2334,12 +2399,24 @@ function renderPerformanceMemoryPage(req) {
 
 function renderMetaReadinessPage(req) {
   const readiness = buildMetaReadiness();
+  const postStore = readMetaPostStore();
   const checks = readiness.envChecks
     .map(
       (check) => `
         <li>
           <strong>${escapeHtml(check.label)}</strong>
           <span>${escapeHtml(check.valuePreview)} • ${escapeHtml(check.purpose)}</span>
+        </li>`
+    )
+    .join("");
+  const posts = (postStore.posts || [])
+    .slice(0, 12)
+    .map(
+      (post) => `
+        <li>
+          <strong>${escapeHtml(post.platform)} • ${escapeHtml(post.status)}</strong>
+          <span>${escapeHtml(post.placementLabel || "Live News story")} • ${escapeHtml(post.postedAt || "")}</span>
+          <a href="${escapeHtml(post.exactArticleUrl)}">${escapeHtml(post.exactArticleUrl)}</a>
         </li>`
     )
     .join("");
@@ -2359,6 +2436,7 @@ function renderMetaReadinessPage(req) {
     .status.blocked { background: #f3ead7; color: #735329; border-color: #dfc99d; }
     ul { list-style: none; padding: 0; display: grid; gap: 10px; }
     li { display: grid; gap: 4px; background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; }
+    a { color: #0b5f8f; overflow-wrap: anywhere; }
     code { background: #e7eef6; border-radius: 8px; padding: 2px 6px; }
   </style>
 </head>
@@ -2372,6 +2450,12 @@ function renderMetaReadinessPage(req) {
       <p><a href="${escapeHtml(buildAdminUrl(req, "/admin/social"))}">Social Publisher</a> • <a href="${escapeHtml(buildAdminUrl(req, "/admin/performance"))}">Performance Memory</a></p>
     </section>
     <section class="panel">
+      <h2>Current posting mode</h2>
+      <p><strong>Manual API posting:</strong> ${readiness.postingEnabled ? "enabled for private testing" : "locked"}</p>
+      <p><strong>Automatic posting:</strong> off. A human must still choose Facebook or Instagram from the private Social Publisher.</p>
+      <p><strong>Exact link rule:</strong> every social post must point to a public Live News <code>/stories/...</code> page, not the homepage.</p>
+    </section>
+    <section class="panel">
       <h2>Required private setup</h2>
       <ul>${checks}</ul>
     </section>
@@ -2379,6 +2463,10 @@ function renderMetaReadinessPage(req) {
       <h2>Permissions needed later</h2>
       <p>${readiness.requiredPermissions.map((permission) => `<code>${escapeHtml(permission)}</code>`).join(" ")}</p>
       <p>Auto-posting remains disabled. The safe next phase is manual API testing after Meta app review and after approved article pages are consistently producing exact-link social drafts.</p>
+    </section>
+    <section class="panel">
+      <h2>Recent Meta posts</h2>
+      <ul>${posts || "<li><strong>No Meta API posts recorded yet.</strong><span>Once posting is enabled and tested, non-secret results will appear here.</span></li>"}</ul>
     </section>
   </main>
 </body>
@@ -3255,6 +3343,55 @@ app.get("/admin/meta", requireAgentAccess, (req, res) => {
   res.type("html").send(renderMetaReadinessPage(req));
 });
 
+app.post("/admin/meta/publish/facebook", requireAgentAccess, async (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const draft = findSocialDraftForMetaPublish(req.body?.socialDraftId || req.query.socialDraftId);
+  try {
+    const result = await publishFacebookDraft(draft, {
+      exactArticleUrl: req.body?.exactArticleUrl || req.query.exactArticleUrl,
+    });
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        posted: `Posted to Facebook with exact article link: ${result.record.exactArticleUrl}`,
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        error: safeAdminMessage(error.failures?.join(" ") || error.message || "Facebook posting failed."),
+      })
+    );
+  }
+});
+
+app.post("/admin/meta/publish/instagram", requireAgentAccess, async (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const draft = findSocialDraftForMetaPublish(req.body?.socialDraftId || req.query.socialDraftId);
+  try {
+    const result = await publishInstagramDraft(draft, {
+      exactArticleUrl: req.body?.exactArticleUrl || req.query.exactArticleUrl,
+      imageUrl: req.body?.imageUrl || req.query.imageUrl,
+    });
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        posted: `Posted to Instagram with exact article link in the caption: ${result.record.exactArticleUrl}`,
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        error: safeAdminMessage(error.failures?.join(" ") || error.message || "Instagram posting failed."),
+      })
+    );
+  }
+});
+
 app.get("/api/internal/social-drafts", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
@@ -3344,7 +3481,67 @@ app.post("/api/internal/social-performance/refresh-lessons", requireAgentAccess,
 app.get("/api/internal/meta/status", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
-  res.json(buildMetaReadiness());
+  res.json({
+    ...buildMetaReadiness(),
+    recentPosts: readMetaPostStore().posts?.slice(0, 10) || [],
+  });
+});
+
+app.get("/api/internal/meta/posts", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  res.json(readMetaPostStore());
+});
+
+app.post("/api/internal/meta/publish/facebook", requireAgentAccess, async (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const draft = findSocialDraftForMetaPublish(req.body?.socialDraftId);
+  try {
+    const result = await publishFacebookDraft(draft, {
+      exactArticleUrl: req.body?.exactArticleUrl,
+    });
+    return res.json({
+      posted: true,
+      platform: "facebook",
+      result: result.result,
+      record: result.record,
+    });
+  } catch (error) {
+    return res.status(422).json({
+      posted: false,
+      platform: "facebook",
+      error: "Facebook posting is not ready.",
+      failures: error.failures || [safeAdminMessage(error.message)],
+      plan: error.plan || (draft ? buildFacebookPublishPlan(draft, req.body || {}) : null),
+    });
+  }
+});
+
+app.post("/api/internal/meta/publish/instagram", requireAgentAccess, async (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const draft = findSocialDraftForMetaPublish(req.body?.socialDraftId);
+  try {
+    const result = await publishInstagramDraft(draft, {
+      exactArticleUrl: req.body?.exactArticleUrl,
+      imageUrl: req.body?.imageUrl,
+    });
+    return res.json({
+      posted: true,
+      platform: "instagram",
+      result: result.result,
+      record: result.record,
+    });
+  } catch (error) {
+    return res.status(422).json({
+      posted: false,
+      platform: "instagram",
+      error: "Instagram posting is not ready.",
+      failures: error.failures || [safeAdminMessage(error.message)],
+      plan: error.plan || (draft ? buildInstagramPublishPlan(draft, req.body || {}) : null),
+    });
+  }
 });
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -3467,6 +3664,7 @@ app.get("/api/agents/status", (req, res) => {
   const performanceStore = readSocialPerformanceMemory();
   const performanceSummary = summarizePerformanceMemory(performanceStore);
   const metaReadiness = buildMetaReadiness();
+  const metaPostStore = readMetaPostStore();
   res.json({
     ok: true,
     mode: AGENT_MODE,
@@ -3512,6 +3710,7 @@ app.get("/api/agents/status", (req, res) => {
       postingEnabled: metaReadiness.postingEnabled,
       autoPostAllowed: false,
       missingCount: metaReadiness.missing.length,
+      recordedMetaPosts: metaPostStore.posts?.length || 0,
     },
   });
 });
