@@ -40,6 +40,14 @@ const {
   saveSocialPublisherRun,
 } = require("./lib/social-publisher");
 const {
+  readSocialPerformanceMemory,
+  recordManualPostPerformance,
+  recordPublicInterestSignal,
+  refreshSavedPerformanceLessons,
+  summarizePerformanceMemory,
+} = require("./lib/social-performance-memory");
+const { buildMetaReadiness } = require("./lib/meta-readiness");
+const {
   getArticleImageRejectionReason,
   getImageDimensionHints,
   isAuthenticArticleImageUrl,
@@ -1817,12 +1825,15 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload()) {
 </html>`;
 }
 
-function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
+function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = null) {
   const liveRun = buildSocialPublisherRun(payload, {
     origin: getCanonicalOrigin(),
     limit: AGENT_DRAFT_LIMIT,
   });
   const stored = readSocialDraftStore();
+  const storyApprovalUrl = req ? buildAdminUrl(req, "/admin/stories") : "/admin/stories";
+  const performanceUrl = req ? buildAdminUrl(req, "/admin/performance") : "/admin/performance";
+  const metaUrl = req ? buildAdminUrl(req, "/admin/meta") : "/admin/meta";
   const cards = liveRun.drafts
     .map((draft) => {
       const ready = draft.supervisor?.shareableNow;
@@ -1932,6 +1943,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload()) {
       <p class="pill">Private social traffic engine</p>
       <h1>Live News Social Publisher</h1>
       <p>This dashboard is private, noindex, and review-only. It creates Instagram and Facebook draft packages from Live News stories, but it cannot auto-post or publish anything public.</p>
+      <p><a href="${escapeHtml(storyApprovalUrl)}">Story approval</a> • <a href="${escapeHtml(performanceUrl)}">Performance Memory</a> • <a href="${escapeHtml(metaUrl)}">Meta readiness</a></p>
       <div class="grid">
         <div class="metric"><strong>${liveRun.run.draftCount}</strong> drafts now</div>
         <div class="metric"><strong>${liveRun.run.readyForManualReview}</strong> ready with exact links</div>
@@ -2115,6 +2127,258 @@ function renderStoryApprovalPage(req) {
     </section>
     <section class="approval-grid">
       ${rows || '<article class="approval-card"><h2>No saved drafts yet.</h2><p>Generate current private story drafts to begin.</p></article>'}
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function metricInput(name, label) {
+  return `<label>${label}<input name="${escapeHtml(name)}" type="number" min="0" step="1" value="0" /></label>`;
+}
+
+function buildManualPerformanceInput(req) {
+  return {
+    platform: req.body?.platform,
+    exactArticleUrl: req.body?.exactArticleUrl,
+    manualPostUrl: req.body?.manualPostUrl,
+    storyId: req.body?.storyId,
+    socialDraftId: req.body?.socialDraftId,
+    postedAt: req.body?.postedAt,
+    category: req.body?.category,
+    captionShape: req.body?.captionShape,
+    mediaShape: req.body?.mediaShape,
+    postType: req.body?.postType,
+    metrics: {
+      reach: req.body?.reach,
+      views: req.body?.views,
+      likes: req.body?.likes,
+      comments: req.body?.comments,
+      shares: req.body?.shares,
+      saves: req.body?.saves,
+      linkClicks: req.body?.linkClicks,
+      profileVisits: req.body?.profileVisits,
+      follows: req.body?.follows,
+      hides: req.body?.hides,
+      reports: req.body?.reports,
+    },
+  };
+}
+
+function buildPublicSignalInput(req) {
+  return {
+    sourceType: req.body?.sourceType,
+    sourceName: req.body?.sourceName,
+    sourceUrl: req.body?.sourceUrl,
+    topic: req.body?.topic,
+    category: req.body?.category,
+    geo: req.body?.geo,
+    publicInterestScore: req.body?.publicInterestScore,
+    notes: req.body?.notes,
+    relatedQueries: String(req.body?.relatedQueries || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  };
+}
+
+function renderPerformanceMemoryPage(req) {
+  const store = readSocialPerformanceMemory();
+  const summary = summarizePerformanceMemory(store);
+  const notice = cleanText(req.query.saved || req.query.error || req.query.refreshed || "");
+  const noticeClass = req.query.error ? "fail" : "ok";
+  const lessons = (store.lessons || [])
+    .slice(0, 14)
+    .map(
+      (lesson) => `
+        <article class="memory-card">
+          <div class="memory-card-top">
+            <span class="pill">${escapeHtml(lesson.type || "lesson")}</span>
+            <span class="status ready">${escapeHtml(lesson.confidence || "early")}</span>
+          </div>
+          <h2>${escapeHtml(lesson.topic || lesson.category || "Live News lesson")}</h2>
+          <p>${escapeHtml(lesson.lesson || "")}</p>
+        </article>`
+    )
+    .join("");
+  const posts = (store.manualPosts || [])
+    .slice(0, 8)
+    .map(
+      (post) => `
+        <li>
+          <strong>${escapeHtml(post.platform)} • ${escapeHtml(post.category)}</strong>
+          <span>${escapeHtml(post.exactArticleUrl)}</span>
+          <small>${escapeHtml(post.metrics?.linkClicks || 0)} exact clicks • ${escapeHtml(post.metrics?.saves || 0)} saves • score ${escapeHtml(post.scores?.score || 0)}</small>
+        </li>`
+    )
+    .join("");
+  const signals = (store.publicInterestSignals || [])
+    .slice(0, 8)
+    .map(
+      (signal) => `
+        <li>
+          <strong>${escapeHtml(signal.topic)}</strong>
+          <span>${escapeHtml(signal.sourceName)} • ${escapeHtml(signal.sourceType)} • score ${escapeHtml(signal.publicInterestScore)}</span>
+          <a href="${escapeHtml(signal.sourceUrl)}" target="_blank" rel="noopener noreferrer">Public source</a>
+        </li>`
+    )
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Live News Performance Memory</title>
+  <style>
+    body { margin: 0; background: #edf3f8; color: #101827; font-family: Georgia, "Times New Roman", serif; }
+    main { max-width: 1180px; margin: 0 auto; padding: 30px 18px; }
+    .panel, .memory-card, form { background: #fff; border: 1px solid #c8d6e6; border-radius: 20px; padding: 18px; margin: 0 0 16px; box-shadow: 0 10px 30px rgba(44, 68, 98, .06); }
+    h1, h2, p { margin-top: 0; }
+    h2 { font-size: 1.18rem; line-height: 1.2; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; }
+    .metric { background: #f6f8fb; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; }
+    .metric strong { display: block; font-size: 1.7rem; }
+    .memory-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+    .memory-card-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pill, .status { border-radius: 999px; border: 1px solid #c8d6e6; padding: 6px 10px; font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; }
+    .status.ready { background: #dfeee7; color: #255b43; border-color: #bfd8ca; }
+    .notice.ok { background: #e8f5ee; border: 1px solid #bad8c6; color: #24573d; }
+    .notice.fail { background: #fff1f1; border: 1px solid #f2c2c2; color: #782828; }
+    .notice { border-radius: 14px; padding: 12px; margin: 12px 0; }
+    label { display: grid; gap: 5px; color: #526984; font-size: .9rem; }
+    input, select, textarea { border: 1px solid #bfd0e3; border-radius: 12px; padding: 10px; font: inherit; color: #101827; background: #f8fbff; }
+    textarea { min-height: 76px; }
+    button { border: 1px solid #9eb6d0; background: #0f4d75; color: #fff; border-radius: 999px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+    ul.memory-list { list-style: none; padding: 0; display: grid; gap: 10px; }
+    .memory-list li { display: grid; gap: 4px; background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; overflow-wrap: anywhere; }
+    .memory-list small { color: #627893; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <p class="pill">Private learning layer</p>
+      <h1>Live News Performance Memory</h1>
+      <p>This page records manual Instagram/Facebook results and trusted public-interest signals. It learns from aggregate patterns only: no usernames, private messages, comment text, tokens, cookies, or personal data.</p>
+      ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
+      <div class="grid">
+        <div class="metric"><strong>${summary.postCount}</strong> manual posts</div>
+        <div class="metric"><strong>${summary.publicSignalCount}</strong> public signals</div>
+        <div class="metric"><strong>${summary.totals.linkClicks}</strong> exact clicks</div>
+        <div class="metric"><strong>${summary.lessonCount}</strong> lessons</div>
+      </div>
+      <p><a href="${escapeHtml(buildAdminUrl(req, "/admin/social"))}">Social Publisher</a> • <a href="${escapeHtml(buildAdminUrl(req, "/admin/meta"))}">Meta readiness</a></p>
+    </section>
+
+    <section class="memory-grid">
+      <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/performance/manual-post"))}">
+        <h2>Record manual post result</h2>
+        <div class="grid">
+          <label>Platform<select name="platform"><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select></label>
+          <label>Exact article URL<input name="exactArticleUrl" placeholder="https://newsmorenow.com/stories/..." required /></label>
+          <label>Manual post URL<input name="manualPostUrl" placeholder="Optional public post URL" /></label>
+          <label>Posted at<input name="postedAt" type="datetime-local" /></label>
+          <label>Category<input name="category" placeholder="local, national, sports..." /></label>
+          <label>Caption shape<input name="captionShape" placeholder="title_first, context_first..." /></label>
+          <label>Media shape<input name="mediaShape" placeholder="square_card, reel, carousel..." /></label>
+          ${metricInput("reach", "Reach")}
+          ${metricInput("views", "Views")}
+          ${metricInput("likes", "Likes")}
+          ${metricInput("comments", "Comments count")}
+          ${metricInput("shares", "Shares")}
+          ${metricInput("saves", "Saves")}
+          ${metricInput("linkClicks", "Exact article clicks")}
+          ${metricInput("profileVisits", "Profile visits")}
+          ${metricInput("follows", "Follows")}
+          ${metricInput("hides", "Hides")}
+          ${metricInput("reports", "Reports")}
+        </div>
+        <p><button type="submit">Save aggregate result</button></p>
+      </form>
+
+      <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/performance/public-signal"))}">
+        <h2>Add public-interest signal</h2>
+        <div class="grid">
+          <label>Source type<select name="sourceType"><option value="google_trends">Google Trends</option><option value="trending_search">Trending search</option><option value="trusted_news_pattern">Trusted news pattern</option><option value="public_platform_trend">Public platform trend</option><option value="official_data">Official data</option><option value="manual_public_signal">Manual public signal</option></select></label>
+          <label>Topic<input name="topic" placeholder="Topic people are trying to understand" required /></label>
+          <label>Public source URL<input name="sourceUrl" placeholder="https://trends.google.com/..." required /></label>
+          <label>Source name<input name="sourceName" placeholder="Google Trends, official agency..." /></label>
+          <label>Category<input name="category" placeholder="top, local, business..." /></label>
+          <label>Geo<input name="geo" value="US" /></label>
+          <label>Public interest score<input name="publicInterestScore" type="number" min="0" max="100" value="50" /></label>
+        </div>
+        <label>Related queries<textarea name="relatedQueries" placeholder="Comma-separated public related queries"></textarea></label>
+        <label>Notes<textarea name="notes" placeholder="Why this public signal matters"></textarea></label>
+        <p><button type="submit">Save public signal</button></p>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Teacher lessons</h2>
+      <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/performance/refresh-lessons"))}">
+        <p><button type="submit">Refresh lessons into Social Style Memory</button></p>
+      </form>
+      <section class="memory-grid">${lessons || '<article class="memory-card"><h2>No lessons yet.</h2><p>Record a manual post or public signal to begin learning.</p></article>'}</section>
+    </section>
+
+    <section class="memory-grid">
+      <article class="panel"><h2>Recent manual posts</h2><ul class="memory-list">${posts || "<li>No manual post results yet.</li>"}</ul></article>
+      <article class="panel"><h2>Recent public signals</h2><ul class="memory-list">${signals || "<li>No public-interest signals yet.</li>"}</ul></article>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
+function renderMetaReadinessPage(req) {
+  const readiness = buildMetaReadiness();
+  const checks = readiness.envChecks
+    .map(
+      (check) => `
+        <li>
+          <strong>${escapeHtml(check.label)}</strong>
+          <span>${escapeHtml(check.valuePreview)} • ${escapeHtml(check.purpose)}</span>
+        </li>`
+    )
+    .join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Live News Meta Readiness</title>
+  <style>
+    body { margin: 0; background: #edf3f8; color: #101827; font-family: Georgia, "Times New Roman", serif; }
+    main { max-width: 980px; margin: 0 auto; padding: 30px 18px; }
+    .panel { background: #fff; border: 1px solid #c8d6e6; border-radius: 20px; padding: 18px; margin: 0 0 16px; box-shadow: 0 10px 30px rgba(44, 68, 98, .06); }
+    .pill, .status { display: inline-block; border-radius: 999px; border: 1px solid #c8d6e6; padding: 6px 10px; font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; }
+    .status.ready { background: #dfeee7; color: #255b43; border-color: #bfd8ca; }
+    .status.blocked { background: #f3ead7; color: #735329; border-color: #dfc99d; }
+    ul { list-style: none; padding: 0; display: grid; gap: 10px; }
+    li { display: grid; gap: 4px; background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; }
+    code { background: #e7eef6; border-radius: 8px; padding: 2px 6px; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <p class="pill">Private Meta setup</p>
+      <h1>Live News Meta Readiness</h1>
+      <p><span class="status ${readiness.readyForApiTesting ? "ready" : "blocked"}">${escapeHtml(readiness.status)}</span></p>
+      <p>This page checks whether Railway has the private variables needed for later Meta API testing. It never prints tokens and it does not enable auto-posting.</p>
+      <p><a href="${escapeHtml(buildAdminUrl(req, "/admin/social"))}">Social Publisher</a> • <a href="${escapeHtml(buildAdminUrl(req, "/admin/performance"))}">Performance Memory</a></p>
+    </section>
+    <section class="panel">
+      <h2>Required private setup</h2>
+      <ul>${checks}</ul>
+    </section>
+    <section class="panel">
+      <h2>Permissions needed later</h2>
+      <p>${readiness.requiredPermissions.map((permission) => `<code>${escapeHtml(permission)}</code>`).join(" ")}</p>
+      <p>Auto-posting remains disabled. The safe next phase is manual API testing after Meta app review and after approved article pages are consistently producing exact-link social drafts.</p>
     </section>
   </main>
 </body>
@@ -2867,7 +3131,7 @@ app.get("/api/internal/summary-review", requireSummaryAdmin, (req, res) => {
 app.get("/admin/social", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
-  res.type("html").send(renderSocialPublisherPage());
+  res.type("html").send(renderSocialPublisherPage(buildCurrentNewsPayload(), req));
 });
 
 app.get("/admin/stories", requireAgentAccess, (req, res) => {
@@ -2925,6 +3189,72 @@ app.post("/admin/stories/approve", requireAgentAccess, (req, res) => {
   }
 });
 
+app.get("/admin/performance", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  res.type("html").send(renderPerformanceMemoryPage(req));
+});
+
+app.post("/admin/performance/manual-post", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const result = recordManualPostPerformance(buildManualPerformanceInput(req));
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/performance", {
+        saved: `Saved ${result.record.platform} aggregate result with ${result.record.metrics.linkClicks} exact article clicks.`,
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/performance", {
+        error: error.failures?.join(" ") || error.message || "Could not save manual performance.",
+      })
+    );
+  }
+});
+
+app.post("/admin/performance/public-signal", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const result = recordPublicInterestSignal(buildPublicSignalInput(req));
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/performance", {
+        saved: `Saved public-interest signal for ${result.signal.topic}.`,
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/performance", {
+        error: error.failures?.join(" ") || error.message || "Could not save public signal.",
+      })
+    );
+  }
+});
+
+app.post("/admin/performance/refresh-lessons", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const store = refreshSavedPerformanceLessons();
+  res.redirect(
+    303,
+    buildAdminUrl(req, "/admin/performance", {
+      refreshed: `Refreshed ${store.lessons?.length || 0} Performance Memory lessons.`,
+    })
+  );
+});
+
+app.get("/admin/meta", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  res.type("html").send(renderMetaReadinessPage(req));
+});
+
 app.get("/api/internal/social-drafts", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
@@ -2950,6 +3280,71 @@ app.post("/api/internal/social-drafts/generate", requireAgentAccess, (req, res) 
     ...result,
     persisted: persist,
   });
+});
+
+app.get("/api/internal/social-performance", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const store = readSocialPerformanceMemory();
+  res.json({
+    ...store,
+    summary: summarizePerformanceMemory(store),
+  });
+});
+
+app.post("/api/internal/social-performance/manual-post", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const result = recordManualPostPerformance(req.body || {});
+    return res.json({
+      saved: true,
+      record: result.record,
+      warnings: result.warnings,
+      summary: summarizePerformanceMemory(result.store),
+    });
+  } catch (error) {
+    return res.status(422).json({
+      error: "Manual performance record was not safe to save.",
+      failures: error.failures || [error.message],
+    });
+  }
+});
+
+app.post("/api/internal/social-performance/public-signal", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const result = recordPublicInterestSignal(req.body || {});
+    return res.json({
+      saved: true,
+      signal: result.signal,
+      warnings: result.warnings,
+      summary: summarizePerformanceMemory(result.store),
+    });
+  } catch (error) {
+    return res.status(422).json({
+      error: "Public-interest signal was not safe to save.",
+      failures: error.failures || [error.message],
+    });
+  }
+});
+
+app.post("/api/internal/social-performance/refresh-lessons", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const store = refreshSavedPerformanceLessons();
+  res.json({
+    refreshed: true,
+    summary: summarizePerformanceMemory(store),
+    lessons: store.lessons || [],
+  });
+});
+
+app.get("/api/internal/meta/status", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  res.json(buildMetaReadiness());
 });
 
 app.use(express.static(path.join(__dirname, "public")));
@@ -3069,6 +3464,9 @@ app.get("/api/local", async (req, res) => {
 app.get("/api/agents/status", (req, res) => {
   const approvedCount = listApprovedStories().length;
   const socialDrafts = readSocialDraftStore();
+  const performanceStore = readSocialPerformanceMemory();
+  const performanceSummary = summarizePerformanceMemory(performanceStore);
+  const metaReadiness = buildMetaReadiness();
   res.json({
     ok: true,
     mode: AGENT_MODE,
@@ -3099,6 +3497,21 @@ app.get("/api/agents/status", (req, res) => {
       savedDrafts: socialDrafts.drafts?.length || 0,
       lastGeneratedAt: socialDrafts.updatedAt || null,
       requiresHumanApproval: true,
+    },
+    performanceMemory: {
+      mode: performanceStore.mode,
+      autoPost: false,
+      manualPosts: performanceSummary.postCount,
+      publicSignals: performanceSummary.publicSignalCount,
+      lessons: performanceSummary.lessonCount,
+      storesPersonalData: false,
+    },
+    metaReadiness: {
+      status: metaReadiness.status,
+      readyForApiTesting: metaReadiness.readyForApiTesting,
+      postingEnabled: metaReadiness.postingEnabled,
+      autoPostAllowed: false,
+      missingCount: metaReadiness.missing.length,
     },
   });
 });
