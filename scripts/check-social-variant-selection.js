@@ -167,6 +167,67 @@ if (!blockedInstagramHtml.includes("Instagram image or generated card is not rea
   fail("Dashboard should show Instagram image/card readiness blocking warnings.");
 }
 
+const pendingStoryDraft = JSON.parse(JSON.stringify(draft));
+pendingStoryDraft.linkState.exactArticleUrl = "";
+pendingStoryDraft.linkState.shareableNow = false;
+pendingStoryDraft.platforms.facebook.variants = pendingStoryDraft.platforms.facebook.variants.map((variant) => ({
+  ...variant,
+  exactArticleUrl: "",
+  publishable: false,
+  teacherChecks: [
+    ...(variant.teacherChecks || []),
+    { id: "exact_story_link", passed: false, message: "exact_story_link needs attention" },
+  ],
+}));
+const pendingStoryHtml = renderSocialVariantReviewHtml({
+  draft: pendingStoryDraft,
+  platform: "facebook",
+});
+if (!pendingStoryHtml.includes("Select this Facebook variant")) {
+  fail("Pending-story drafts should still let the editor select a Facebook variant.");
+}
+if (/Select this Facebook variant<\/button>/.test(pendingStoryHtml) === false) {
+  fail("Pending-story Facebook selection button should render as an enabled submit button.");
+}
+if (/disabled/i.test(pendingStoryHtml.match(/<form[\s\S]*?Select this Facebook variant<\/button>/)?.[0] || "")) {
+  fail("Pending-story variant selection button must not be disabled.");
+}
+if (/exact_story_link needs attention|Exact article URL is missing/i.test(pendingStoryHtml)) {
+  fail("Pending-story dashboard notes should use editor-friendly wording.");
+}
+if (!pendingStoryHtml.includes("Create the Live News article page before posting.")) {
+  fail("Pending-story dashboard should explain the article page requirement clearly.");
+}
+const pendingStoryValidation = validateSocialVariantSelection(
+  pendingStoryDraft,
+  "facebook",
+  pendingStoryDraft.platforms.facebook.variants[0].id
+);
+if (!pendingStoryValidation.ok) {
+  fail("Variant selection should save even before an exact story URL exists.");
+}
+if (!pendingStoryValidation.warnings.some((warning) => /posting remains locked/i.test(warning))) {
+  fail("Pending-story selection should warn that posting remains locked.");
+}
+
+const externalPendingDraft = JSON.parse(JSON.stringify(pendingStoryDraft));
+externalPendingDraft.linkState.exactArticleUrl = "https://example.com/source-story";
+externalPendingDraft.platforms.facebook.variants = externalPendingDraft.platforms.facebook.variants.map((variant) => ({
+  ...variant,
+  exactArticleUrl: "https://example.com/source-story",
+}));
+const externalPendingValidation = validateSocialVariantSelection(
+  externalPendingDraft,
+  "facebook",
+  externalPendingDraft.platforms.facebook.variants[0].id
+);
+if (!externalPendingValidation.ok) {
+  fail("Variant selection should save with a non-publish-ready source link while keeping posting locked.");
+}
+if (!externalPendingValidation.warnings.some((warning) => /not publish-ready/i.test(warning))) {
+  fail("External pending link selection should explain that the exact Live News story URL is still needed.");
+}
+
 const homepageDraft = JSON.parse(JSON.stringify(draft));
 homepageDraft.linkState.exactArticleUrl = "https://newsmorenow.com/";
 homepageDraft.platforms.facebook.variants = homepageDraft.platforms.facebook.variants.map((variant) => ({

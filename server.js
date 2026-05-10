@@ -3321,10 +3321,13 @@ app.post("/admin/social/select-variant", requireAgentAccess, (req, res) => {
       req.body?.variantId || req.query.variantId,
       { selectedBy: "Live News editor" }
     );
+    const selectedMessage = result.selection.exactArticleUrl
+      ? `Selected ${result.selection.platform} variant ${result.selection.variantId} for ${result.selection.exactArticleUrl}.`
+      : `Selected ${result.selection.platform} variant ${result.selection.variantId}. Posting remains locked until the exact Live News story page exists.`;
     return res.redirect(
       303,
       buildAdminUrl(req, "/admin/social", {
-        selected: `Selected ${result.selection.platform} variant ${result.selection.variantId} for ${result.selection.exactArticleUrl}.`,
+        selected: selectedMessage,
       })
     );
   } catch (error) {
