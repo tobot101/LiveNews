@@ -926,6 +926,19 @@ html[data-theme="night"] .seo-discovery-card {
   line-height: 1.45;
 }
 
+.story-context {
+  margin: 0;
+  color: color-mix(in srgb, var(--text-muted) 82%, var(--text) 18%);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.lead-card .story-context {
+  color: var(--lead-muted);
+  font-size: 14px;
+  max-width: 760px;
+}
+
 .story-meta {
   font-size: 12px;
   color: var(--text-muted);

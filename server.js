@@ -77,6 +77,11 @@ const {
   buildLocalQueryVariants,
   resolveLocalPlaceInput,
 } = require("./lib/local-news-helpers");
+const {
+  applyCoverageContext,
+  applyCoverageContextsToItems,
+  applyCoverageContextsToPayload,
+} = require("./lib/news-intelligence");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -1160,7 +1165,7 @@ function finalizeCluster(cluster) {
   const coverageBoost = Math.min(6, Math.max(0, sourceNames.length - 1) * 2);
   const score = clamp(Math.round(lead.baseScore + coverageBoost), 70, 100);
 
-  return applyLiveNewsSummary({
+  return applyCoverageContext(applyLiveNewsSummary({
     id: lead.id,
     title: lead.title,
     link: lead.link,
@@ -1178,7 +1183,7 @@ function finalizeCluster(cluster) {
     relatedSources: sourceNames,
     supportingLinks: items.slice(0, 6).map(serializeSupportLink),
     summary: lead.summary || "",
-  });
+  }));
 }
 
 function dedupeItems(items) {
@@ -1570,7 +1575,7 @@ async function fetchLocalNews(place) {
     concurrency: 3,
     enableTopicResearch: false,
   });
-  const summarized = applyLiveNewsSummariesToItems(diversified);
+  const summarized = applyCoverageContextsToItems(applyLiveNewsSummariesToItems(diversified));
   const summaryHealth = getSummaryHealth(summarized);
 
   const payload = {
@@ -1700,7 +1705,7 @@ function refreshNewsSafely() {
 function buildCurrentNewsPayload() {
   if (!cache.lastUpdated) {
     const fallback = loadFallback();
-    return enrichNewsPayloadWithApprovedStories(applyLiveNewsSummariesToPayload({
+    return enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
       updatedAt: new Date().toISOString(),
       maxAgeHours: MAX_AGE_HOURS,
       fallback: true,
@@ -1711,10 +1716,10 @@ function buildCurrentNewsPayload() {
       topStoryOfDay: (fallback.topStories || [])[0] || null,
       topStoryOfWeek: (fallback.topStories || [])[1] || null,
       ...fallback,
-    }));
+    })));
   }
 
-  return enrichNewsPayloadWithApprovedStories(applyLiveNewsSummariesToPayload({
+  return enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
     updatedAt: cache.lastUpdated,
     maxAgeHours: MAX_AGE_HOURS,
     fallback: false,
@@ -1729,7 +1734,7 @@ function buildCurrentNewsPayload() {
     sourceErrors: cache.sourceErrors,
     sourceMix: cache.sourceMix,
     configuredSources: cache.configuredSources,
-  }));
+  })));
 }
 
 function getUniqueCurrentNewsItems(payload = buildCurrentNewsPayload()) {
@@ -2825,6 +2830,12 @@ function renderCrawlerMeta(item) {
   `;
 }
 
+function renderCrawlerStoryContext(item) {
+  const context = cleanText(item?.coverageContext || "");
+  if (!context) return "";
+  return `<p class="story-context">${escapeHtml(context)}</p>`;
+}
+
 function renderCrawlerTitleLink(item, className = "") {
   const title = escapeHtml(getCrawlerTitle(item));
   const href = item.approvedStoryUrl || item.liveNewsUrl || item.link || "";
@@ -2846,6 +2857,7 @@ function renderCrawlableLeadCard(item, { label = "Top Story", headingTag = "h1",
         </div>
         <${Heading}>${renderCrawlerTitleLink(item, "lead-title")}</${Heading}>
         <p>${escapeHtml(getCrawlerSummary(item))}</p>
+        ${renderCrawlerStoryContext(item)}
         ${renderCrawlerMeta(item)}
       </div>
     </article>
@@ -2892,6 +2904,7 @@ function renderCrawlableStoryCard(item, rank = 1) {
       </div>
       <h3>${renderCrawlerTitleLink(item, "story-card-title")}</h3>
       <p>${escapeHtml(getCrawlerSummary(item))}</p>
+      ${renderCrawlerStoryContext(item)}
       ${renderCrawlerMeta(item)}
     </li>
   `;
@@ -2906,6 +2919,7 @@ function renderCrawlableFeedItem(item) {
         </div>
         <div class="feed-title">${renderCrawlerTitleLink(item)}</div>
         <p>${escapeHtml(getCrawlerSummary(item))}</p>
+        ${renderCrawlerStoryContext(item)}
         ${renderCrawlerMeta(item)}
       </div>
     </article>
@@ -3042,6 +3056,7 @@ function renderCrawlableEntertainmentSection(items) {
           </div>
           <h4>${renderCrawlerTitleLink(item, "entertainment-title")}</h4>
           <p>${escapeHtml(getCrawlerSummary(item))}</p>
+          ${renderCrawlerStoryContext(item)}
           ${renderCrawlerMeta(item)}
         </article>
       `

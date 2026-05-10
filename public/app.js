@@ -1720,6 +1720,12 @@ function buildStoryMeta(item, published = "") {
   `;
 }
 
+function buildStoryContext(item) {
+  const context = String(item?.coverageContext || "").trim();
+  if (!context) return "";
+  return `<p class="story-context">${escapeHtml(context)}</p>`;
+}
+
 function buildStoryActions(item) {
   const liveUrl = getLiveNewsUrl(item);
   const liveAction = liveUrl
@@ -1740,6 +1746,7 @@ function renderLeadStoryCard(item, { label = "Top Story", headingTag = "h1", var
         </div>
         <${Heading}>${buildStoryTitleLink(item, "lead-title")}</${Heading}>
         <p>${escapeHtml(getDisplaySummary(item, 340))}</p>
+        ${buildStoryContext(item)}
         ${buildStoryMeta(item, published)}
         ${buildStoryActions(item)}
       </div>
@@ -1803,6 +1810,7 @@ function renderTopStories(items, options = {}) {
       </div>
       <h3>${buildStoryTitleLink(item, "story-card-title")}</h3>
       <p>${escapeHtml(getDisplaySummary(item, 190))}</p>
+      ${buildStoryContext(item)}
       ${buildStoryMeta(item, published)}
       ${buildStoryVisual(item, "card")}
       ${buildStoryActions(item)}
@@ -2018,6 +2026,7 @@ function renderEntertainmentArticleCards(items) {
         </div>
         <h4>${buildStoryTitleLink(item, "entertainment-title")}</h4>
         <p>${escapeHtml(getDisplaySummary(item, 118))}</p>
+        ${buildStoryContext(item)}
         ${buildStoryMeta(item, published)}
       </article>
     `;
@@ -2093,6 +2102,7 @@ function renderCategoryLanes() {
                     <div class="story-eyebrow"><span>${escapeHtml(getPublishedDateBadge(item))}</span></div>
                     <h4>${buildStoryTitleLink(item, "lane-story-title")}</h4>
                     <p>${escapeHtml(getDisplaySummary(item, 120))}</p>
+                    ${buildStoryContext(item)}
                     ${buildStoryMeta(item, item.publishedAt ? formatTime(item.publishedAt) : "")}
                   </article>
                 `
@@ -2141,6 +2151,7 @@ function renderFeed(items) {
           </div>
           <div class="feed-title">${buildStoryTitleLink(item)}</div>
           <p>${escapeHtml(getDisplaySummary(item, 150))}</p>
+          ${buildStoryContext(item)}
           ${buildStoryMeta(item, published)}
         </div>
         ${buildStoryActions(item)}
