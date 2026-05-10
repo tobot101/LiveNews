@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Live News Social Publisher App - Progress Brief</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.72in;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      color: #172033;
+      background: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Aptos", "Segoe UI", sans-serif;
+      font-size: 11.5pt;
+      line-height: 1.48;
+    }
+    h1, h2, h3 {
+      margin: 0;
+      line-height: 1.16;
+      color: #101827;
+    }
+    h1 {
+      font-size: 29pt;
+      letter-spacing: -0.04em;
+      margin-bottom: 8px;
+    }
+    h2 {
+      font-size: 17pt;
+      margin-top: 26px;
+      margin-bottom: 9px;
+      padding-top: 4px;
+      border-top: 2px solid #d9e5f2;
+    }
+    h3 {
+      font-size: 12.8pt;
+      margin-top: 16px;
+      margin-bottom: 6px;
+      color: #233d5f;
+    }
+    p {
+      margin: 0 0 9px;
+    }
+    ul, ol {
+      margin: 6px 0 12px 20px;
+      padding: 0;
+    }
+    li {
+      margin: 4px 0;
+    }
+    code {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 9.6pt;
+      background: #eef4fb;
+      border: 1px solid #d8e5f0;
+      border-radius: 5px;
+      padding: 1px 4px;
+    }
+    .cover {
+      min-height: 6.2in;
+      padding: 0.38in;
+      border: 1px solid #c8d6e6;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 90% 12%, rgba(184, 155, 106, 0.24), transparent 30%),
+        linear-gradient(135deg, #f5f8fb 0%, #eef5fb 48%, #fffaf0 100%);
+    }
+    .kicker {
+      color: #506987;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 9pt;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .subtitle {
+      color: #405975;
+      font-size: 13.5pt;
+      max-width: 6.4in;
+      margin-bottom: 22px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 28px;
+    }
+    .meta-card, .callout, .flow-card {
+      border: 1px solid #cbd9e8;
+      background: #ffffff;
+      border-radius: 15px;
+      padding: 12px 14px;
+    }
+    .meta-card strong {
+      display: block;
+      color: #0e2c4d;
+      font-size: 10.5pt;
+      margin-bottom: 4px;
+    }
+    .meta-card span {
+      color: #53697f;
+      font-size: 10.2pt;
+    }
+    .callout {
+      background: #f7fbff;
+      border-left: 5px solid #557aa4;
+      margin: 14px 0;
+    }
+    .warn {
+      background: #fff8ed;
+      border-left-color: #b89b6a;
+    }
+    .success {
+      background: #eff8f2;
+      border-left-color: #4c8068;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+      margin: 10px 0 14px;
+    }
+    .flow-card {
+      min-height: 86px;
+      background: #fbfdff;
+    }
+    .flow-card strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #163554;
+    }
+    .flow-card small {
+      color: #596f86;
+    }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      page-break-inside: avoid;
+    }
+    .table th {
+      text-align: left;
+      background: #eaf1f8;
+      color: #163554;
+      font-size: 9.6pt;
+      padding: 8px;
+      border: 1px solid #ccdbea;
+    }
+    .table td {
+      vertical-align: top;
+      padding: 8px;
+      border: 1px solid #dbe6f0;
+      font-size: 10pt;
+    }
+    .tag {
+      display: inline-block;
+      border: 1px solid #c9d7e6;
+      background: #f6f9fc;
+      border-radius: 999px;
+      padding: 2px 8px;
+      margin: 2px 3px 2px 0;
+      font-size: 9.4pt;
+      color: #3d5570;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .paste-box {
+      border: 1px solid #cbd9e8;
+      border-radius: 15px;
+      background: #f8fbff;
+      padding: 14px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 9.4pt;
+      line-height: 1.42;
+      white-space: pre-wrap;
+    }
+    .footer-note {
+      color: #637890;
+      font-size: 9.4pt;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="kicker">Live News private app handoff</div>
+    <h1>Social Publisher App Progress Brief</h1>
+    <p class="subtitle">
+      A concise handoff for another ChatGPT conversation covering what has been built for the
+      Live News Facebook and Instagram publishing system, what is protected, what passed testing,
+      and what should be improved next.
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <strong>Project</strong>
+        <span>Live News social publishing app for Facebook and Instagram traffic growth.</span>
+      </div>
+      <div class="meta-card">
+        <strong>Current mode</strong>
+        <span>Private, noindex, human-approved, exact-link publishing only.</span>
+      </div>
+      <div class="meta-card">
+        <strong>Last updated</strong>
+        <span>May 10, 2026.</span>
+      </div>
+      <div class="meta-card">
+        <strong>Privacy note</strong>
+        <span>No tokens, private keys, or personal account credentials are included.</span>
+      </div>
+    </div>
+    <div class="callout success">
+      <strong>Current status:</strong> Facebook API publishing works. A Live News Page post was published
+      through the Meta API with an exact public <code>/stories/...</code> article URL. The latest build then
+      improved the quality layer so future posts are less robotic and better suited for readers.
+    </div>
+  </section>
+
+  <h2>1. Product Direction To Preserve</h2>
+  <p>
+    Live News is readability-first, low-clutter, source-respectful, and built to move people from
+    social platforms to exact Live News article pages. The social app should support that direction,
+    not become a separate public product inside the website.
+  </p>
+  <ul>
+    <li>Brand remains <strong>Live News</strong> with the tagline <strong>Anytime &amp; Anywhere</strong>.</li>
+    <li>No ads are added to the website experience.</li>
+    <li>No community hub is being built into Live News.</li>
+    <li>Every public story and social post must respect attribution and original source links.</li>
+    <li>Social posts should use Live News wording and should not copy publisher wording or public comments.</li>
+    <li>Posts should point to exact internal story pages, not the homepage.</li>
+    <li>Human approval stays required until the system has a proven quality record.</li>
+  </ul>
+
+  <h2>2. What Has Been Built</h2>
+  <div class="flow">
+    <div class="flow-card">
+      <strong>Story approval</strong>
+      <small>Private dashboard approves source-respectful article pages before they can be posted.</small>
+    </div>
+    <div class="flow-card">
+      <strong>Social drafts</strong>
+      <small>Private generator creates Instagram and Facebook packages from approved Live News stories.</small>
+    </div>
+    <div class="flow-card">
+      <strong>Meta readiness</strong>
+      <small>Private checks confirm app variables, posting switches, permissions, and exact-link rules.</small>
+    </div>
+    <div class="flow-card">
+      <strong>API posting</strong>
+      <small>Facebook API posting works after human approval and exact story URL validation.</small>
+    </div>
+    <div class="flow-card">
+      <strong>Performance memory</strong>
+      <small>Stores aggregate post performance lessons without private user data or copied comments.</small>
+    </div>
+    <div class="flow-card">
+      <strong>Teacher checks</strong>
+      <small>Quality layers block unsafe, generic, copied, or non-source-backed social packages.</small>
+    </div>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Component</th>
+        <th>Purpose</th>
+        <th>Important behavior</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>/admin/stories</code></td>
+        <td>Private story approval.</td>
+        <td>Turns a review-only draft into a public Live News story page only after quality checks pass.</td>
+      </tr>
+      <tr>
+        <td><code>/admin/social</code></td>
+        <td>Private social post review.</td>
+        <td>Shows Facebook and Instagram drafts, caption variants, teacher checks, and API posting buttons.</td>
+      </tr>
+      <tr>
+        <td><code>/admin/meta</code></td>
+        <td>Meta readiness dashboard.</td>
+        <td>Confirms app settings are configured before API posting is attempted.</td>
+      </tr>
+      <tr>
+        <td><code>/admin/performance</code></td>
+        <td>Performance memory entry.</td>
+        <td>Lets editor record aggregate performance lessons from social posts.</td>
+      </tr>
+      <tr>
+        <td><code>lib/meta-publisher.js</code></td>
+        <td>Facebook and Instagram API plans.</td>
+        <td>Requires exact article URL, private token variables, human-reviewed drafts, and no homepage links.</td>
+      </tr>
+      <tr>
+        <td><code>lib/social-intelligence.js</code></td>
+        <td>Social writing and teacher brain.</td>
+        <td>Builds captions, audience angles, hashtags, teacher checks, and safe learning rules.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Meta Setup Status</h2>
+  <p>
+    The Meta connection has been set up enough for Facebook API posting to work. Private values are
+    stored in Railway environment variables and must not be shared in ChatGPT prompts or screenshots.
+  </p>
+  <ul>
+    <li>Meta developer app is connected for the Live News social publishing workflow.</li>
+    <li>Facebook Page is connected and API posting succeeded publicly.</li>
+    <li>Instagram professional account is connected through Meta Business Suite for future posting work.</li>
+    <li>Railway variables are used for app ID, Page ID, Instagram business account ID, Graph version, posting switches, and access token.</li>
+    <li>Access token values are private and are intentionally not included here.</li>
+  </ul>
+
+  <div class="callout warn">
+    <strong>Important:</strong> keep using placeholders like <code>YOUR_ADMIN_TOKEN</code> in docs or ChatGPT.
+    Do not paste real Railway tokens, Meta tokens, browser URLs containing tokens, or personal login details.
+  </div>
+
+  <h2>4. Publishing Flow</h2>
+  <ol>
+    <li>Live News collects and organizes source-linked news items.</li>
+    <li>Article agents prepare review-only story drafts.</li>
+    <li>The editor approves a story inside the private Story Approval dashboard.</li>
+    <li>Approval creates a public <code>/stories/...</code> page with source attribution.</li>
+    <li>Social Publisher refreshes private Instagram and Facebook draft packages.</li>
+    <li>The editor reviews caption, title framing, hashtags, image URL, and teacher checks.</li>
+    <li>The Facebook API button posts only if the exact article URL is available and Meta readiness passes.</li>
+    <li>After posting, aggregate performance can be recorded in Performance Memory.</li>
+  </ol>
+
+  <h2>5. Safety Layers</h2>
+  <p>
+    The app is intentionally built like a protected system instead of a one-click auto-poster.
+    It publishes only after the story page and social package pass multiple gates.
+  </p>
+  <ul>
+    <li><strong>Exact Link Gate:</strong> social posts must use exact Live News story pages, not the homepage.</li>
+    <li><strong>Human Approval Gate:</strong> drafts stay private and review-only before publishing.</li>
+    <li><strong>Source Safety Teacher:</strong> checks attribution and original source links.</li>
+    <li><strong>Human Relevance Teacher:</strong> checks that captions have a real reader angle.</li>
+    <li><strong>Rhythm Variety Teacher:</strong> blocks repeated robotic openings and repeated structures.</li>
+    <li><strong>Platform Fit Teacher:</strong> checks platform-specific caption and media needs.</li>
+    <li><strong>Growth Memory Teacher:</strong> learns from aggregate results, not private data.</li>
+    <li><strong>Meta Publishing Guard:</strong> blocks posting when variables, permissions, or tokens are not ready.</li>
+  </ul>
+
+  <h2>6. Most Recent Quality Upgrade</h2>
+  <p>
+    After the first successful API post, the weakness was not the API. The weakness was the caption quality.
+    The social writing engine has now been upgraded so the API publishes stronger material.
+  </p>
+  <ul>
+    <li>Facebook captions no longer default to stiff <code>Top Story: title</code> wording.</li>
+    <li>Captions now lead with one useful, human-readable detail when source-safe data exists.</li>
+    <li>Posts include a clearer exact-article call to action: <code>Read the Live News page:</code>.</li>
+    <li>Hashtags are smaller and more relevant, such as <code>#LiveNews</code>, category tags, and topic tags.</li>
+    <li>Internal workflow wording is blocked from public captions, including <code>review-only</code> and <code>source packet</code>.</li>
+    <li>Audience pattern scoring was fixed so unrelated patterns do not attach just because they are high priority.</li>
+    <li>Approved stories now pass richer context into social drafts: dek, summary, key points, why-it-matters, image fields, and original publisher title.</li>
+  </ul>
+
+  <h2>7. Example Of The Improved Direction</h2>
+  <p>Instead of a stiff API post like this:</p>
+  <div class="callout warn">
+    <p><code>Top Story: Why Paige Bueckers Wings Best Caitlin Clark Fever Matters Now.</code></p>
+  </div>
+  <p>The upgraded generator aims for something closer to this when source data supports it:</p>
+  <div class="callout success">
+    <p>
+      Caitlin Clark and Paige Bueckers drew attention in a WNBA matchup between recent No. 1 draft picks.
+    </p>
+    <p>
+      Source-linked coverage from The Guardian.
+    </p>
+    <p>
+      Read the Live News page: <code>https://newsmorenow.com/stories/...</code>
+    </p>
+    <p>
+      <span class="tag">#LiveNews</span>
+      <span class="tag">#SportsNews</span>
+      <span class="tag">#WNBA</span>
+    </p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <h2>8. Growth Memory Rules</h2>
+  <p>
+    The app should get smarter over time by learning from aggregate signals. It should not become a
+    scraper of people, private messages, random public comments, or copied creator language.
+  </p>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Allowed learning</th>
+        <th>Blocked learning</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Reach, views, likes, comments count, shares, saves, link clicks, profile visits, follows, hides, reports, posting time, category, caption shape, media shape, and exact article clicks.</td>
+        <td>Private messages, personal profiles, individual identities, private contact details, real access tokens, copied comment text, and unsupported claims from comments.</td>
+      </tr>
+      <tr>
+        <td>Aggregate comment patterns such as confusion, useful questions, correction requests, or tone problems.</td>
+        <td>Copying public comments into captions or treating comments as verified facts.</td>
+      </tr>
+      <tr>
+        <td>Public platform best-practice patterns such as clear hooks, relevant hashtags, and original source-linked wording.</td>
+        <td>Cheap engagement bait, outrage bait, unrelated hashtags, misleading captions, or copied publisher structures.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>9. Verification Completed</h2>
+  <ul>
+    <li><code>npm test</code> passed after the latest quality upgrade.</li>
+    <li>Facebook API posting succeeded publicly through the Live News Page.</li>
+    <li>Meta publishing tests pass with mocked Graph calls.</li>
+    <li>Social intelligence tests confirm teacher layers, exact-link checks, safe memory, and platform captions.</li>
+    <li>Social publisher tests confirm approved drafts use exact Live News article links.</li>
+    <li>Latest pushed commit: <code>ff4e84f Improve social post quality engine</code>.</li>
+  </ul>
+
+  <h2>10. Important Files</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>What it controls</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>lib/social-intelligence.js</code></td>
+        <td>Audience patterns, caption variants, hashtag logic, blocked phrases, and teacher checks.</td>
+      </tr>
+      <tr>
+        <td><code>lib/social-publisher.js</code></td>
+        <td>Social draft packaging for Facebook and Instagram.</td>
+      </tr>
+      <tr>
+        <td><code>lib/meta-publisher.js</code></td>
+        <td>Meta API post planning, validation, error handling, and publishing.</td>
+      </tr>
+      <tr>
+        <td><code>lib/article-agents/approved-stories.js</code></td>
+        <td>Approved story enrichment so social drafts have stronger context.</td>
+      </tr>
+      <tr>
+        <td><code>data/social-style-memory.json</code></td>
+        <td>Safe learning rules and public-pattern principles.</td>
+      </tr>
+      <tr>
+        <td><code>data/social-performance-memory.json</code></td>
+        <td>Aggregate social performance records and lessons.</td>
+      </tr>
+      <tr>
+        <td><code>scripts/check-social-intelligence.js</code></td>
+        <td>Regression checks for safe social intelligence behavior.</td>
+      </tr>
+      <tr>
+        <td><code>scripts/check-meta-publishing.js</code></td>
+        <td>Regression checks for Meta API publishing guards.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>11. Private Admin Links</h2>
+  <p>Use these with the real admin token only in the browser. Do not paste the real token into public tools.</p>
+  <ul>
+    <li><code>https://newsmorenow.com/admin/stories?token=YOUR_ADMIN_TOKEN</code></li>
+    <li><code>https://newsmorenow.com/admin/social?token=YOUR_ADMIN_TOKEN</code></li>
+    <li><code>https://newsmorenow.com/admin/meta?token=YOUR_ADMIN_TOKEN</code></li>
+    <li><code>https://newsmorenow.com/admin/performance?token=YOUR_ADMIN_TOKEN</code></li>
+  </ul>
+
+  <h2>12. Next Build Priorities</h2>
+  <ol>
+    <li><strong>Regenerate after deployment:</strong> approve a new story and confirm the social dashboard shows improved captions.</li>
+    <li><strong>Improve story drafts:</strong> make approved story pages themselves less generic, because stronger story pages create stronger social posts.</li>
+    <li><strong>Instagram image flow:</strong> build or connect durable, properly sized image/card generation for Instagram API publishing.</li>
+    <li><strong>Performance loop:</strong> after every post, record aggregate metrics and let the Growth Memory Teacher update lessons.</li>
+    <li><strong>A/B caption review:</strong> keep at least three variants and record which one the editor chose.</li>
+    <li><strong>Public-interest research later:</strong> add trusted trend/source signals carefully, without copying people or adding unsupported facts.</li>
+  </ol>
+
+  <h2>13. Source Guidance Used</h2>
+  <p>
+    The social quality direction follows Meta's public guidance around content distribution and spam reduction:
+  </p>
+  <ul>
+    <li>Meta Content Distribution Guidelines: <code>https://about.fb.com/news/2021/09/content-distribution-guidelines/</code></li>
+    <li>Meta spammy content update: <code>https://about.fb.com/news/2025/04/cracking-down-spammy-content-facebook/</code></li>
+  </ul>
+
+  <h2>14. Paste-Ready ChatGPT Context</h2>
+  <div class="paste-box">I am building Live News, a readability-first, source-respectful news website with a private social publishing app for Facebook and Instagram. The social app must drive traffic to exact Live News article pages, not the homepage.
+
+Current system:
+- Private Story Approval dashboard approves source-respectful Live News story pages.
+- Private Social Publisher creates Instagram and Facebook draft packages.
+- Meta API posting works for Facebook after human approval and exact /stories/... URL validation.
+- Auto-posting is disabled. Human approval is required.
+- Railway stores private variables and tokens. Do not ask me to paste tokens into public prompts.
+- The system has teacher layers: Source Safety, Human Relevance, Rhythm Variety, Platform Fit, Growth Memory, Human Approval.
+- Social posts must include attribution, original source respect, exact Live News article link, and no copied publisher wording.
+- Social learning must use aggregate metrics only: link clicks, shares, saves, reach, views, hides, reports, category, caption shape, and posting time.
+- Do not learn from or copy private messages, usernames, personal profiles, or exact public comments.
+
+Recent upgrade:
+- Facebook captions no longer default to stiff "Top Story: title" wording.
+- Captions now start with a useful human-readable detail when safe source data exists.
+- Posts include "Read the Live News page:" with exact story URL.
+- Hashtags are smaller and relevant, such as #LiveNews, category tags, and topic tags.
+- Internal draft language like "review-only" and "source packet" is blocked from public captions.
+- Audience matching is stricter so unrelated high-priority patterns do not attach to the wrong story.
+
+Next goal:
+Make Live News social posts feel more human, factual, and attention-worthy while staying source-safe. Improve Instagram image/card generation, record aggregate performance, and keep improving captions through safe performance memory.</div>
+
+  <p class="footer-note">
+    Document prepared for project handoff. It intentionally excludes real tokens, personal account details, and private credentials.
+  </p>
+</body>
+</html>
