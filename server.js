@@ -1869,7 +1869,13 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
       const blockedReasons = [...new Set(plan.failures || [])]
         .map((failure) => `<li>${escapeHtml(failure)}</li>`)
         .join("");
-      const disabled = !plan.ready;
+      const canQueueForPosting = Boolean(selectedVariant);
+      const checkboxHint = !selectedVariant
+        ? `Select a ${platformLabel} variant first.`
+        : plan.ready
+          ? "Ready to post after you check this box."
+          : "Can be finalized; posting will run only after story-page and Meta checks pass.";
+      const disabled = !canQueueForPosting;
       const failures = (draft.supervisor?.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
       const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
       const variants = renderSocialVariantReviewHtml({ draft, platform, actionUrl: selectVariantUrl });
@@ -1899,11 +1905,12 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           ${visualLine}
           ${variants}
           <div class="meta-api-box">
-            <strong>${escapeHtml(platformLabel)} posting</strong>
+            <strong>${escapeHtml(platformLabel)} final posting checklist</strong>
             <label class="post-choice">
               <input type="checkbox" name="targets" value="${escapeHtml(`${draft.socialDraftId}:${platform}`)}" form="bulk-social-post-form" ${disabled ? "disabled" : ""} />
-              Add this ${escapeHtml(platformLabel)} draft to the post selection
+              Post this ${escapeHtml(platformLabel)} draft
             </label>
+            <small>${escapeHtml(checkboxHint)}</small>
             ${blockedReasons ? `<ul>${blockedReasons}</ul>` : ""}
           </div>
           ${failures ? `<div class="review-box fail"><strong>Failures</strong><ul>${failures}</ul></div>` : ""}
@@ -1964,6 +1971,9 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .bulk-post-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #10243a; color: #fff; border-radius: 18px; padding: 14px; margin-top: 14px; }
     .bulk-post-form small { color: #dbe7f2; }
     .bulk-post-form button { background: #d0ad67; color: #10243a; border-color: #d0ad67; }
+    .prepare-pages-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #f8f2e4; color: #2b4054; border: 1px solid #dfc98f; border-radius: 18px; padding: 14px; margin-top: 14px; }
+    .prepare-pages-form button { background: #2c667d; color: #fff; border-color: #2c667d; }
+    .prepare-pages-form small { color: #526984; }
     .platform-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
     .platform-actions form { display: grid; gap: 8px; align-content: end; }
     .platform-actions input { border: 1px solid #c6d5e4; border-radius: 12px; padding: 10px 12px; }
@@ -1999,7 +2009,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     <section class="panel">
       <p class="pill">Private social traffic engine</p>
       <h1>Live News Social Publisher</h1>
-	      <p>This dashboard is private and focused on choosing what to post. Select one or more ready Facebook/Instagram drafts below, then post the selected platforms together.</p>
+	      <p>This dashboard is private and focused on choosing what to post. Pick a caption variant, check Facebook, Instagram, or both, then finalize and post the checked drafts together.</p>
 	      ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
 	      <p><a href="${escapeHtml(performanceUrl)}">Performance Memory</a> • <a href="${escapeHtml(metaUrl)}">Meta readiness</a></p>
       <div class="grid">
@@ -2009,9 +2019,13 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
         <div class="metric"><strong>${selectedCount}</strong> selected variants</div>
         <div class="metric"><strong>${stored.drafts?.length || 0}</strong> saved last run</div>
       </div>
+	      <form class="prepare-pages-form" method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/social/prepare-story-pages") : "/admin/social/prepare-story-pages")}">
+	        <button type="submit">Prepare Live News story pages</button>
+	        <small>Create exact <code>/stories/...</code> article pages for the current quality-gated drafts before choosing social posts.</small>
+	      </form>
 	      <form id="bulk-social-post-form" class="bulk-post-form" method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish-selected") : "/admin/meta/publish-selected")}">
-	        <button type="submit">Post selected drafts</button>
-	        <small>Choose Facebook, Instagram, or both. You can select one article or several at the same time.</small>
+	        <button type="submit">Finalize checked drafts and post</button>
+	        <small>Checked drafts can create the needed Live News story page first, then post only after exact-link and Meta checks pass.</small>
 	      </form>
 		    </section>
 	    <section class="platform-board">
@@ -2112,6 +2126,18 @@ function normalizeSocialPostTargets(value) {
     });
 }
 
+function normalizeComparableUrl(value) {
+  const raw = cleanText(value);
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    parsed.hash = "";
+    return parsed.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return raw.replace(/\/$/, "").toLowerCase();
+  }
+}
+
 function refreshSocialDraftsForApprovedStories(limit = AGENT_DRAFT_LIMIT) {
   const socialRun = buildSocialPublisherRun(buildCurrentNewsPayload(), {
     origin: getCanonicalOrigin(),
@@ -2133,6 +2159,131 @@ function findSocialDraftForMetaPublish(identifier) {
   const drafts = [...(liveRun.drafts || []), ...(stored.drafts || [])]
     .map((draft) => applySocialVariantSelectionsToDraft(draft, selectionStore));
   return drafts.find((draft) => draft.socialDraftId === target || draft.storyId === target) || null;
+}
+
+function getApprovedStoryForSocialDraft(draft) {
+  if (!draft) return null;
+  return matchApprovedStoryForItem(
+    {
+      id: draft.storyId,
+      storyId: draft.storyId,
+      link: draft.originalSourceUrl,
+      originalSourceUrl: draft.originalSourceUrl,
+      approvedStoryUrl: draft.linkState?.exactArticleUrl,
+      liveNewsUrl: draft.linkState?.exactArticleUrl,
+    },
+    listApprovedStories()
+  );
+}
+
+function findArticleDraftForSocialDraft(socialDraft, generatedRun) {
+  if (!socialDraft) return null;
+  const savedDrafts = readDraftReviewStore().drafts || [];
+  const generatedDrafts = generatedRun?.drafts || [];
+  const seen = new Set();
+  const candidates = [...savedDrafts, ...generatedDrafts].filter((draft) => {
+    const key = draft.storyId || draft.slug || draft.canonicalLiveNewsUrl || draft.headline;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const socialStoryId = cleanText(socialDraft.storyId);
+  const socialTitle = cleanText(socialDraft.title).toLowerCase();
+  const socialSourceUrl = normalizeComparableUrl(socialDraft.originalSourceUrl);
+  const socialPlannedUrl = normalizeComparableUrl(socialDraft.linkState?.futureArticleUrl);
+
+  return (
+    candidates.find((draft) => cleanText(draft.storyId) === socialStoryId) ||
+    candidates.find((draft) => cleanText(draft.canonicalLiveNewsUrl) && normalizeComparableUrl(draft.canonicalLiveNewsUrl) === socialPlannedUrl) ||
+    candidates.find((draft) => socialSourceUrl && normalizeComparableUrl(draft.sourceBlock?.originalSourceUrl) === socialSourceUrl) ||
+    candidates.find((draft) => socialTitle && cleanText(draft.headline).toLowerCase() === socialTitle) ||
+    null
+  );
+}
+
+function ensureStoryPageForSocialDraft(socialDraft, options = {}) {
+  if (!socialDraft) {
+    const error = new Error("Social draft was not found.");
+    error.failures = ["Social draft was not found."];
+    throw error;
+  }
+
+  const existing = getApprovedStoryForSocialDraft(socialDraft);
+  if (existing) {
+    return {
+      created: false,
+      story: existing,
+      exactArticleUrl: getCanonicalUrl(existing.liveNewsUrl || `/stories/${existing.slug}`),
+    };
+  }
+
+  const generatedRun = options.generatedRun || runArticleAgents(buildCurrentNewsPayload(), {
+    limit: Math.max(AGENT_DRAFT_LIMIT, 50),
+  });
+  if (!options.generatedRun) saveAgentRun(generatedRun);
+  const articleDraft = findArticleDraftForSocialDraft(socialDraft, generatedRun);
+  if (!articleDraft) {
+    const error = new Error("Could not find a matching Live News article draft to create the story page.");
+    error.failures = ["Create the Live News article page first, then return to Social Publisher."];
+    throw error;
+  }
+
+  const story = approveDraft(articleDraft, {
+    approvedBy: "Live News editor from Social Publisher",
+  });
+  if (options.refresh !== false) refreshSocialDraftsForApprovedStories(Math.max(AGENT_DRAFT_LIMIT, 50));
+  return {
+    created: true,
+    story,
+    exactArticleUrl: getCanonicalUrl(story.liveNewsUrl || `/stories/${story.slug}`),
+  };
+}
+
+function prepareStoryPagesForSocialDrafts(options = {}) {
+  const payload = buildCurrentNewsPayload();
+  const socialRun = buildSocialPublisherRun(payload, {
+    origin: getCanonicalOrigin(),
+    limit: Math.max(AGENT_DRAFT_LIMIT, Number(options.limit || AGENT_DRAFT_LIMIT)),
+  });
+  const generatedRun = runArticleAgents(payload, {
+    limit: Math.max(AGENT_DRAFT_LIMIT, 50),
+  });
+  saveAgentRun(generatedRun);
+
+  const targetIds = new Set((options.socialDraftIds || []).map(cleanText).filter(Boolean));
+  const seen = new Set();
+  const drafts = (socialRun.drafts || [])
+    .filter((draft) => !targetIds.size || targetIds.has(draft.socialDraftId) || targetIds.has(draft.storyId))
+    .filter((draft) => {
+      const key = draft.socialDraftId || draft.storyId;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  const result = {
+    checked: drafts.length,
+    created: [],
+    found: [],
+    failed: [],
+  };
+
+  for (const draft of drafts) {
+    try {
+      const ensured = ensureStoryPageForSocialDraft(draft, {
+        generatedRun,
+        refresh: false,
+      });
+      const label = `${draft.title}: ${ensured.exactArticleUrl}`;
+      if (ensured.created) result.created.push(label);
+      else result.found.push(label);
+    } catch (error) {
+      result.failed.push(`${draft.title}: ${safeAdminMessage(error.failures?.join(" ") || error.message || "Could not prepare story page.")}`);
+    }
+  }
+
+  refreshSocialDraftsForApprovedStories(Math.max(AGENT_DRAFT_LIMIT, 50));
+  return result;
 }
 
 function renderStoryApprovalPage(req) {
@@ -3340,6 +3491,31 @@ app.post("/admin/social/select-variant", requireAgentAccess, (req, res) => {
   }
 });
 
+app.post("/admin/social/prepare-story-pages", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const result = prepareStoryPagesForSocialDrafts();
+    const preparedCount = result.created.length + result.found.length;
+    const message = `Prepared ${preparedCount} exact Live News story page${preparedCount === 1 ? "" : "s"} for social review. Created ${result.created.length}, already ready ${result.found.length}${result.failed.length ? `, skipped ${result.failed.length}` : ""}.`;
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        [result.failed.length ? "error" : "selected"]: result.failed.length
+          ? `${message} ${result.failed.slice(0, 3).join(" ")}`
+          : message,
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        error: safeAdminMessage(error.failures?.join(" ") || error.message || "Could not prepare Live News story pages."),
+      })
+    );
+  }
+});
+
 app.get("/admin/stories", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
@@ -3476,9 +3652,15 @@ app.post("/admin/meta/publish-selected", requireAgentAccess, async (req, res) =>
 
   const posted = [];
   const failed = [];
+  const prepared = [];
   for (const target of targets) {
-    const draft = findSocialDraftForMetaPublish(target.socialDraftId);
+    let draft = findSocialDraftForMetaPublish(target.socialDraftId);
     try {
+      if (!draft?.supervisor?.shareableNow || !draft?.linkState?.exactArticleUrl) {
+        const ensured = ensureStoryPageForSocialDraft(draft);
+        prepared.push(`${target.platform}: ${ensured.created ? "created" : "found"} ${ensured.exactArticleUrl}`);
+        draft = findSocialDraftForMetaPublish(target.socialDraftId) || draft;
+      }
       const result = target.platform === "facebook"
         ? await publishFacebookDraft(draft)
         : await publishInstagramDraft(draft);
@@ -3492,7 +3674,7 @@ app.post("/admin/meta/publish-selected", requireAgentAccess, async (req, res) =>
     return res.redirect(
       303,
       buildAdminUrl(req, "/admin/social", {
-        error: `${posted.length ? `Posted ${posted.length}. ` : ""}${failed.join(" ")}`,
+        error: `${prepared.length ? `Prepared ${prepared.length} story page${prepared.length === 1 ? "" : "s"}. ` : ""}${posted.length ? `Posted ${posted.length}. ` : ""}${failed.join(" ")}`,
       })
     );
   }
@@ -3500,7 +3682,7 @@ app.post("/admin/meta/publish-selected", requireAgentAccess, async (req, res) =>
   return res.redirect(
     303,
     buildAdminUrl(req, "/admin/social", {
-      posted: `Posted ${posted.length} selected draft${posted.length === 1 ? "" : "s"}: ${posted.join(" | ")}`,
+      posted: `${prepared.length ? `Prepared ${prepared.length} story page${prepared.length === 1 ? "" : "s"}. ` : ""}Posted ${posted.length} selected draft${posted.length === 1 ? "" : "s"}: ${posted.join(" | ")}`,
     })
   );
 });

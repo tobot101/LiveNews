@@ -89,6 +89,15 @@ const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "u
 if (!serverSource.includes("/admin/meta/publish-selected") || !serverSource.includes("bulk-social-post-form")) {
   fail("Social dashboard should support selecting multiple Facebook/Instagram drafts before posting.");
 }
+if (!serverSource.includes("Finalize checked drafts and post") || !serverSource.includes("ensureStoryPageForSocialDraft")) {
+  fail("Social dashboard should finalize checked drafts by preparing story pages before posting.");
+}
+if (!serverSource.includes("/admin/social/prepare-story-pages") || !serverSource.includes("Prepare Live News story pages")) {
+  fail("Social dashboard should let the editor prepare exact story pages before choosing social posts.");
+}
+if (!serverSource.includes("Can be finalized; posting will run only after story-page and Meta checks pass.")) {
+  fail("Social dashboard should explain why selected pending drafts can be checked before final posting.");
+}
 
 const noSelectionPlan = buildFacebookPublishPlan(draft, {}, env);
 if (noSelectionPlan.ready || !noSelectionPlan.failures.some((failure) => /select a facebook caption variant/i.test(failure))) {
