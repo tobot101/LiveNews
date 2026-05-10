@@ -1,0 +1,268 @@
+{
+  "schemaVersion": "live-news-entertainment-intelligence-v1",
+  "updatedAt": "2026-05-10",
+  "mode": "source_respectful_aggregate_learning_only",
+  "purpose": "Guide Live News entertainment coverage, article-page quality, and social draft quality without copying publisher wording, public comments, or private user data.",
+  "nonNegotiables": [
+    "Use this as pattern memory only; never copy another publisher's wording, headline structure, caption, comment, or creator voice.",
+    "Entertainment stories still require attribution, original source links, exact Live News story URLs for social posts, and human approval before publishing to social platforms.",
+    "Do not learn from private messages, personal profiles, usernames, copied comments, or individual identities.",
+    "Do not turn celebrity, health, death, legal, children, relationship, or allegation stories into gossip bait.",
+    "When facts are thin, stay narrow and source-backed instead of inventing context."
+  ],
+  "sourceMap": [
+    {
+      "id": "entertainment_tonight",
+      "name": "Entertainment Tonight",
+      "role": "high-reach video-first celebrity and entertainment news model",
+      "publicSignals": ["TV entertainment news", "Facebook video", "YouTube video", "celebrity interviews", "streaming channel"],
+      "sourceUrl": "https://www.paramountpressexpress.com/cbs-media-ventures/shows/entertainment-tonight/about/",
+      "patternLesson": "Strong entertainment posts often combine a clear celebrity/personality hook with short video-friendly context and broad platform distribution."
+    },
+    {
+      "id": "e_news",
+      "name": "E! News",
+      "role": "pop-culture and celebrity coverage model",
+      "publicSignals": ["breaking celebrity news", "red carpet", "TV scoop", "lifestyle trends", "Instagram stories"],
+      "sourceUrl": "https://www.eonline.com/about",
+      "patternLesson": "Entertainment coverage benefits from immediacy, recognisable faces, event timing, and a conversational tone that still stays factual."
+    },
+    {
+      "id": "variety",
+      "name": "Variety",
+      "role": "entertainment business and industry-trade model",
+      "publicSignals": ["film", "television", "awards", "industry analysis", "executives", "deals"],
+      "sourceUrl": "https://www.linkedin.com/company/variety",
+      "patternLesson": "Industry-facing entertainment stories need business context: platform, studio, release, deal, audience, awards, or career stakes."
+    },
+    {
+      "id": "billboard",
+      "name": "Billboard",
+      "role": "music chart and music-industry model",
+      "publicSignals": ["charts", "songs", "albums", "artists", "streaming", "airplay", "sales"],
+      "sourceUrl": "https://www.britannica.com/topic/Billboard-magazine",
+      "patternLesson": "Music coverage becomes stronger when it identifies the measurable fan signal: chart movement, release timing, tour momentum, streaming, radio, or industry dispute."
+    },
+    {
+      "id": "people",
+      "name": "People",
+      "role": "human-interest celebrity and culture model",
+      "publicSignals": ["celebrity news", "human interest", "royals", "culture", "inclusive storytelling"],
+      "sourceUrl": "https://people.com/about-us-5499056",
+      "patternLesson": "Personality-driven entertainment coverage should explain the human angle without invading privacy or overstating emotion."
+    },
+    {
+      "id": "access_hollywood",
+      "name": "Access Hollywood",
+      "role": "broadcast entertainment and red-carpet model",
+      "publicSignals": ["celebrity interviews", "behind the scenes", "red carpet", "daily TV entertainment"],
+      "sourceUrl": "https://stage.accesshollywood.com/about",
+      "patternLesson": "Interview and event coverage works when it brings audiences behind the scene and makes the event, person, and moment easy to place."
+    },
+    {
+      "id": "thewrap",
+      "name": "TheWrap",
+      "role": "entertainment business, media, and awards-season model",
+      "publicSignals": ["breaking news", "investigative reporting", "analysis", "awards", "industry events"],
+      "sourceUrl": "https://www.thewrap.com/about-us/",
+      "patternLesson": "Entertainment business coverage should separate confirmed facts from analysis and explain why the move matters to the industry."
+    },
+    {
+      "id": "meta_reels",
+      "name": "Meta Reels guidance",
+      "role": "platform behavior and visual-posting model",
+      "publicSignals": ["9:16 creative", "audio", "safe zones", "A/B testing", "attention into action"],
+      "sourceUrl": "https://www.facebook.com/business/ads/facebook-instagram-reels-ads",
+      "patternLesson": "Entertainment social packaging should be visual-first, mobile-first, concise, and tested across variants instead of relying on one generic caption."
+    },
+    {
+      "id": "pew_social_news",
+      "name": "Pew Research social news patterns",
+      "role": "audience platform behavior reference",
+      "publicSignals": ["Facebook news", "YouTube news", "Instagram news", "TikTok news", "age differences"],
+      "sourceUrl": "https://www.pewresearch.org/journalism/fact-sheet/social-media-and-news-fact-sheet/",
+      "patternLesson": "Entertainment distribution should consider platform differences because younger audiences and platform-specific audiences discover news differently."
+    }
+  ],
+  "coveragePillars": [
+    {
+      "id": "celebrity_public_moment",
+      "label": "Celebrity public moment",
+      "readerQuestion": "What happened with a public figure, and why are fans paying attention now?",
+      "bestFor": ["instagram", "facebook", "homepage entertainment card"],
+      "signals": ["public appearance", "career update", "interview", "award show", "relationship confirmed by reliable source", "public statement"],
+      "avoid": ["private-life speculation", "unsupported relationship claims", "mocking appearance", "unverified social rumor"]
+    },
+    {
+      "id": "music_momentum",
+      "label": "Music momentum",
+      "readerQuestion": "What changed for the artist, song, album, tour, chart, or fan base?",
+      "bestFor": ["instagram", "facebook", "entertainment column", "weekly music roundup"],
+      "signals": ["new single", "album release", "tour announcement", "chart movement", "festival set", "streaming milestone"],
+      "avoid": ["chart claims without source", "fan-war framing", "copied lyrics"]
+    },
+    {
+      "id": "film_tv_streaming",
+      "label": "Film, TV, and streaming",
+      "readerQuestion": "What changed for viewers: release, renewal, cancellation, casting, trailer, review wave, or platform move?",
+      "bestFor": ["homepage entertainment lane", "instagram carousel", "facebook link post"],
+      "signals": ["release date", "trailer", "cast news", "season renewal", "cancellation", "box office", "streaming ranking"],
+      "avoid": ["spoilers without warning", "review claims not in source", "fake release-date certainty"]
+    },
+    {
+      "id": "awards_red_carpet",
+      "label": "Awards and red carpet",
+      "readerQuestion": "Who won, who appeared, what moment stood out, and what does it mean for the season?",
+      "bestFor": ["instagram visual card", "facebook recap", "event page"],
+      "signals": ["nomination", "win", "speech", "red carpet", "fashion moment", "performance", "after-party"],
+      "avoid": ["body-shaming", "unverified wardrobe claims", "low-value outfit-only posts when stronger news exists"]
+    },
+    {
+      "id": "entertainment_business",
+      "label": "Entertainment business",
+      "readerQuestion": "What deal, dispute, ranking, strike, contract, studio decision, or streaming move affects the industry?",
+      "bestFor": ["facebook", "article page explainer", "business-adjacent entertainment lane"],
+      "signals": ["studio deal", "contract", "rights", "ratings", "box office", "streaming data", "labor dispute"],
+      "avoid": ["pretending business analysis is confirmed fact", "missing who pays or who benefits"]
+    },
+    {
+      "id": "fan_utility",
+      "label": "Fan utility",
+      "readerQuestion": "What can a fan watch, stream, listen to, buy, attend, or follow next?",
+      "bestFor": ["instagram", "facebook", "search result snippets"],
+      "signals": ["where to watch", "release time", "tour date", "ticket date", "streaming platform", "new episode"],
+      "avoid": ["ticket links or purchase claims without source", "spammy calls to action"]
+    }
+  ],
+  "writingIntelligence": {
+    "coreSequence": [
+      "Name the public figure, show, film, song, event, or company immediately.",
+      "State the concrete change in one sentence.",
+      "Add why it matters to fans, audiences, workers, the industry, or culture.",
+      "Include what happens next only if source-backed.",
+      "Point to the exact Live News page and original source attribution."
+    ],
+    "communicationPrinciples": [
+      {
+        "id": "audience_analysis",
+        "lesson": "Know whether the reader is a fan, casual viewer, industry follower, parent, music listener, or streaming subscriber before choosing the angle."
+      },
+      {
+        "id": "credibility_first",
+        "lesson": "Entertainment writing can be warm and emotional, but credibility comes from attribution, timing, and avoiding rumor language."
+      },
+      {
+        "id": "motivated_sequence_adapted",
+        "lesson": "Use a light version of attention, relevance, context, visualization, and action: hook the moment, explain why it matters, show the audience impact, then invite the exact article click."
+      },
+      {
+        "id": "emotional_precision",
+        "lesson": "Emotion should match the story: excitement for releases, reflection for career moments, care for deaths or health, restraint for allegations."
+      },
+      {
+        "id": "sentence_rhythm",
+        "lesson": "Mix short direct sentences with one context sentence. Avoid repeating the title and avoid same-tempo captions across nearby posts."
+      }
+    ],
+    "captionShapes": [
+      {
+        "id": "fan_first",
+        "shape": "Fan-facing hook -> source-backed context -> exact Live News page CTA",
+        "useWhen": "The story affects fans directly through a release, tour, show, trailer, award, or public moment."
+      },
+      {
+        "id": "industry_first",
+        "shape": "Business move -> affected company/talent/audience -> why it matters",
+        "useWhen": "The story is about studios, streaming, contracts, ratings, strikes, box office, or chart methodology."
+      },
+      {
+        "id": "human_moment",
+        "shape": "Person -> public moment -> respectful context",
+        "useWhen": "The story is about a celebrity statement, life event, tribute, health update, or career milestone."
+      },
+      {
+        "id": "watch_listen_next",
+        "shape": "What is new -> where/when audiences can follow it -> source attribution",
+        "useWhen": "The story has practical fan utility such as release dates, platform availability, episode timing, or tour dates."
+      },
+      {
+        "id": "event_recap",
+        "shape": "Event result -> standout moment -> next awards/cultural context",
+        "useWhen": "The story comes from awards shows, festivals, red carpets, finales, premieres, or live performances."
+      }
+    ],
+    "bannedEntertainmentOpeners": [
+      "Fans are losing it",
+      "The internet is obsessed",
+      "You won't believe",
+      "Shocking",
+      "Drama alert",
+      "Everyone is talking about",
+      "Source-linked coverage",
+      "Top Story:"
+    ],
+    "qualityChecklist": [
+      "Does the post explain what happened without copying the source?",
+      "Does it identify the person, project, song, film, show, studio, platform, or event?",
+      "Does it avoid gossip when only verified public facts are available?",
+      "Does it include a human or fan angle without inventing public reaction?",
+      "Does it avoid hashtags unrelated to the article?",
+      "Does it point to an exact internal Live News story URL before public posting?"
+    ]
+  },
+  "socialPlatformGuidance": {
+    "instagram": {
+      "priority": "visual_and_human_first",
+      "recommendedAssets": ["portrait-safe image", "show poster", "album art when licensed/available", "event image", "generated Live News card"],
+      "captionLength": "short to medium",
+      "bestShapes": ["fan_first", "human_moment", "event_recap", "watch_listen_next"],
+      "hashtags": ["brand", "category", "specific public figure/project", "format"],
+      "notes": "Instagram drafts should feel like a visual entertainment card, not a database entry."
+    },
+    "facebook": {
+      "priority": "context_and_click_first",
+      "recommendedAssets": ["article image", "generated card", "video thumbnail when available"],
+      "captionLength": "medium",
+      "bestShapes": ["industry_first", "fan_first", "human_moment"],
+      "hashtags": ["small relevant set only"],
+      "notes": "Facebook drafts should explain why the story is worth clicking and make the exact article link obvious."
+    }
+  },
+  "growthLoop": {
+    "cadence": "weekly_review_and_monthly_source_refresh",
+    "inputsAllowed": [
+      "trusted entertainment feeds",
+      "official outlet about pages",
+      "aggregate platform metrics",
+      "public trend tools without personal data",
+      "editor-approved lessons",
+      "exact article clicks",
+      "aggregate saves/shares/reach"
+    ],
+    "inputsBlocked": [
+      "copied comments",
+      "usernames",
+      "private messages",
+      "individual profiles",
+      "private demographic targeting",
+      "unsupported rumor accounts",
+      "scraped captions from creators"
+    ],
+    "teacherChecks": [
+      "source_respect",
+      "entertainment_specificity",
+      "human_angle",
+      "rumor_risk",
+      "sensitivity_review",
+      "platform_fit",
+      "exact_story_link"
+    ],
+    "futureBuildSteps": [
+      "Add entertainment-specific source scoring.",
+      "Add Entertainment column card rules for celebrity, music, TV, film, awards, and fan utility.",
+      "Add category-specific headline and summary generation for entertainment.",
+      "Add generated Instagram card layouts for music, film/TV, celebrity, and awards.",
+      "Add performance lessons that compare entertainment caption shapes without storing private data."
+    ]
+  }
+}
