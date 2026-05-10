@@ -82,6 +82,15 @@ const {
   applyCoverageContextsToItems,
   applyCoverageContextsToPayload,
 } = require("./lib/news-intelligence");
+const {
+  buildTrendInputs,
+  publicSelection,
+  readTrendSignalMemory,
+} = require("./lib/trend-intelligence");
+const {
+  rankStoryOfWeek,
+  rankTopStoryOfDay,
+} = require("./lib/top-story-ranker");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -416,6 +425,10 @@ const cache = {
   sourceErrors: [],
   sourceMix: {},
   configuredSources: 0,
+  trendSelections: {
+    topStoryOfDay: null,
+    topStoryOfWeek: null,
+  },
 };
 
 let placesIndex = [];
@@ -1307,6 +1320,59 @@ function pickSpotlightStory(items, { maxAgeHours, exclude = [] } = {}) {
   );
 }
 
+function applyTrendSelectionToStory(story, selection) {
+  if (!story || !selection) return story || null;
+  return {
+    ...story,
+    trendSelection: publicSelection(selection),
+    trendTopicId: selection.topicId,
+    trendTopicName: selection.topicName,
+    trendScore: selection.score,
+    trendConfidence: selection.confidence,
+    trendWhySelected: selection.whySelected,
+    trendDuplicateStatus: selection.duplicateStatus,
+    topicSuggestions: selection.topicKeywords || [],
+  };
+}
+
+function buildTrendRankingSelections({ ranked, weeklyClustered }) {
+  try {
+    const trendMemory = readTrendSignalMemory();
+    const performanceMemory = readSocialPerformanceMemory();
+    const trendInputs = buildTrendInputs({
+      trendMemory,
+      socialPerformanceMemory: performanceMemory,
+    });
+    const topStoryOfDay = rankTopStoryOfDay(ranked, trendInputs.signals, trendInputs.siteMetrics, {
+      origin: "https://newsmorenow.com",
+    });
+    const topStoryOfWeek = rankStoryOfWeek(weeklyClustered, trendInputs.signals, trendInputs.siteMetrics, {
+      daySelection: topStoryOfDay,
+      origin: "https://newsmorenow.com",
+    });
+    return {
+      topStoryOfDay,
+      topStoryOfWeek,
+      inputSummary: {
+        signalCount: trendInputs.signals.length,
+        siteMetricCount: trendInputs.siteMetrics.length,
+        externalAdaptersRequired: false,
+      },
+    };
+  } catch (error) {
+    return {
+      topStoryOfDay: null,
+      topStoryOfWeek: null,
+      inputSummary: {
+        signalCount: 0,
+        siteMetricCount: 0,
+        externalAdaptersRequired: false,
+        error: error.message,
+      },
+    };
+  }
+}
+
 function needsSummaryResearch(item) {
   if (!item?.link) return false;
   if (item.summaryResearch?.status === "ready") return false;
@@ -1665,12 +1731,36 @@ async function refreshNews() {
   );
 
   cache.items = clustered;
-  cache.topStoryOfDay =
-    pickSpotlightStory(ranked, { maxAgeHours: TOP_STORY_DAY_HOURS }) || ranked[0] || null;
-  cache.topStoryOfWeek = pickSpotlightStory(weeklyClustered, {
-    maxAgeHours: TOP_STORY_WEEK_HOURS,
-    exclude: [cache.topStoryOfDay],
-  });
+  const trendRanking = buildTrendRankingSelections({ ranked, weeklyClustered });
+  const selectedDayStory =
+    trendRanking.topStoryOfDay?.story ||
+    pickSpotlightStory(ranked, { maxAgeHours: TOP_STORY_DAY_HOURS }) ||
+    ranked[0] ||
+    null;
+  const selectedWeekStory =
+    trendRanking.topStoryOfWeek?.story ||
+    pickSpotlightStory(weeklyClustered, {
+      maxAgeHours: TOP_STORY_WEEK_HOURS,
+      exclude: [selectedDayStory],
+    });
+  cache.topStoryOfDay = applyTrendSelectionToStory(selectedDayStory, trendRanking.topStoryOfDay);
+  cache.topStoryOfWeek = applyTrendSelectionToStory(selectedWeekStory, trendRanking.topStoryOfWeek);
+  if (
+    cache.topStoryOfDay &&
+    cache.topStoryOfWeek &&
+    getStoryIdentityKey(cache.topStoryOfDay) === getStoryIdentityKey(cache.topStoryOfWeek)
+  ) {
+    cache.topStoryOfWeek = pickSpotlightStory(weeklyClustered, {
+      maxAgeHours: TOP_STORY_WEEK_HOURS,
+      exclude: [cache.topStoryOfDay],
+    });
+  }
+  cache.trendSelections = {
+    topStoryOfDay: publicSelection(trendRanking.topStoryOfDay),
+    topStoryOfWeek: publicSelection(trendRanking.topStoryOfWeek),
+    inputSummary: trendRanking.inputSummary,
+    updatedAt: new Date().toISOString(),
+  };
   cache.topStories = diversifyBySource(ranked, { maxPerSource: 2, limit: TOP_STORIES_LIMIT });
   const topStoryKeys = new Set(cache.topStories.map(getStoryIdentityKey));
   const feedCandidates = recent.filter((item) => !topStoryKeys.has(getStoryIdentityKey(item)));
@@ -1715,6 +1805,15 @@ function buildCurrentNewsPayload() {
       },
       topStoryOfDay: (fallback.topStories || [])[0] || null,
       topStoryOfWeek: (fallback.topStories || [])[1] || null,
+      trendSelections: {
+        topStoryOfDay: null,
+        topStoryOfWeek: null,
+        inputSummary: {
+          signalCount: 0,
+          siteMetricCount: 0,
+          externalAdaptersRequired: false,
+        },
+      },
       ...fallback,
     })));
   }
@@ -1729,6 +1828,7 @@ function buildCurrentNewsPayload() {
     },
     topStoryOfDay: cache.topStoryOfDay || cache.topStories[0] || null,
     topStoryOfWeek: cache.topStoryOfWeek || cache.topStories[1] || null,
+    trendSelections: cache.trendSelections,
     topStories: cache.topStories,
     feed: cache.feed,
     sourceErrors: cache.sourceErrors,
@@ -2526,8 +2626,25 @@ function buildPublicSignalInput(req) {
 function renderPerformanceMemoryPage(req) {
   const store = readSocialPerformanceMemory();
   const summary = summarizePerformanceMemory(store);
+  const trendSelections = buildCurrentNewsPayload().trendSelections || cache.trendSelections || {};
   const notice = cleanText(req.query.saved || req.query.error || req.query.refreshed || "");
   const noticeClass = req.query.error ? "fail" : "ok";
+  const trendCards = [trendSelections.topStoryOfDay, trendSelections.topStoryOfWeek]
+    .filter(Boolean)
+    .map(
+      (selection) => `
+        <article class="memory-card">
+          <div class="memory-card-top">
+            <span class="pill">${escapeHtml(selection.label || "Trend selection")}</span>
+            <span class="status ${selection.duplicateStatus === "unique" ? "ready" : "blocked"}">${escapeHtml(selection.duplicateStatus || "unique")}</span>
+          </div>
+          <h2>${escapeHtml(selection.title || "Live News story")}</h2>
+          <p>${escapeHtml(selection.whySelected || selection.explanation || "")}</p>
+          <p><strong>Confidence:</strong> ${escapeHtml(selection.confidence || 0)} • <strong>Score:</strong> ${escapeHtml(selection.score || 0)} • <strong>Sustained days:</strong> ${escapeHtml(selection.sustainedDays || 0)}</p>
+          <p><strong>Signals:</strong> ${escapeHtml((selection.signalsUsed || []).map((signal) => `${signal.source}:${signal.timeframe}`).join(", ") || "safe internal/story signals")}</p>
+        </article>`
+    )
+    .join("");
   const lessons = (store.lessons || [])
     .slice(0, 14)
     .map(
@@ -2611,6 +2728,13 @@ function renderPerformanceMemoryPage(req) {
         <div class="metric"><strong>${summary.lessonCount}</strong> lessons</div>
       </div>
       <p><a href="${escapeHtml(buildAdminUrl(req, "/admin/social"))}">Social Publisher</a> • <a href="${escapeHtml(buildAdminUrl(req, "/admin/meta"))}">Meta readiness</a></p>
+    </section>
+
+    <section class="panel">
+      <p class="pill">Trend intelligence v1</p>
+      <h2>Homepage trend selections</h2>
+      <p>These selections are private diagnostics for why the homepage currently prefers the day and week spotlights. Missing external APIs do not block ranking.</p>
+      <div class="memory-grid">${trendCards || '<article class="memory-card"><h2>No trend selections yet.</h2><p>The next news refresh will produce day/week trend diagnostics.</p></article>'}</div>
     </section>
 
     <section class="memory-grid">
@@ -4442,6 +4566,18 @@ app.get("/api/agents/status", (req, res) => {
       lessons: performanceSummary.lessonCount,
       storesPersonalData: false,
     },
+    trendIntelligence: {
+      mode: "safe_aggregate_trend_learning_only",
+      autoPromote: false,
+      externalApisRequired: false,
+      topStoryOfDay: cache.trendSelections?.topStoryOfDay || null,
+      topStoryOfWeek: cache.trendSelections?.topStoryOfWeek || null,
+      inputSummary: cache.trendSelections?.inputSummary || null,
+      duplicateStatus: {
+        day: cache.trendSelections?.topStoryOfDay?.duplicateStatus || "unknown",
+        week: cache.trendSelections?.topStoryOfWeek?.duplicateStatus || "unknown",
+      },
+    },
     metaReadiness: {
       status: metaReadiness.status,
       readyForApiTesting: metaReadiness.readyForApiTesting,
@@ -4573,6 +4709,7 @@ app.get("/api/health", (req, res) => {
     audienceIntelligence: currentPayload.summaryHealth?.audienceIntelligence,
     summaryResearch: summaryResearchStats,
     imageResearch: imageQualityStats,
+    trendIntelligence: cache.trendSelections,
     localNews: localHealthStats,
     places: placesMeta.totalPlaces,
   });

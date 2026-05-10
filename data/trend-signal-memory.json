@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "live-news-trend-signal-memory-v1",
+  "mode": "safe_aggregate_trend_learning_only",
+  "updatedAt": null,
+  "autoPromoteAllowed": false,
+  "publicVisible": false,
+  "signals": [],
+  "siteMetrics": [],
+  "editorBoosts": [],
+  "safeguards": [
+    "Use authorized APIs, exports, manually entered public data, and first-party aggregate analytics only.",
+    "Do not store usernames, copied comments, private messages, personal profiles, cookies, tokens, or individual identities.",
+    "Treat Google Trends-style 0-100 values as relative normalized interest, not raw search volume.",
+    "Treat third-party volume numbers as directional signals, not absolute truth.",
+    "Use trend signals to improve story selection and reader usefulness, never to invent facts."
+  ]
+}
