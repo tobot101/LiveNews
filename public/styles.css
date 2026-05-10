@@ -16,6 +16,8 @@
   --chip: #e2e8f0;
   --brand-base: #2563eb;
   --brand-glow: rgba(59, 130, 246, 0.35);
+  --topbar-bg: #deaf84;
+  --topbar-border: #b98b5f;
   --lead-bg-start: #172338;
   --lead-bg-mid: #102033;
   --lead-bg-end: #273d4f;
@@ -53,6 +55,8 @@ html[data-theme="night"] {
   --chip: #17212d;
   --brand-base: #a9bcff;
   --brand-glow: rgba(143, 167, 201, 0.22);
+  --topbar-bg: #deaf84;
+  --topbar-border: #8c6846;
   --lead-bg-start: #101a29;
   --lead-bg-mid: #0c1725;
   --lead-bg-end: #203346;
@@ -89,6 +93,8 @@ body.local-theme {
   --chip: #eef2f7;
   --brand-base: #2563eb;
   --brand-glow: rgba(59, 130, 246, 0.28);
+  --topbar-bg: #deaf84;
+  --topbar-border: #b98b5f;
   --shadow: 0 16px 40px rgba(36, 48, 65, 0.08);
   background: radial-gradient(circle at top, var(--bg-accent), var(--bg));
 }
@@ -110,6 +116,8 @@ html[data-theme="night"] body.local-theme {
   --chip: #17212d;
   --brand-base: #a9bcff;
   --brand-glow: rgba(143, 167, 201, 0.22);
+  --topbar-bg: #deaf84;
+  --topbar-border: #8c6846;
   --lead-bg-start: #101a29;
   --lead-bg-mid: #0c1725;
   --lead-bg-end: #203346;
@@ -175,8 +183,8 @@ input:focus-visible {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 32px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  background: var(--topbar-bg);
+  border-bottom: 1px solid var(--topbar-border);
   position: static;
 }
 
