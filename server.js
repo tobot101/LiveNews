@@ -2230,21 +2230,24 @@ function metricInput(name, label) {
 
 function buildManualPerformanceInput(req) {
   return {
+    articleId: req.body?.articleId,
     platform: req.body?.platform,
     exactArticleUrl: req.body?.exactArticleUrl,
     manualPostUrl: req.body?.manualPostUrl,
     storyId: req.body?.storyId,
     socialDraftId: req.body?.socialDraftId,
-    postedAt: req.body?.postedAt,
+    selectedVariant: req.body?.selectedVariant,
+    postingTime: req.body?.postingTime || req.body?.postedAt,
     category: req.body?.category,
     captionShape: req.body?.captionShape,
     mediaShape: req.body?.mediaShape,
     postType: req.body?.postType,
+    editorNotes: req.body?.editorNotes,
     metrics: {
       reach: req.body?.reach,
       views: req.body?.views,
       likes: req.body?.likes,
-      comments: req.body?.comments,
+      commentsCount: req.body?.commentsCount || req.body?.comments,
       shares: req.body?.shares,
       saves: req.body?.saves,
       linkClicks: req.body?.linkClicks,
@@ -2299,7 +2302,7 @@ function renderPerformanceMemoryPage(req) {
         <li>
           <strong>${escapeHtml(post.platform)} • ${escapeHtml(post.category)}</strong>
           <span>${escapeHtml(post.exactArticleUrl)}</span>
-          <small>${escapeHtml(post.metrics?.linkClicks || 0)} exact clicks • ${escapeHtml(post.metrics?.saves || 0)} saves • score ${escapeHtml(post.scores?.score || 0)}</small>
+          <small>${escapeHtml(post.selectedVariant || "variant unknown")} • ${escapeHtml(post.metrics?.linkClicks || 0)} exact clicks • ${escapeHtml(post.metrics?.saves || 0)} saves • score ${escapeHtml(post.scores?.score || 0)}</small>
         </li>`
     )
     .join("");
@@ -2364,20 +2367,22 @@ function renderPerformanceMemoryPage(req) {
     </section>
 
     <section class="memory-grid">
-      <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/performance/manual-post"))}">
-        <h2>Record manual post result</h2>
-        <div class="grid">
-          <label>Platform<select name="platform"><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select></label>
-          <label>Exact article URL<input name="exactArticleUrl" placeholder="https://newsmorenow.com/stories/..." required /></label>
-          <label>Manual post URL<input name="manualPostUrl" placeholder="Optional public post URL" /></label>
-          <label>Posted at<input name="postedAt" type="datetime-local" /></label>
-          <label>Category<input name="category" placeholder="local, national, sports..." /></label>
-          <label>Caption shape<input name="captionShape" placeholder="title_first, context_first..." /></label>
-          <label>Media shape<input name="mediaShape" placeholder="square_card, reel, carousel..." /></label>
+	      <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/performance/manual-post"))}">
+	        <h2>Record manual post result</h2>
+	        <div class="grid">
+	          <label>Article ID<input name="articleId" placeholder="Story ID or slug" /></label>
+	          <label>Platform<select name="platform"><option value="instagram">Instagram</option><option value="facebook">Facebook</option></select></label>
+	          <label>Exact article URL<input name="exactArticleUrl" placeholder="https://newsmorenow.com/stories/..." required /></label>
+	          <label>Manual post URL<input name="manualPostUrl" placeholder="Optional public post URL" /></label>
+	          <label>Posting time<input name="postingTime" type="datetime-local" /></label>
+	          <label>Selected variant<input name="selectedVariant" placeholder="sourceFirst, readerImpact..." /></label>
+	          <label>Category<input name="category" placeholder="local, national, sports..." /></label>
+	          <label>Caption shape<input name="captionShape" placeholder="title_first, context_first..." /></label>
+	          <label>Media shape<input name="mediaShape" placeholder="square_card, reel, carousel..." /></label>
           ${metricInput("reach", "Reach")}
           ${metricInput("views", "Views")}
           ${metricInput("likes", "Likes")}
-          ${metricInput("comments", "Comments count")}
+	          ${metricInput("commentsCount", "Comments count")}
           ${metricInput("shares", "Shares")}
           ${metricInput("saves", "Saves")}
           ${metricInput("linkClicks", "Exact article clicks")}
@@ -2385,9 +2390,10 @@ function renderPerformanceMemoryPage(req) {
           ${metricInput("follows", "Follows")}
           ${metricInput("hides", "Hides")}
           ${metricInput("reports", "Reports")}
-        </div>
-        <p><button type="submit">Save aggregate result</button></p>
-      </form>
+	        </div>
+	        <label>Editor notes<textarea name="editorNotes" placeholder="Aggregate lesson only. Do not paste usernames, comments, DMs, profiles, or private data."></textarea></label>
+	        <p><button type="submit">Save aggregate result</button></p>
+	      </form>
 
       <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/performance/public-signal"))}">
         <h2>Add public-interest signal</h2>

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "live-news-social-performance-memory-v1",
+  "schemaVersion": "live-news-social-performance-memory-v2",
   "mode": "private_aggregate_learning_only",
   "updatedAt": null,
   "autoPostAllowed": false,
@@ -9,7 +9,7 @@
   "lessons": [],
   "safeguards": [
     "Store aggregate post results only.",
-    "Do not store usernames, comments, private messages, cookies, tokens, or profile data.",
+    "Do not store usernames, copied comment text, private messages, cookies, tokens, or profile data.",
     "Use public-interest signals only when they come from trusted, public, aggregate sources.",
     "Treat public trends as attention signals, not verified facts.",
     "Optimize for exact Live News article clicks, source trust, usefulness, saves, and shares, not outrage."
