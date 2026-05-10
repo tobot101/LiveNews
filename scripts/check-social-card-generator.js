@@ -2,6 +2,7 @@ const {
   buildInstagramCardPlan,
   isDurablePublicImageUrl,
 } = require("../lib/social-card-generator");
+const { renderInstagramCardPng } = require("../lib/social-card-image");
 
 const failures = [];
 
@@ -19,11 +20,11 @@ const noImagePlan = buildInstagramCardPlan({
 if (noImagePlan.platform !== "instagram" || noImagePlan.format !== "feed_card") {
   fail("Instagram card plan should describe the platform and feed-card format.");
 }
-if (noImagePlan.renderStatus !== "needs_rendering" || noImagePlan.publishable !== false) {
-  fail("Instagram card plan without a durable image/card URL should need rendering and not be publishable.");
+if (noImagePlan.renderStatus !== "ready" || noImagePlan.publishable !== true) {
+  fail("Instagram card plan without a publisher image should use a generated Live News card and become publish-ready.");
 }
-if (noImagePlan.imageSource !== "generated_card_needed") {
-  fail("No-image Instagram plan should request a generated card.");
+if (noImagePlan.imageSource !== "generated_live_news_card" || !noImagePlan.generatedCardUrl.includes("/social-cards/transit-plan-test.png")) {
+  fail("No-image Instagram plan should create a stable generated card URL.");
 }
 
 const readyPlan = buildInstagramCardPlan({
@@ -45,6 +46,16 @@ if (!readyPlan.cardTitle || !readyPlan.altText) {
 }
 if (isDurablePublicImageUrl("http://newsmorenow.com/card.png") || isDurablePublicImageUrl("https://localhost/card.png")) {
   fail("Durable image validation must reject non-HTTPS or local URLs.");
+}
+
+const png = renderInstagramCardPng({
+  cardTitle: "City Council Approves Overnight Transit Plan",
+  cardSubtitle: "Riders and station workers are expected to see updated reporting procedures.",
+  sourceLabel: "Live News Test Source",
+  exactArticleUrl: "https://newsmorenow.com/stories/transit-plan-test",
+});
+if (!Buffer.isBuffer(png) || png.slice(0, 8).toString("hex") !== "89504e470d0a1a0a") {
+  fail("Generated Instagram card should render as a real PNG image.");
 }
 
 if (failures.length) {

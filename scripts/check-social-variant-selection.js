@@ -70,11 +70,14 @@ if ((facebookHtml.match(/class="variant-card/g) || []).length < 3) {
 if ((instagramHtml.match(/class="variant-card/g) || []).length < 3) {
   fail("Dashboard HTML should show at least 3 Instagram variant cards.");
 }
-if (!facebookHtml.includes("Teacher scores") || !instagramHtml.includes("Teacher scores")) {
-  fail("Dashboard variants should show teacher scores.");
+if (!facebookHtml.includes("Quality status") || !instagramHtml.includes("Quality status")) {
+  fail("Dashboard variants should show editor-friendly quality status.");
 }
-if (!facebookHtml.includes("Blocking warnings") || !instagramHtml.includes("Blocking warnings")) {
-  fail("Dashboard variants should show blocking warnings.");
+if (!facebookHtml.includes("Readiness notes") || !instagramHtml.includes("Readiness notes")) {
+  fail("Dashboard variants should show readiness notes.");
+}
+if (/Teacher checks|Teacher scores/i.test(facebookHtml + instagramHtml)) {
+  fail("Dashboard variants should not expose teacher-check wording.");
 }
 if (!facebookHtml.includes("https://newsmorenow.com/stories/city-council-transit-safety-test")) {
   fail("Dashboard variants should show the exact article URL.");

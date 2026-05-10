@@ -114,11 +114,8 @@ const noImageDraft = {
   },
 };
 const instagramNoImage = buildInstagramPublishPlan(noImageDraft, {}, env);
-if (instagramNoImage.ready || !instagramNoImage.failures.some((failure) => failure.includes("public image URL"))) {
-  failures.push("Instagram publish plan should block when no public image URL exists.");
-}
-if (!instagramNoImage.failures.some((failure) => /visual readiness/i.test(failure))) {
-  failures.push("Instagram publish plan should explain visual readiness blocking.");
+if (!instagramNoImage.ready || !instagramNoImage.imageUrl.includes("/social-cards/live-news-test-story-abc123.png")) {
+  failures.push("Instagram publish plan should use a generated Live News card URL when no publisher image exists.");
 }
 
 const generatedCardDraft = {
@@ -202,8 +199,9 @@ async function runPublishChecks() {
     failures.push("Instagram publish result must not expose the private Page access token.");
   }
 
-  if (!calls.some((call) => call.body.includes("access_token=derived-private-page-token"))) {
-    failures.push("Facebook posting should derive and use the Page access token when Meta returns one for the configured Page.");
+  const derivedTokenCalls = calls.filter((call) => call.body.includes("access_token=derived-private-page-token"));
+  if (derivedTokenCalls.length < 3) {
+    failures.push("Facebook and Instagram posting should derive and use the Page access token when Meta returns one for the configured Page.");
   }
 
   async function mockMissingContentTask(endpoint) {

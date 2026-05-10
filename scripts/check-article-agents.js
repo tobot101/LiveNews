@@ -83,6 +83,11 @@ for (const draft of result.drafts) {
   ) {
     failures.push(`${draft.storyId} copied the publisher headline exactly.`);
   }
+  if (/A clear look at the latest source-linked details|review-only|source packet|story packet|posting stays paused/i.test(
+    [draft.dek, ...(draft.summary || []), ...(draft.keyPoints || [])].join(" ")
+  )) {
+    failures.push(`${draft.storyId} exposes internal or generic draft wording.`);
+  }
 }
 
 const sourceLinkedDraft = sourceLinkedResult.drafts[0];

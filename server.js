@@ -55,6 +55,7 @@ const {
   refreshSavedPerformanceLessons,
   summarizePerformanceMemory,
 } = require("./lib/social-performance-memory");
+const { renderInstagramCardPng } = require("./lib/social-card-image");
 const { buildMetaReadiness } = require("./lib/meta-readiness");
 const {
   buildFacebookPublishPlan,
@@ -1858,74 +1859,57 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
   const notice = cleanText(req?.query?.posted || req?.query?.selected || req?.query?.error || "");
   const noticeClass = req?.query?.error ? "fail" : "ok";
   const selectedCount = (selectionStore.selections || []).length;
-  const cards = liveRun.drafts
-    .map((draft) => {
+  const selectVariantUrl = req ? buildAdminUrl(req, "/admin/social/select-variant") : "/admin/social/select-variant";
+  const renderPlatformDraftCard = (draft, platform) => {
+      const platformLabel = platform === "facebook" ? "Facebook" : "Instagram";
+      const platformData = draft.platforms?.[platform] || {};
+      const selectedVariant = platformData.selectedVariant || null;
+      const variantCount = platformData.variants?.length || 0;
       const ready = draft.supervisor?.shareableNow;
-      const facebookPlan = buildFacebookPublishPlan(draft);
-      const instagramPlan = buildInstagramPublishPlan(draft);
-      const facebookBlockedReasons = [...new Set(facebookPlan.failures || [])]
+      const plan = platform === "facebook" ? buildFacebookPublishPlan(draft) : buildInstagramPublishPlan(draft);
+      const blockedReasons = [...new Set(plan.failures || [])]
         .map((failure) => `<li>${escapeHtml(failure)}</li>`)
         .join("");
-      const instagramBlockedReasons = [...new Set(instagramPlan.failures || [])]
-        .map((failure) => `<li>${escapeHtml(failure)}</li>`)
-        .join("");
-      const facebookDisabled = !facebookPlan.ready;
-      const instagramDisabled = !instagramPlan.ready;
-      const imageUrl = draft.platforms?.instagram?.mediaCard?.imageUrl || "";
+      const disabled = !plan.ready;
       const failures = (draft.supervisor?.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
       const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
-      const patterns = (draft.audiencePlan?.matchedPatterns || [])
-        .map((pattern) => `<span>${escapeHtml(pattern.label)}</span>`)
-        .join("");
-      const teacherChecks = (draft.teacherReport?.checks || [])
-        .map((check) => `<li class="${check.passed ? "pass" : "needs"}">${escapeHtml(check.name)}: ${escapeHtml(check.passed ? "passed" : "needs attention")}</li>`)
-        .join("");
-      const selectVariantUrl = req ? buildAdminUrl(req, "/admin/social/select-variant") : "/admin/social/select-variant";
-      const facebookVariants = renderSocialVariantReviewHtml({ draft, platform: "facebook", actionUrl: selectVariantUrl });
-      const instagramVariants = renderSocialVariantReviewHtml({ draft, platform: "instagram", actionUrl: selectVariantUrl });
+      const variants = renderSocialVariantReviewHtml({ draft, platform, actionUrl: selectVariantUrl });
+      const postAction = platform === "facebook"
+        ? req ? buildAdminUrl(req, "/admin/meta/publish/facebook") : "/admin/meta/publish/facebook"
+        : req ? buildAdminUrl(req, "/admin/meta/publish/instagram") : "/admin/meta/publish/instagram";
+      const visualLine = platform === "instagram"
+        ? `<div class="link-box compact"><strong>Instagram image/card</strong><span>${escapeHtml(plan.imageUrl || "Image/card pending")}</span><small>${escapeHtml(plan.renderStatus || "not checked")}</small></div>`
+        : "";
+      const qualityLabel = draft.teacherReport?.passed === true ? "Passed" : "Needs attention";
       return `
-        <article class="social-card">
+        <article class="social-card platform-card ${escapeHtml(platform)}">
           <div class="social-card-top">
             <span class="pill">${escapeHtml(draft.placementLabel)}</span>
-            <span class="status ${ready ? "ready" : "blocked"}">${ready ? "Ready for review" : "Blocked until article page"}</span>
+            <span class="status ${ready ? "ready" : "blocked"}">${ready ? "Article ready" : "Needs article page"}</span>
           </div>
           <h2>${escapeHtml(draft.title)}</h2>
           <p>${escapeHtml(draft.summary || "No summary available yet.")}</p>
           <div class="meta">${escapeHtml(draft.sourceAttribution)} • ${escapeHtml(draft.category)} • ${escapeHtml(formatCrawlerDateBadge(draft.publishedAt))}</div>
-          <div class="audience-box">
-            <strong>Audience intelligence</strong>
-            <span>${escapeHtml(draft.audiencePlan?.postShape || "Social draft")} • ${escapeHtml(draft.audiencePlan?.emotionalRegister || "source-first")}</span>
-            <small>Primary angle: ${escapeHtml(draft.audiencePlan?.primaryHumanAngle || "reader clarity")}</small>
-            ${patterns ? `<div class="pattern-row">${patterns}</div>` : ""}
+          <div class="draft-summary-row">
+            <span>${escapeHtml(platformLabel)} variants: ${variantCount}</span>
+            <span>Selected: ${escapeHtml(selectedVariant?.label || selectedVariant?.id || "none yet")}</span>
+            <span>Quality: ${escapeHtml(qualityLabel)}</span>
           </div>
           <div class="link-box">
             <strong>${draft.linkState?.shareableNow ? "Exact article link" : "Planned article link"}</strong>
             <span>${escapeHtml(draft.linkState?.exactArticleUrl || draft.linkState?.futureArticleUrl || "Pending")}</span>
             <small>${escapeHtml(draft.linkState?.reason || "")}</small>
           </div>
-          <details open>
-            <summary>A/B caption review</summary>
-            ${facebookVariants}
-            ${instagramVariants}
-          </details>
-          <details>
-            <summary>Teacher checks</summary>
-            <ul class="teacher-list">${teacherChecks}</ul>
-          </details>
+          ${visualLine}
+          ${variants}
           <div class="meta-api-box">
-            <strong>Meta posting options</strong>
-            <small>Select a platform variant first. The API buttons publish only the selected approved variant after human review. Facebook: ${metaReadiness.platforms?.facebook?.status || "not checked"} • Instagram: ${metaReadiness.platforms?.instagram?.status || "not checked"}.</small>
+            <strong>${escapeHtml(platformLabel)} posting</strong>
+            <small>Choose one ${escapeHtml(platformLabel)} caption option above. Posting stays locked until the article link, selected caption, Meta setup, and image/card requirements are ready.</small>
             <div class="platform-actions">
-              <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/facebook") : "/admin/meta/publish/facebook")}">
+              <form method="post" action="${escapeHtml(postAction)}">
                 <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
-                <button type="submit" ${facebookDisabled ? "disabled" : ""}>Post to Facebook via API</button>
-                ${facebookBlockedReasons ? `<ul>${facebookBlockedReasons}</ul>` : ""}
-              </form>
-              <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/instagram") : "/admin/meta/publish/instagram")}">
-                <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
-                <input name="imageUrl" value="${escapeHtml(imageUrl)}" placeholder="Public Instagram image URL" />
-                <button type="submit" ${instagramDisabled ? "disabled" : ""}>Post to Instagram via API</button>
-                ${instagramBlockedReasons ? `<ul>${instagramBlockedReasons}</ul>` : ""}
+                <button type="submit" ${disabled ? "disabled" : ""}>Post to ${escapeHtml(platformLabel)}</button>
+                ${blockedReasons ? `<ul>${blockedReasons}</ul>` : ""}
               </form>
             </div>
           </div>
@@ -1933,8 +1917,9 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           ${warnings ? `<div class="review-box warn"><strong>Warnings</strong><ul>${warnings}</ul></div>` : ""}
         </article>
       `;
-    })
-    .join("");
+  };
+  const facebookCards = liveRun.drafts.map((draft) => renderPlatformDraftCard(draft, "facebook")).join("");
+  const instagramCards = liveRun.drafts.map((draft) => renderPlatformDraftCard(draft, "instagram")).join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -1952,17 +1937,22 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
     .metric { background: #f6f8fb; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; }
     .metric strong { display: block; font-size: 1.7rem; }
-    .social-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 14px; align-items: start; }
+    .platform-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    .platform-column { display: grid; gap: 14px; }
+    .platform-heading { background: #10243a; color: #fff; border-radius: 20px; padding: 18px; border: 1px solid #203a57; }
+    .platform-heading.instagram { background: linear-gradient(135deg, #29375c, #9a6a64); }
+    .platform-heading.facebook { background: linear-gradient(135deg, #15395c, #28657f); }
+    .platform-heading h2 { margin: 0 0 6px; color: #fff; }
+    .platform-heading p { margin: 0; color: #dbe7f2; }
     .social-card-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .pill, .status { border-radius: 999px; border: 1px solid #c8d6e6; padding: 6px 10px; font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; }
     .status.ready { background: #dfeee7; color: #255b43; border-color: #bfd8ca; }
     .status.blocked { background: #f3ead7; color: #735329; border-color: #dfc99d; }
     .meta { color: #526984; font-size: .9rem; margin-bottom: 12px; }
-    .audience-box { display: grid; gap: 5px; background: #f9f4e8; border: 1px solid #e4d2a9; border-radius: 14px; padding: 12px; margin: 12px 0; }
-    .audience-box small { color: #6c5a33; }
-    .pattern-row { display: flex; flex-wrap: wrap; gap: 6px; }
-    .pattern-row span { background: #fffaf0; border: 1px solid #e6d8b8; color: #5f4c24; border-radius: 999px; padding: 4px 8px; font-size: .78rem; }
+    .draft-summary-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .draft-summary-row span { background: #f5f8fb; border: 1px solid #d8e3ef; color: #405875; border-radius: 999px; padding: 6px 10px; font-size: .8rem; }
     .link-box { display: grid; gap: 5px; background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; margin: 12px 0; overflow-wrap: anywhere; }
+    .link-box.compact { background: #f9f4e8; border-color: #e2d0a3; }
     .link-box small { color: #627893; }
     details { border-top: 1px solid #e1e9f2; padding-top: 10px; margin-top: 10px; }
     summary { cursor: pointer; font-weight: 700; }
@@ -2003,6 +1993,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .teacher-list .pass { color: #285d43; }
     .teacher-list .needs { color: #8a4d19; }
     code { background: #e7eef6; border-radius: 8px; padding: 2px 6px; }
+    @media (max-width: 860px) { .platform-board { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -2020,11 +2011,24 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
         <div class="metric"><strong>${selectedCount}</strong> selected variants</div>
         <div class="metric"><strong>${stored.drafts?.length || 0}</strong> saved last run</div>
       </div>
-      <p>To save this run privately, call <code>POST /api/internal/social-drafts/generate?persist=true</code> with the internal token.</p>
-    </section>
-    <section class="social-grid">
-      ${cards || '<article class="social-card"><h2>No social drafts available.</h2></article>'}
-    </section>
+	      <p>Choose a platform section below, select the caption you want, then post only when the button is unlocked.</p>
+	    </section>
+	    <section class="platform-board">
+	      <div class="platform-column">
+	        <div class="platform-heading instagram">
+	          <h2>Instagram Drafts</h2>
+	          <p>Visual-first captions and generated cards for Instagram posts.</p>
+	        </div>
+	        ${instagramCards || '<article class="social-card"><h2>No Instagram drafts available.</h2></article>'}
+	      </div>
+	      <div class="platform-column">
+	        <div class="platform-heading facebook">
+	          <h2>Facebook Drafts</h2>
+	          <p>Link-friendly captions built around the exact Live News story page.</p>
+	        </div>
+	        ${facebookCards || '<article class="social-card"><h2>No Facebook drafts available.</h2></article>'}
+	      </div>
+	    </section>
   </main>
 </body>
 </html>`;
@@ -3185,6 +3189,24 @@ app.get("/stories/:slug", (req, res) => {
     return res.status(404).send(renderStoryNotFoundPage());
   }
   res.send(renderPublicStoryPage(story, { origin: getPublicBaseUrl(req) }));
+});
+
+app.get("/social-cards/:slug.png", (req, res) => {
+  const story = findApprovedStoryBySlug(req.params.slug);
+  if (!story) return res.status(404).type("text/plain").send("Social card not found");
+  const exactArticleUrl = absoluteUrl(getPublicBaseUrl(req), story.liveNewsUrl || `/stories/${story.slug}`);
+  const png = renderInstagramCardPng({
+    cardTitle: story.headline,
+    cardSubtitle: story.summaryShort || story.dek,
+    sourceLabel: story.primarySourceName || story.sourceAttribution || "Original source",
+    category: story.category,
+    exactArticleUrl,
+  });
+  res
+    .status(200)
+    .type("image/png")
+    .set("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400")
+    .send(png);
 });
 
 app.get("/index.html", (req, res) => {

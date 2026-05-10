@@ -281,8 +281,12 @@ for (const draft of safetyResult.drafts) {
   if ((draft.platforms?.instagram?.variants || []).length < 3) {
     fail(`${draft.socialDraftId} needs at least three Instagram variants.`, failures);
   }
-  if ((draft.platforms?.instagram?.variants || []).some((variant) => variant.publishable === true)) {
-    fail(`${draft.socialDraftId} Instagram variants without durable image/card URLs must not be publishable.`, failures);
+  if (
+    draft.linkState?.shareableNow &&
+    draft.platforms?.instagram?.imagePlan?.imageSource === "generated_live_news_card" &&
+    !draft.platforms?.instagram?.imagePlan?.generatedCardUrl
+  ) {
+    fail(`${draft.socialDraftId} needs a stable generated Instagram card URL.`, failures);
   }
   for (const variant of draft.platforms?.facebook?.variants || []) {
     for (const field of ["id", "label", "title", "message", "description", "exactArticleUrl", "sourceAttribution", "hashtags", "captionShape", "safetyFlags", "teacherChecks", "publishable"]) {
