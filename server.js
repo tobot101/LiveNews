@@ -1859,6 +1859,61 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
   const noticeClass = req?.query?.error ? "fail" : "ok";
   const selectedCount = (selectionStore.selections || []).length;
   const selectVariantUrl = req ? buildAdminUrl(req, "/admin/social/select-variant") : "/admin/social/select-variant";
+  const buildSelectedPostOptions = () => {
+    const rows = [];
+    for (const draft of liveRun.drafts || []) {
+      for (const platform of ["instagram", "facebook"]) {
+        const platformLabel = platform === "facebook" ? "Facebook" : "Instagram";
+        const platformData = draft.platforms?.[platform] || {};
+        const selectedVariant = platformData.selectedVariant || null;
+        if (!selectedVariant) continue;
+        const plan = platform === "facebook" ? buildFacebookPublishPlan(draft) : buildInstagramPublishPlan(draft);
+        const blockers = [...new Set(plan.failures || [])];
+        const exactUrl = draft.linkState?.exactArticleUrl || selectedVariant.exactArticleUrl || "";
+        rows.push({
+          draft,
+          platform,
+          platformLabel,
+          selectedVariant,
+          plan,
+          blockers,
+          exactUrl,
+        });
+      }
+    }
+    const options = rows
+      .map((row) => {
+        const disabled = !row.plan.ready;
+        const statusText = row.plan.ready
+          ? "Ready to post"
+          : row.blockers[0] || "Needs one more readiness check";
+        return `
+          <label class="selected-post-option ${disabled ? "blocked" : "ready"}">
+            <input type="checkbox" name="targets" value="${escapeHtml(`${row.draft.socialDraftId}:${row.platform}`)}" ${disabled ? "disabled" : ""} />
+            <span class="selected-post-body">
+              <strong>${escapeHtml(row.platformLabel)} • ${escapeHtml(row.draft.title)}</strong>
+              <span>Variant: ${escapeHtml(row.selectedVariant.label || row.selectedVariant.id || "selected")}</span>
+              <small>${escapeHtml(statusText)}</small>
+              <small>${escapeHtml(row.exactUrl || "Exact Live News story URL pending")}</small>
+            </span>
+          </label>
+        `;
+      })
+      .join("");
+    return `
+      <details class="selected-post-picker" open>
+        <summary>
+          <span>Choose selected drafts to post</span>
+          <strong>${rows.length}</strong>
+        </summary>
+        <p>Only drafts with a selected Facebook or Instagram variant appear here. Check the ones you want to send now.</p>
+        <div class="selected-post-grid">
+          ${options || '<div class="empty-selected-posts">Select a Facebook or Instagram variant below, then it will appear here as a checkbox.</div>'}
+        </div>
+      </details>
+    `;
+  };
+  const selectedPostOptions = buildSelectedPostOptions();
   const renderPlatformDraftCard = (draft, platform) => {
       const platformLabel = platform === "facebook" ? "Facebook" : "Instagram";
       const platformData = draft.platforms?.[platform] || {};
@@ -1869,13 +1924,11 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
       const blockedReasons = [...new Set(plan.failures || [])]
         .map((failure) => `<li>${escapeHtml(failure)}</li>`)
         .join("");
-      const canQueueForPosting = Boolean(selectedVariant);
       const checkboxHint = !selectedVariant
         ? `Select a ${platformLabel} variant first.`
         : plan.ready
-          ? "Ready to post after you check this box."
-          : "Can be finalized; posting will run only after story-page and Meta checks pass.";
-      const disabled = !canQueueForPosting;
+          ? "Ready in the top checked-drafts menu."
+          : "Selected, but posting remains blocked by readiness checks.";
       const failures = (draft.supervisor?.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
       const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
       const variants = renderSocialVariantReviewHtml({ draft, platform, actionUrl: selectVariantUrl });
@@ -1906,10 +1959,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           ${variants}
           <div class="meta-api-box">
             <strong>${escapeHtml(platformLabel)} final posting checklist</strong>
-            <label class="post-choice">
-              <input type="checkbox" name="targets" value="${escapeHtml(`${draft.socialDraftId}:${platform}`)}" form="bulk-social-post-form" ${disabled ? "disabled" : ""} />
-              Post this ${escapeHtml(platformLabel)} draft
-            </label>
+            <span class="post-choice">${selectedVariant ? "Selected variant appears in the top posting menu." : "No variant selected yet."}</span>
             <small>${escapeHtml(checkboxHint)}</small>
             ${blockedReasons ? `<ul>${blockedReasons}</ul>` : ""}
           </div>
@@ -1968,9 +2018,22 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .meta-api-box ul { margin: 0; padding-left: 18px; color: #79512b; }
     .post-choice { display: flex; gap: 8px; align-items: flex-start; color: #20384f; font-weight: 700; }
     .post-choice input { width: 18px; height: 18px; accent-color: #275a72; margin-top: 2px; }
-    .bulk-post-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #10243a; color: #fff; border-radius: 18px; padding: 14px; margin-top: 14px; }
+    .bulk-post-form { display: grid; gap: 12px; background: #10243a; color: #fff; border-radius: 18px; padding: 14px; margin-top: 14px; }
     .bulk-post-form small { color: #dbe7f2; }
     .bulk-post-form button { background: #d0ad67; color: #10243a; border-color: #d0ad67; }
+    .selected-post-picker { border: 1px solid rgba(255, 255, 255, .18); border-radius: 16px; padding: 12px; margin: 0; background: rgba(255, 255, 255, .06); }
+    .selected-post-picker summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; font-weight: 800; }
+    .selected-post-picker summary strong { background: #d0ad67; color: #10243a; border-radius: 999px; min-width: 28px; text-align: center; padding: 4px 9px; }
+    .selected-post-picker p { margin: 10px 0; color: #dbe7f2; }
+    .selected-post-grid { display: grid; gap: 10px; }
+    .selected-post-option { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; background: #f8fbfd; color: #10243a; border: 1px solid #d8e6ef; border-radius: 14px; padding: 12px; }
+    .selected-post-option.ready { border-color: #9fcab6; background: #eef8f3; }
+    .selected-post-option.blocked { opacity: .78; background: #f7f1e5; border-color: #dec794; }
+    .selected-post-option input { width: 20px; height: 20px; accent-color: #275a72; margin-top: 2px; }
+    .selected-post-body { display: grid; gap: 4px; }
+    .selected-post-body small { color: #526984; overflow-wrap: anywhere; }
+    .empty-selected-posts { background: #f7fafc; color: #405875; border: 1px dashed #bad0e1; border-radius: 14px; padding: 12px; }
+    .bulk-post-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     .prepare-pages-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #f8f2e4; color: #2b4054; border: 1px solid #dfc98f; border-radius: 18px; padding: 14px; margin-top: 14px; }
     .prepare-pages-form button { background: #2c667d; color: #fff; border-color: #2c667d; }
     .prepare-pages-form small { color: #526984; }
@@ -2024,8 +2087,11 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
 	        <small>Create exact <code>/stories/...</code> article pages for the current quality-gated drafts before choosing social posts.</small>
 	      </form>
 	      <form id="bulk-social-post-form" class="bulk-post-form" method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish-selected") : "/admin/meta/publish-selected")}">
-	        <button type="submit">Finalize checked drafts and post</button>
-	        <small>Checked drafts can create the needed Live News story page first, then post only after exact-link and Meta checks pass.</small>
+	        ${selectedPostOptions}
+	        <div class="bulk-post-actions">
+	          <button type="submit">Post checked drafts to socials</button>
+	          <small>Check one or more selected drafts above, then post them to Facebook, Instagram, or both.</small>
+	        </div>
 	      </form>
 		    </section>
 	    <section class="platform-board">
@@ -3645,7 +3711,7 @@ app.post("/admin/meta/publish-selected", requireAgentAccess, async (req, res) =>
     return res.redirect(
       303,
       buildAdminUrl(req, "/admin/social", {
-        error: "Select at least one ready Facebook or Instagram draft before posting.",
+        error: "Check at least one selected Facebook or Instagram draft in the posting menu before posting.",
       })
     );
   }

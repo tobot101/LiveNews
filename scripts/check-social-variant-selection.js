@@ -89,14 +89,17 @@ const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "u
 if (!serverSource.includes("/admin/meta/publish-selected") || !serverSource.includes("bulk-social-post-form")) {
   fail("Social dashboard should support selecting multiple Facebook/Instagram drafts before posting.");
 }
-if (!serverSource.includes("Finalize checked drafts and post") || !serverSource.includes("ensureStoryPageForSocialDraft")) {
+if (!serverSource.includes("Post checked drafts to socials") || !serverSource.includes("ensureStoryPageForSocialDraft")) {
   fail("Social dashboard should finalize checked drafts by preparing story pages before posting.");
+}
+if (!serverSource.includes("selected-post-picker") || !serverSource.includes("Choose selected drafts to post")) {
+  fail("Social dashboard should show a top dropdown picker for selected draft checkboxes.");
 }
 if (!serverSource.includes("/admin/social/prepare-story-pages") || !serverSource.includes("Prepare Live News story pages")) {
   fail("Social dashboard should let the editor prepare exact story pages before choosing social posts.");
 }
-if (!serverSource.includes("Can be finalized; posting will run only after story-page and Meta checks pass.")) {
-  fail("Social dashboard should explain why selected pending drafts can be checked before final posting.");
+if (!serverSource.includes("Check at least one selected Facebook or Instagram draft in the posting menu before posting.")) {
+  fail("Social dashboard should guide the editor to check selected drafts in the top posting menu.");
 }
 
 const noSelectionPlan = buildFacebookPublishPlan(draft, {}, env);
