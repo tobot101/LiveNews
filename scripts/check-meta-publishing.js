@@ -107,11 +107,30 @@ if (instagramNoImage.ready || !instagramNoImage.failures.some((failure) => failu
 const calls = [];
 async function mockFetch(endpoint, init) {
   calls.push({ endpoint, body: String(init.body || "") });
+  if (String(endpoint).includes("/me/accounts")) {
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({
+          data: [
+            {
+              id: env.META_PAGE_ID,
+              name: "Live News",
+              access_token: "derived-private-page-token",
+              tasks: ["CREATE_CONTENT", "ANALYZE"],
+            },
+          ],
+        });
+      },
+    };
+  }
   return {
     ok: true,
     status: 200,
     async text() {
-      return JSON.stringify({ id: calls.length === 1 ? "meta-first-id" : "meta-second-id" });
+      const postCalls = calls.filter((call) => !String(call.endpoint).includes("/me/accounts"));
+      return JSON.stringify({ id: postCalls.length === 1 ? "meta-first-id" : "meta-second-id" });
     },
   };
 }
@@ -141,8 +160,88 @@ async function runPublishChecks() {
     failures.push("Instagram publish result must not expose the private Page access token.");
   }
 
-  if (!calls.some((call) => call.body.includes("access_token=mock-private-page-token"))) {
-    failures.push("Meta API requests should include the access token only inside the outbound private request body.");
+  if (!calls.some((call) => call.body.includes("access_token=derived-private-page-token"))) {
+    failures.push("Facebook posting should derive and use the Page access token when Meta returns one for the configured Page.");
+  }
+
+  async function mockMissingContentTask(endpoint) {
+    if (String(endpoint).includes("/me/accounts")) {
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            data: [
+              {
+                id: env.META_PAGE_ID,
+                name: "Live News",
+                access_token: "derived-private-page-token",
+                tasks: ["ANALYZE"],
+              },
+            ],
+          });
+        },
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify({ id: "should-not-post" });
+      },
+    };
+  }
+
+  try {
+    await publishFacebookDraft(draft, {
+      env,
+      fetchImpl: mockMissingContentTask,
+      skipStore: true,
+    });
+    failures.push("Facebook publishing should stop before posting when Page content-creation access is missing.");
+  } catch (error) {
+    if (!String(error.failures || "").includes("content creation")) {
+      failures.push("Missing Page content-creation access should produce a clear setup failure.");
+    }
+  }
+
+  async function mockMetaPermissionError(endpoint) {
+    if (String(endpoint).includes("/me/accounts")) {
+      return {
+        ok: false,
+        status: 400,
+        async text() {
+          return JSON.stringify({ error: { message: "Cannot derive page token here", code: 100 } });
+        },
+      };
+    }
+    return {
+      ok: false,
+      status: 403,
+      async text() {
+        return JSON.stringify({
+          error: {
+            message:
+              "(#200) If posting to a page, requires both pages_read_engagement and pages_manage_posts permission with page token",
+            code: 200,
+          },
+        });
+      },
+    };
+  }
+
+  try {
+    await publishFacebookDraft(draft, {
+      env,
+      fetchImpl: mockMetaPermissionError,
+      skipStore: true,
+    });
+    failures.push("Facebook publishing should surface Meta permission errors instead of pretending to post.");
+  } catch (error) {
+    const text = String(error.failures || "");
+    if (!text.includes("META_PAGE_ACCESS_TOKEN") || !text.includes("nothing was posted")) {
+      failures.push("Meta #200 permission errors should explain the Page token/Railway fix and confirm nothing posted.");
+    }
   }
 
   if (failures.length) {

@@ -1913,17 +1913,17 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           </details>
           <div class="meta-api-box">
             <strong>Meta posting options</strong>
-            <small>Facebook: ${metaReadiness.platforms?.facebook?.status || "not checked"} • Instagram: ${metaReadiness.platforms?.instagram?.status || "not checked"}. Human review is still required before any post.</small>
+            <small>The API buttons publish the approved draft directly through Meta after human review. Facebook: ${metaReadiness.platforms?.facebook?.status || "not checked"} • Instagram: ${metaReadiness.platforms?.instagram?.status || "not checked"}.</small>
             <div class="platform-actions">
               <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/facebook") : "/admin/meta/publish/facebook")}">
                 <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
-                <button type="submit" ${facebookDisabled ? "disabled" : ""}>Post to Facebook</button>
+                <button type="submit" ${facebookDisabled ? "disabled" : ""}>Post to Facebook via API</button>
                 ${facebookBlockedReasons ? `<ul>${facebookBlockedReasons}</ul>` : ""}
               </form>
               <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/instagram") : "/admin/meta/publish/instagram")}">
                 <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
                 <input name="imageUrl" value="${escapeHtml(imageUrl)}" placeholder="Public Instagram image URL" />
-                <button type="submit" ${instagramDisabled ? "disabled" : ""}>Post to Instagram</button>
+                <button type="submit" ${instagramDisabled ? "disabled" : ""}>Post to Instagram via API</button>
                 ${instagramBlockedReasons ? `<ul>${instagramBlockedReasons}</ul>` : ""}
               </form>
             </div>
@@ -2468,6 +2468,8 @@ function renderMetaReadinessPage(req) {
       <p><strong>Manual API posting:</strong> ${readiness.postingEnabled ? "enabled for private testing" : "locked"}</p>
       <p><strong>Automatic posting:</strong> off. A human must still choose Facebook or Instagram from the private Social Publisher.</p>
       <p><strong>Exact link rule:</strong> every social post must point to a public Live News <code>/stories/...</code> page, not the homepage.</p>
+      <p><strong>API button purpose:</strong> it removes copy/paste by sending a reviewed Live News draft to Meta directly, records the result privately, and keeps auto-posting off.</p>
+      <p><strong>Facebook token guard:</strong> before posting, Live News now tries to derive the real Page token from Meta and blocks with setup steps if Meta says the token cannot publish.</p>
       <ul>${platformRows}</ul>
     </section>
     <section class="panel">
