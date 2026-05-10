@@ -517,6 +517,7 @@ html[data-theme="night"] .brand {
 .lead-news-band,
 .top-stories,
 .category-lanes-panel,
+.seo-discovery-panel,
 .news-feed {
   margin-bottom: 16px;
 }
@@ -575,6 +576,50 @@ html[data-theme="night"] .category-lanes-panel .lane-story {
 
 html[data-theme="night"] .category-lanes-panel .lane-more {
   color: #f3d0a7;
+}
+
+.seo-discovery-panel {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 155, 95, 0.14), transparent 34%),
+    radial-gradient(circle at 0% 100%, rgba(2, 132, 199, 0.1), transparent 36%),
+    var(--surface);
+}
+
+.seo-discovery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.seo-discovery-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 100%;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+html[data-theme="night"] .seo-discovery-card {
+  background: rgba(16, 26, 41, 0.78);
+}
+
+.seo-discovery-card h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.seo-discovery-card a {
+  color: var(--accent-cyan);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.seo-discovery-card a:hover {
+  text-decoration: underline;
 }
 
 .panel-header {
@@ -2258,7 +2303,8 @@ html[data-theme="night"] .entertainment-filter {
   }
 
   .story-list,
-  .category-lanes {
+  .category-lanes,
+  .seo-discovery-grid {
     grid-template-columns: 1fr;
   }
 

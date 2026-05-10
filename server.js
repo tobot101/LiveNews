@@ -3083,6 +3083,9 @@ function renderCrawlableHomepage() {
     ...(payload.topStories || []),
     ...(payload.feed || []),
   ]);
+  const homeStructuredData = renderJsonLdScripts(
+    buildHomeStructuredData({ spotlightStories, topCards, feedCards })
+  );
 
   return html
     .replace(
@@ -3101,7 +3104,10 @@ function renderCrawlableHomepage() {
       '<div class="feed" id="newsFeed"></div>',
       `<div class="feed" id="newsFeed">${feedCards.map(renderCrawlableFeedItem).join("")}</div>`
     )
-    .replace("</head>", `    <link rel="canonical" href="${escapeHtml(getCanonicalUrl("/"))}" />\n  </head>`);
+    .replace(
+      "</head>",
+      `    <link rel="canonical" href="${escapeHtml(getCanonicalUrl("/"))}" />\n${homeStructuredData}\n  </head>`
+    );
 }
 
 function renderCanonicalStaticPage(fileName, canonicalPath) {
@@ -3111,8 +3117,20 @@ function renderCanonicalStaticPage(fileName, canonicalPath) {
   );
 }
 
-function renderPageShell({ canonicalPath, title, description, kicker, h1, bodyHtml = "" }) {
+function renderPageShell({
+  canonicalPath,
+  title,
+  description,
+  kicker,
+  h1,
+  bodyHtml = "",
+  pageType = "WebPage",
+  items = [],
+}) {
   const canonicalUrl = getCanonicalUrl(canonicalPath);
+  const structuredData = renderJsonLdScripts(
+    buildPageShellSchemas({ canonicalPath, title, description, h1, pageType, items })
+  );
   return `<!doctype html>
 <html lang="en" data-theme="day">
   <head>
@@ -3134,6 +3152,7 @@ function renderPageShell({ canonicalPath, title, description, kicker, h1, bodyHt
       href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+${structuredData}
   </head>
   <body>
     <header class="topbar">
@@ -3186,6 +3205,8 @@ function renderNewsIndexPage({ canonicalPath, title, description, h1, kicker, it
     description,
     h1,
     kicker,
+    pageType: "CollectionPage",
+    items,
     bodyHtml: `
       <section class="panel search-results-panel">
         <div class="panel-header">
@@ -3499,6 +3520,141 @@ function getCanonicalOrigin() {
 
 function getCanonicalUrl(pathname) {
   return absoluteUrl(getCanonicalOrigin(), pathname);
+}
+
+function escapeJsonForHtml(value) {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+function renderJsonLdScripts(schemas, indent = "    ") {
+  return (schemas || [])
+    .filter(Boolean)
+    .map((schema) => `${indent}<script type="application/ld+json">${escapeJsonForHtml(schema)}</script>`)
+    .join("\n");
+}
+
+function buildWebsiteSchema() {
+  const origin = getCanonicalOrigin();
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${origin}/#website`,
+    name: "Live News",
+    alternateName: "LiveNews",
+    url: `${origin}/`,
+    inLanguage: "en-US",
+  };
+}
+
+function buildOrganizationSchema() {
+  const origin = getCanonicalOrigin();
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsMediaOrganization",
+    "@id": `${origin}/#organization`,
+    name: "Live News",
+    alternateName: "LiveNews",
+    slogan: "Anytime & Anywhere",
+    url: `${origin}/`,
+    logo: {
+      "@type": "ImageObject",
+      url: absoluteUrl(origin, "/android-chrome-512x512.png"),
+      width: 512,
+      height: 512,
+    },
+  };
+}
+
+function buildBreadcrumbSchema(items) {
+  const origin = getCanonicalOrigin();
+  const itemListElement = (items || [])
+    .filter((item) => item?.name && (item.path || item.url))
+    .map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: item.url || absoluteUrl(origin, item.path),
+    }));
+  if (itemListElement.length < 2) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement,
+  };
+}
+
+function buildStructuredItemList(items) {
+  const origin = getCanonicalOrigin();
+  const itemListElement = (items || []).slice(0, 20).map((item, index) => {
+    const listItem = {
+      "@type": "ListItem",
+      position: index + 1,
+      name: getCrawlerTitle(item),
+    };
+    const internalUrl = item.approvedStoryUrl || item.liveNewsUrl || "";
+    if (internalUrl) {
+      listItem.url = absoluteUrl(origin, internalUrl);
+    }
+    return listItem;
+  });
+  if (!itemListElement.length) return null;
+  return {
+    "@type": "ItemList",
+    itemListElement,
+  };
+}
+
+function buildWebPageSchema({ canonicalPath, title, description, h1, pageType = "WebPage", items = [] }) {
+  const origin = getCanonicalOrigin();
+  const canonicalUrl = getCanonicalUrl(canonicalPath);
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": pageType,
+    "@id": `${canonicalUrl}#webpage`,
+    url: canonicalUrl,
+    name: title,
+    headline: h1,
+    description,
+    isPartOf: {
+      "@id": `${origin}/#website`,
+    },
+    publisher: {
+      "@id": `${origin}/#organization`,
+    },
+    inLanguage: "en-US",
+  };
+  const itemList = buildStructuredItemList(items);
+  if (itemList) schema.mainEntity = itemList;
+  return schema;
+}
+
+function buildPageShellSchemas({ canonicalPath, title, description, h1, pageType, items }) {
+  const schemas = [
+    buildWebPageSchema({ canonicalPath, title, description, h1, pageType, items }),
+  ];
+  if (canonicalPath !== "/") {
+    schemas.push(buildBreadcrumbSchema([
+      { name: "Live News", path: "/" },
+      { name: h1, path: canonicalPath },
+    ]));
+  }
+  return schemas;
+}
+
+function buildHomeStructuredData({ spotlightStories = [], topCards = [], feedCards = [] } = {}) {
+  return [
+    buildWebsiteSchema(),
+    buildOrganizationSchema(),
+    buildWebPageSchema({
+      canonicalPath: "/",
+      title: "Live News | Top Stories, Local News & Source-Linked Coverage.",
+      description:
+        "Read top stories, local news, and source-linked coverage from official feeds and recent reporting. Live News keeps news clear, fast, and easy to browse.",
+      h1: "Live News",
+      pageType: "CollectionPage",
+      items: [...spotlightStories, ...topCards, ...feedCards],
+    }),
+  ];
 }
 
 function renderSitemap() {
