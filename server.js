@@ -2996,14 +2996,43 @@ function getCrawlerEntertainmentLabel(item) {
   return "Culture";
 }
 
+function renderCrawlerEntertainmentControls(totalCount, visibleCount) {
+  const filters = ["All", "Celebrities", "Movies", "TV", "Music", "Awards", "Pop Culture"]
+    .map(
+      (label, index) => `
+        <button
+          type="button"
+          class="entertainment-filter${index === 0 ? " active" : ""}"
+          aria-pressed="${index === 0 ? "true" : "false"}"
+          disabled
+        >${escapeHtml(label)}</button>
+      `
+    )
+    .join("");
+  return `
+    <aside class="entertainment-controls-card" aria-label="Entertainment filters">
+      <label class="entertainment-search-label" for="entertainmentSearch">Search Entertainment</label>
+      <input
+        id="entertainmentSearch"
+        class="entertainment-search"
+        type="search"
+        placeholder="Search celebrities, movies, music..."
+        autocomplete="off"
+        disabled
+      />
+      <div class="entertainment-filter-list" aria-label="Entertainment topics">
+        ${filters}
+      </div>
+      <p class="entertainment-count">${visibleCount} shown from ${totalCount} entertainment stories.</p>
+    </aside>
+  `;
+}
+
 function renderCrawlableEntertainmentSection(items) {
-  const entertainmentItems = (items || [])
-    .filter((item) => isCrawlerEntertainmentStory(item))
-    .slice(0, ENTERTAINMENT_SECTION_LIMIT);
+  const allEntertainmentItems = (items || []).filter((item) => isCrawlerEntertainmentStory(item));
+  const entertainmentItems = allEntertainmentItems.slice(0, ENTERTAINMENT_SECTION_LIMIT);
   if (!entertainmentItems.length) return "";
-  const [featured, ...supporting] = entertainmentItems;
-  const supportCards = supporting
-    .slice(0, ENTERTAINMENT_SECTION_LIMIT - 1)
+  const supportCards = entertainmentItems
     .map(
       (item) => `
         <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">
@@ -3019,19 +3048,15 @@ function renderCrawlableEntertainmentSection(items) {
     )
     .join("");
   return `
-    <article class="entertainment-feature" data-article-id="${escapeHtml(featured.id || "")}">
-      <div class="entertainment-feature-copy">
-        <div class="story-eyebrow">
-          <span>${escapeHtml(getCrawlerEntertainmentLabel(featured))}</span>
-          <span>${escapeHtml(formatCrawlerDateBadge(featured.publishedAt))}</span>
-        </div>
-        <h3>${renderCrawlerTitleLink(featured, "entertainment-title")}</h3>
-        <p>${escapeHtml(getCrawlerSummary(featured))}</p>
-        ${renderCrawlerMeta(featured)}
+    ${renderCrawlerEntertainmentControls(allEntertainmentItems.length, entertainmentItems.length)}
+    <div class="entertainment-results">
+      <div class="entertainment-results-head">
+        <span>All articles</span>
+        <small>${entertainmentItems.length} visible</small>
       </div>
-    </article>
-    <div class="entertainment-list">
-      ${supportCards || '<div class="entertainment-mini-card">More entertainment updates will appear as fresh stories arrive.</div>'}
+      <div class="entertainment-list">
+        ${supportCards || '<div class="entertainment-mini-card">More entertainment updates will appear as fresh stories arrive.</div>'}
+      </div>
     </div>
   `;
 }

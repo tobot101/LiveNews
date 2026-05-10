@@ -35,6 +35,12 @@ if (!indexHtml.includes("pop-culture stories")) {
 if (!appJs.includes("renderEntertainmentSection")) {
   fail("Homepage JavaScript must render the Entertainment section.");
 }
+if (!appJs.includes("ENTERTAINMENT_FILTERS") || !appJs.includes("matchesEntertainmentFilter")) {
+  fail("Entertainment panel should include left-side topic filters.");
+}
+if (!appJs.includes("entertainmentSearch") || !appJs.includes("matchesEntertainmentSearch")) {
+  fail("Entertainment panel should include a dedicated search filter.");
+}
 if (!appJs.includes("isEntertainmentStory") || !appJs.includes("ENTERTAINMENT_STORY_PATTERN")) {
   fail("Entertainment renderer must include smart celebrity/pop-culture matching.");
 }
@@ -47,8 +53,14 @@ if (appJs.includes('"people",')) {
 if (!stylesCss.includes(".entertainment-panel") || !stylesCss.includes(".entertainment-grid")) {
   fail("Entertainment section styles are missing.");
 }
+if (!stylesCss.includes(".entertainment-controls-card") || !stylesCss.includes(".entertainment-results")) {
+  fail("Entertainment section should be split into left controls and right article results.");
+}
 if (!serverJs.includes("renderCrawlableEntertainmentSection")) {
   fail("Server crawlable homepage must render Entertainment content.");
+}
+if (!serverJs.includes("renderCrawlerEntertainmentControls")) {
+  fail("Server crawlable homepage must include the Entertainment left controls.");
 }
 if (!serverJs.includes("isCrawlerEntertainmentStory")) {
   fail("Server crawlable homepage must use smart Entertainment matching.");

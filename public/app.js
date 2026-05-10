@@ -44,6 +44,8 @@ const state = {
   currentFeed: [],
   approvedStories: [],
   currentItems: [],
+  entertainmentFilter: "all",
+  entertainmentQuery: "",
   pendingData: null,
   seenMap: {},
   profile: {
@@ -306,6 +308,21 @@ function bindControls() {
       if (!target) return;
       const category = target.dataset.category;
       setCategory(category);
+    });
+  }
+
+  if (elements.entertainmentGrid) {
+    elements.entertainmentGrid.addEventListener("click", (event) => {
+      const source = event.target instanceof Element ? event.target : event.target?.parentElement;
+      const target = source?.closest("[data-entertainment-filter]");
+      if (!target) return;
+      state.entertainmentFilter = target.getAttribute("data-entertainment-filter") || "all";
+      renderEntertainmentSection();
+    });
+    elements.entertainmentGrid.addEventListener("input", (event) => {
+      if (event.target?.id !== "entertainmentSearch") return;
+      state.entertainmentQuery = event.target.value;
+      renderEntertainmentSection({ focusSearch: true });
     });
   }
 
@@ -1797,6 +1814,15 @@ function renderTopStories(items, options = {}) {
 }
 
 const ENTERTAINMENT_SECTION_LIMIT = 9;
+const ENTERTAINMENT_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "celebrities", label: "Celebrities" },
+  { id: "movies", label: "Movies" },
+  { id: "tv", label: "TV" },
+  { id: "music", label: "Music" },
+  { id: "awards", label: "Awards" },
+  { id: "pop-culture", label: "Pop Culture" },
+];
 const ENTERTAINMENT_SOURCE_TERMS = [
   "e!",
   "entertainment tonight",
@@ -1873,7 +1899,7 @@ function getEntertainmentItems() {
   const allItems = getAllNewsItems();
   return sortStoryPool(
     filterBySearch(allItems).filter((item) => isEntertainmentStory(item))
-  ).slice(0, ENTERTAINMENT_SECTION_LIMIT);
+  );
 }
 
 function getEntertainmentLabel(item) {
@@ -1899,19 +1925,90 @@ function getEntertainmentLabel(item) {
   return "Culture";
 }
 
-function renderEntertainmentSection() {
-  if (!elements.entertainmentPanel || !elements.entertainmentGrid) return;
-  const items = getEntertainmentItems();
-  if (!items.length) {
-    elements.entertainmentPanel.hidden = true;
-    elements.entertainmentGrid.innerHTML = "";
-    return;
-  }
+function getEntertainmentFilterLabel() {
+  return ENTERTAINMENT_FILTERS.find((filter) => filter.id === state.entertainmentFilter)?.label || "All";
+}
 
-  elements.entertainmentPanel.hidden = false;
-  const [featured, ...supporting] = items;
-  const featuredPublished = featured?.publishedAt ? formatTime(featured.publishedAt) : "";
-  const supportingCards = supporting.slice(0, ENTERTAINMENT_SECTION_LIMIT - 1).map((item) => {
+function matchesEntertainmentFilter(item, filterId) {
+  if (!filterId || filterId === "all") return true;
+  const text = getEntertainmentText(item);
+  if (filterId === "celebrities") {
+    return /\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|public figure|red carpet|reality tv)\b/.test(text);
+  }
+  if (filterId === "movies") {
+    return /\b(movie|film|box office|hollywood|trailer|cinema|director|cannes|sundance)\b/.test(text);
+  }
+  if (filterId === "tv") {
+    return /\b(tv show|tv series|television|streaming|netflix|hulu|disney|prime video|episode|season|saturday night live|snl)\b/.test(text);
+  }
+  if (filterId === "music") {
+    return /\b(album|song|single|music|singer|artist|rapper|tour|concert|billboard|grammy|festival)\b/.test(text);
+  }
+  if (filterId === "awards") {
+    return /\b(award|oscars|emmys|grammys|bafta|red carpet|nomination|winner|gala)\b/.test(text);
+  }
+  if (filterId === "pop-culture") {
+    return /\b(pop culture|celebrity|viral|fashion|style|met gala|reality tv|social media|late-night|broadway)\b/.test(text);
+  }
+  return true;
+}
+
+function matchesEntertainmentSearch(item, query) {
+  const normalized = String(query || "").trim().toLowerCase();
+  if (!normalized) return true;
+  return getEntertainmentText(item).includes(normalized);
+}
+
+function getVisibleEntertainmentItems() {
+  return getEntertainmentItems()
+    .filter((item) => matchesEntertainmentFilter(item, state.entertainmentFilter))
+    .filter((item) => matchesEntertainmentSearch(item, state.entertainmentQuery))
+    .slice(0, ENTERTAINMENT_SECTION_LIMIT);
+}
+
+function renderEntertainmentControls(totalCount, visibleCount) {
+  const filterButtons = ENTERTAINMENT_FILTERS.map((filter) => {
+    const selected = state.entertainmentFilter === filter.id;
+    return `
+      <button
+        type="button"
+        class="entertainment-filter${selected ? " active" : ""}"
+        data-entertainment-filter="${escapeHtml(filter.id)}"
+        aria-pressed="${selected ? "true" : "false"}"
+      >${escapeHtml(filter.label)}</button>
+    `;
+  }).join("");
+  return `
+    <aside class="entertainment-controls-card" aria-label="Entertainment filters">
+      <label class="entertainment-search-label" for="entertainmentSearch">Search Entertainment</label>
+      <input
+        id="entertainmentSearch"
+        class="entertainment-search"
+        type="search"
+        value="${escapeHtml(state.entertainmentQuery)}"
+        placeholder="Search celebrities, movies, music..."
+        autocomplete="off"
+      />
+      <div class="entertainment-filter-list" aria-label="Entertainment topics">
+        ${filterButtons}
+      </div>
+      <p class="entertainment-count">
+        ${visibleCount ? `${visibleCount} shown` : "No matches"} from ${totalCount} entertainment stories.
+      </p>
+    </aside>
+  `;
+}
+
+function renderEntertainmentArticleCards(items) {
+  if (!items.length) {
+    return `
+      <div class="entertainment-empty">
+        <strong>No matching Entertainment stories yet.</strong>
+        <span>Try All, Celebrities, Movies, TV, Music, Awards, or another search.</span>
+      </div>
+    `;
+  }
+  return items.map((item) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
     return `
       <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">
@@ -1920,33 +2017,49 @@ function renderEntertainmentSection() {
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
         <h4>${buildStoryTitleLink(item, "entertainment-title")}</h4>
-        <p>${escapeHtml(getDisplaySummary(item, 112))}</p>
+        <p>${escapeHtml(getDisplaySummary(item, 118))}</p>
         ${buildStoryMeta(item, published)}
       </article>
     `;
   }).join("");
+}
 
+function focusEntertainmentSearch(options = {}) {
+  const search = elements.entertainmentGrid.querySelector("#entertainmentSearch");
+  if (!search || !options.focusSearch) return;
+  search.focus();
+  search.setSelectionRange(search.value.length, search.value.length);
+}
+
+function renderEntertainmentSection(options = {}) {
+  if (!elements.entertainmentPanel || !elements.entertainmentGrid) return;
+  const allItems = getEntertainmentItems();
+  const visibleItems = getVisibleEntertainmentItems();
+  if (!allItems.length) {
+    elements.entertainmentPanel.hidden = true;
+    elements.entertainmentGrid.innerHTML = "";
+    return;
+  }
+
+  elements.entertainmentPanel.hidden = false;
+  const activeLabel = getEntertainmentFilterLabel();
   elements.entertainmentGrid.innerHTML = `
-    <article class="entertainment-feature" data-article-id="${escapeHtml(featured.id || "")}">
-      <div class="entertainment-feature-copy">
-        <div class="story-eyebrow">
-          <span>${escapeHtml(getEntertainmentLabel(featured))}</span>
-          <span>${escapeHtml(getPublishedDateBadge(featured))}</span>
-        </div>
-        <h3>${buildStoryTitleLink(featured, "entertainment-title")}</h3>
-        <p>${escapeHtml(getDisplaySummary(featured, 180))}</p>
-        ${buildStoryMeta(featured, featuredPublished)}
+    ${renderEntertainmentControls(allItems.length, visibleItems.length)}
+    <div class="entertainment-results" aria-live="polite">
+      <div class="entertainment-results-head">
+        <span>${escapeHtml(activeLabel)} articles</span>
+        <small>${visibleItems.length} visible</small>
       </div>
-      ${buildStoryVisual(featured, "entertainment")}
-    </article>
-    <div class="entertainment-list">
-      ${supportingCards || '<div class="entertainment-mini-card">More entertainment updates will appear as fresh stories arrive.</div>'}
+      <div class="entertainment-list">
+        ${renderEntertainmentArticleCards(visibleItems)}
+      </div>
     </div>
   `;
 
   elements.entertainmentGrid.querySelectorAll("[data-article-id]").forEach((card) => {
     card.addEventListener("click", () => markSeenById(card.dataset.articleId));
   });
+  focusEntertainmentSearch(options);
 }
 
 function renderCategoryLanes() {
