@@ -57,6 +57,10 @@ if (!memory.approvedLearningSignals?.includes("link_clicks")) {
   fail("Social style memory must learn from exact article link clicks.", failures);
 }
 
+if (!memory.publicPatternPrinciples?.some((principle) => /hashtags|exact article clicks|comments as aggregate/i.test(principle))) {
+  fail("Social style memory should include safe public-pattern principles.", failures);
+}
+
 if (memory.blockedLearningSignals?.some((signal) => /username|profile|private/i.test(signal)) !== true) {
   fail("Social style memory should explicitly block personal/private data learning.", failures);
 }
@@ -94,6 +98,19 @@ for (const draft of result.drafts) {
   }
   if ((draft.platforms?.facebook?.variants || []).length < 3) {
     fail(`${draft.socialDraftId} needs at least three Facebook caption variants.`, failures);
+  }
+  const combinedCaption = [
+    draft.platforms?.facebook?.caption,
+    draft.platforms?.instagram?.caption,
+  ].join(" ");
+  if (!/#LiveNews\b/.test(combinedCaption)) {
+    fail(`${draft.socialDraftId} should include the Live News brand hashtag.`, failures);
+  }
+  if (/review-only|source packet|held for editor review|posting stays paused/i.test(combinedCaption)) {
+    fail(`${draft.socialDraftId} exposes internal draft language in public social captions.`, failures);
+  }
+  if (!/Read the Live News page:/i.test(combinedCaption) && draft.linkState?.shareableNow) {
+    fail(`${draft.socialDraftId} should use a clear exact-article call to action.`, failures);
   }
   if (!draft.teacherReport?.checks?.length) {
     fail(`${draft.socialDraftId} is missing teacher report checks.`, failures);

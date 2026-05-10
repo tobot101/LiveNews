@@ -112,6 +112,22 @@ if (!approvedDraft?.supervisor?.shareableNow) {
   failures.push("Approved social test should be ready for manual review.");
 }
 
+if (approvedDraft?.platforms?.facebook?.caption?.startsWith("Top Story:")) {
+  failures.push("Facebook captions should not default to stiff placement-first wording.");
+}
+
+if (!/#LiveNews\b/.test(approvedDraft?.platforms?.facebook?.caption || "")) {
+  failures.push("Facebook captions should include a small relevant hashtag set.");
+}
+
+if (/review-only|source packet|held for editor review|posting stays paused/i.test(approvedDraft?.platforms?.facebook?.caption || "")) {
+  failures.push("Facebook captions must not expose internal review workflow language.");
+}
+
+if (!/Read the Live News page:/i.test(approvedDraft?.platforms?.facebook?.caption || "")) {
+  failures.push("Facebook captions should use a clear exact-article call to action.");
+}
+
 if (approvedDraft?.platforms?.facebook?.link !== "https://newsmorenow.com/stories/city-council-transit-safety-test") {
   failures.push("Approved social test must use the exact Live News article link.");
 }

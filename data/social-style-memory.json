@@ -7,7 +7,15 @@
     "Never publish without a human-approved exact Live News article URL.",
     "Never copy publisher wording, random comments, or private user information.",
     "Never add facts that are missing from Live News story data, source metadata, or approved source research.",
-    "Never optimize for anger, panic, jealousy, or cheap engagement."
+    "Never optimize for anger, panic, jealousy, or cheap engagement.",
+    "Use social patterns as structure only; never copy another creator, publisher, commenter, or account voice."
+  ],
+  "publicPatternPrinciples": [
+    "Lead with one clear reason the story matters before adding the link.",
+    "Use a small number of relevant topic hashtags instead of broad tag stuffing.",
+    "Prefer exact article clicks, shares, saves, and clean discussion over likes alone.",
+    "Keep captions source-linked, factual, and human-readable before trying a stronger hook.",
+    "Treat public comments as aggregate confusion or interest signals only, never as source facts."
   ],
   "approvedLearningSignals": [
     "reach",
