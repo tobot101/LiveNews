@@ -35,10 +35,24 @@ const draft = {
   platforms: {
     facebook: {
       primaryVariantId: "facebook-primary",
+      selectedVariantId: "facebook-selected",
+      selectedVariant: {
+        id: "facebook-selected",
+        message: "Top Story of the Day: Live News test story.\n\nA concise source-linked summary built for testing.\n\nhttps://newsmorenow.com/stories/live-news-test-story-abc123",
+        exactArticleUrl: "https://newsmorenow.com/stories/live-news-test-story-abc123",
+        publishable: true,
+      },
       caption: "Top Story of the Day: Live News test story.\n\nA concise source-linked summary built for testing.\n\nhttps://newsmorenow.com/stories/live-news-test-story-abc123",
     },
     instagram: {
       primaryVariantId: "instagram-primary",
+      selectedVariantId: "instagram-selected",
+      selectedVariant: {
+        id: "instagram-selected",
+        caption: "LIVE NEWS\nTop Story of the Day\n\nLive News test story.\n\nRead: https://newsmorenow.com/stories/live-news-test-story-abc123",
+        exactArticleUrl: "https://newsmorenow.com/stories/live-news-test-story-abc123",
+        publishable: true,
+      },
       caption: "LIVE NEWS\nTop Story of the Day\n\nLive News test story.\n\nRead: https://newsmorenow.com/stories/live-news-test-story-abc123",
       mediaCard: {
         imageUrl: "https://newsmorenow.com/android-chrome-512x512.png",

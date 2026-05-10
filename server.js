@@ -40,6 +40,15 @@ const {
   saveSocialPublisherRun,
 } = require("./lib/social-publisher");
 const {
+  applySocialVariantSelectionsToDraft,
+  applySocialVariantSelectionsToRun,
+  readSocialVariantSelectionStore,
+  recordSocialVariantSelection,
+} = require("./lib/social-variant-selections");
+const {
+  renderSocialVariantReviewHtml,
+} = require("./lib/social-dashboard-renderer");
+const {
   readSocialPerformanceMemory,
   recordManualPostPerformance,
   recordPublicInterestSignal,
@@ -1833,17 +1842,22 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload()) {
 }
 
 function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = null) {
-  const liveRun = buildSocialPublisherRun(payload, {
-    origin: getCanonicalOrigin(),
-    limit: AGENT_DRAFT_LIMIT,
-  });
+  const selectionStore = readSocialVariantSelectionStore();
+  const liveRun = applySocialVariantSelectionsToRun(
+    buildSocialPublisherRun(payload, {
+      origin: getCanonicalOrigin(),
+      limit: AGENT_DRAFT_LIMIT,
+    }),
+    selectionStore
+  );
   const stored = readSocialDraftStore();
   const metaReadiness = buildMetaReadiness();
   const storyApprovalUrl = req ? buildAdminUrl(req, "/admin/stories") : "/admin/stories";
   const performanceUrl = req ? buildAdminUrl(req, "/admin/performance") : "/admin/performance";
   const metaUrl = req ? buildAdminUrl(req, "/admin/meta") : "/admin/meta";
-  const notice = cleanText(req?.query?.posted || req?.query?.error || "");
+  const notice = cleanText(req?.query?.posted || req?.query?.selected || req?.query?.error || "");
   const noticeClass = req?.query?.error ? "fail" : "ok";
+  const selectedCount = (selectionStore.selections || []).length;
   const cards = liveRun.drafts
     .map((draft) => {
       const ready = draft.supervisor?.shareableNow;
@@ -1866,12 +1880,9 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
       const teacherChecks = (draft.teacherReport?.checks || [])
         .map((check) => `<li class="${check.passed ? "pass" : "needs"}">${escapeHtml(check.name)}: ${escapeHtml(check.passed ? "passed" : "needs attention")}</li>`)
         .join("");
-      const instagramVariants = (draft.platforms?.instagram?.variants || [])
-        .map((variant) => `<li><strong>${escapeHtml(variant.shape || variant.id)}</strong><pre>${escapeHtml(variant.text || "")}</pre></li>`)
-        .join("");
-      const facebookVariants = (draft.platforms?.facebook?.variants || [])
-        .map((variant) => `<li><strong>${escapeHtml(variant.shape || variant.id)}</strong><pre>${escapeHtml(variant.text || "")}</pre></li>`)
-        .join("");
+      const selectVariantUrl = req ? buildAdminUrl(req, "/admin/social/select-variant") : "/admin/social/select-variant";
+      const facebookVariants = renderSocialVariantReviewHtml({ draft, platform: "facebook", actionUrl: selectVariantUrl });
+      const instagramVariants = renderSocialVariantReviewHtml({ draft, platform: "instagram", actionUrl: selectVariantUrl });
       return `
         <article class="social-card">
           <div class="social-card-top">
@@ -1892,20 +1903,10 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
             <span>${escapeHtml(draft.linkState?.exactArticleUrl || draft.linkState?.futureArticleUrl || "Pending")}</span>
             <small>${escapeHtml(draft.linkState?.reason || "")}</small>
           </div>
-          <details>
-            <summary>Instagram primary draft</summary>
-            <pre>${escapeHtml(draft.platforms?.instagram?.caption || "")}</pre>
-          </details>
-          <details>
-            <summary>Facebook primary draft</summary>
-            <pre>${escapeHtml(draft.platforms?.facebook?.caption || "")}</pre>
-          </details>
-          <details>
-            <summary>Caption variants</summary>
-            <ul class="variant-list">
-              ${instagramVariants ? `<li><strong>Instagram options</strong><ul>${instagramVariants}</ul></li>` : ""}
-              ${facebookVariants ? `<li><strong>Facebook options</strong><ul>${facebookVariants}</ul></li>` : ""}
-            </ul>
+          <details open>
+            <summary>A/B caption review</summary>
+            ${facebookVariants}
+            ${instagramVariants}
           </details>
           <details>
             <summary>Teacher checks</summary>
@@ -1913,7 +1914,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           </details>
           <div class="meta-api-box">
             <strong>Meta posting options</strong>
-            <small>The API buttons publish the approved draft directly through Meta after human review. Facebook: ${metaReadiness.platforms?.facebook?.status || "not checked"} • Instagram: ${metaReadiness.platforms?.instagram?.status || "not checked"}.</small>
+            <small>Select a platform variant first. The API buttons publish only the selected approved variant after human review. Facebook: ${metaReadiness.platforms?.facebook?.status || "not checked"} • Instagram: ${metaReadiness.platforms?.instagram?.status || "not checked"}.</small>
             <div class="platform-actions">
               <form method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish/facebook") : "/admin/meta/publish/facebook")}">
                 <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
@@ -1980,6 +1981,24 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .platform-actions input { border: 1px solid #c6d5e4; border-radius: 12px; padding: 10px 12px; }
     button { border: 1px solid #8fb0c8; background: #275a72; color: #fff; border-radius: 999px; padding: 10px 12px; font-weight: 700; cursor: pointer; }
     button:disabled { background: #d5e0e8; color: #687d8f; cursor: not-allowed; }
+    .variant-review { border-top: 1px solid #e1e9f2; margin-top: 14px; padding-top: 14px; }
+    .variant-review-header { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .variant-review-header h3 { margin: 0; font-size: 1rem; }
+    .variant-review-header span { color: #5f748d; font-size: .86rem; }
+    .variant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+    .variant-card { background: #f7fafc; border: 1px solid #d7e4ef; border-radius: 16px; padding: 12px; display: grid; gap: 9px; }
+    .variant-card.selected { background: #eef8f3; border-color: #9dcdb8; box-shadow: inset 0 0 0 2px rgba(61, 130, 94, .12); }
+    .variant-card-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .variant-name, .variant-state { border-radius: 999px; border: 1px solid #c8d6e6; padding: 4px 8px; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; }
+    .variant-state.selected { background: #dcefe5; color: #255b43; border-color: #a9ccb9; }
+    .variant-state.not-selected { background: #fff; color: #60758d; }
+    .variant-card h4 { margin: 0; font-size: .98rem; line-height: 1.25; }
+    .variant-details { display: grid; gap: 6px; margin: 0; }
+    .variant-details dt { color: #526984; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .variant-details dd { margin: 0; overflow-wrap: anywhere; }
+    .variant-card pre { margin: 0; max-height: 220px; overflow: auto; }
+    .variant-warnings { background: #fff; border: 1px solid #dfe8f1; border-radius: 12px; padding: 10px; }
+    .variant-warnings ul { margin: 6px 0 0; padding-left: 18px; color: #775226; }
     .teacher-list, .variant-list, .variant-list ul { padding-left: 18px; }
     .teacher-list .pass { color: #285d43; }
     .teacher-list .needs { color: #8a4d19; }
@@ -1998,6 +2017,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
         <div class="metric"><strong>${liveRun.run.draftCount}</strong> drafts now</div>
         <div class="metric"><strong>${liveRun.run.readyForManualReview}</strong> ready with exact links</div>
         <div class="metric"><strong>${liveRun.run.blockedUntilArticlePage}</strong> need article pages</div>
+        <div class="metric"><strong>${selectedCount}</strong> selected variants</div>
         <div class="metric"><strong>${stored.drafts?.length || 0}</strong> saved last run</div>
       </div>
       <p>To save this run privately, call <code>POST /api/internal/social-drafts/generate?persist=true</code> with the internal token.</p>
@@ -2079,12 +2099,14 @@ function refreshSocialDraftsForApprovedStories(limit = AGENT_DRAFT_LIMIT) {
 function findSocialDraftForMetaPublish(identifier) {
   const target = cleanText(identifier);
   if (!target) return null;
+  const selectionStore = readSocialVariantSelectionStore();
   const liveRun = buildSocialPublisherRun(buildCurrentNewsPayload(), {
     origin: getCanonicalOrigin(),
     limit: Math.max(AGENT_DRAFT_LIMIT, 30),
   });
   const stored = readSocialDraftStore();
-  const drafts = [...(liveRun.drafts || []), ...(stored.drafts || [])];
+  const drafts = [...(liveRun.drafts || []), ...(stored.drafts || [])]
+    .map((draft) => applySocialVariantSelectionsToDraft(draft, selectionStore));
   return drafts.find((draft) => draft.socialDraftId === target || draft.storyId === target) || null;
 }
 
@@ -3237,6 +3259,33 @@ app.get("/admin/social", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
   res.type("html").send(renderSocialPublisherPage(buildCurrentNewsPayload(), req));
+});
+
+app.post("/admin/social/select-variant", requireAgentAccess, (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const draft = findSocialDraftForMetaPublish(req.body?.socialDraftId || req.query.socialDraftId);
+  try {
+    const result = recordSocialVariantSelection(
+      draft,
+      req.body?.platform || req.query.platform,
+      req.body?.variantId || req.query.variantId,
+      { selectedBy: "Live News editor" }
+    );
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        selected: `Selected ${result.selection.platform} variant ${result.selection.variantId} for ${result.selection.exactArticleUrl}.`,
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        error: safeAdminMessage(error.failures?.join(" ") || error.message || "Variant selection failed."),
+      })
+    );
+  }
 });
 
 app.get("/admin/stories", requireAgentAccess, (req, res) => {
