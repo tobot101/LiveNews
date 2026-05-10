@@ -143,6 +143,89 @@ const visualReadyResult = buildSocialPublisherRun(
   }
 );
 
+const approvedContextResult = buildSocialPublisherRun(
+  {
+    topStoryOfDay: {
+      id: "approved-writing-context-test",
+      title: "Publisher headline repeats raw wording",
+      originalPublisherTitle: "Publisher headline repeats raw wording",
+      liveNewsHeadline: "Council Vote Adds Overnight Transit Rules",
+      description:
+        "Council members approved overnight station rules after public review. Riders and station workers are expected to see updated reporting steps.",
+      liveNewsSummary:
+        "Council members approved overnight station rules after public review. Riders and station workers are expected to see updated reporting steps.",
+      liveNewsWhyItMatters:
+        "The change matters for riders and station workers who use overnight transit service.",
+      sourceName: "Live News Test Source",
+      link: "https://example.com/transit-rules",
+      category: "Local",
+      publishedAt: "2026-05-08T18:00:00.000Z",
+      hasLiveNewsStory: true,
+      approvedStoryUrl: "/stories/transit-rules-approved-test",
+      writingQualityStatus: "ready",
+      writingExam: { passed: true, total: 94 },
+    },
+    topStories: [],
+    feed: [],
+  },
+  {
+    origin: "https://newsmorenow.com",
+    limit: 1,
+    socialMemory: memory,
+  }
+);
+
+const copiedPublisherResult = buildSocialPublisherRun(
+  {
+    topStoryOfDay: {
+      id: "copied-publisher-caption-test",
+      title: "Exact Publisher Headline Copied Here",
+      originalPublisherTitle: "Exact Publisher Headline Copied Here",
+      liveNewsHeadline: "Exact Publisher Headline Copied Here",
+      liveNewsSummary:
+        "Court records describe the confirmed filing and the next scheduled hearing. Live News keeps the wording neutral while linking back to the source.",
+      sourceName: "Live News Test Source",
+      link: "https://example.com/copied-publisher",
+      category: "National",
+      publishedAt: "2026-05-08T19:00:00.000Z",
+      hasLiveNewsStory: true,
+      approvedStoryUrl: "/stories/copied-publisher-caption-test",
+    },
+    topStories: [],
+    feed: [],
+  },
+  {
+    origin: "https://newsmorenow.com",
+    limit: 1,
+    socialMemory: memory,
+  }
+);
+
+const unsupportedClaimResult = buildSocialPublisherRun(
+  {
+    topStoryOfDay: {
+      id: "unsupported-claim-caption-test",
+      title: "Company launches new planning tool",
+      liveNewsHeadline: "Company Launches New Planning Tool",
+      liveNewsSummary:
+        "The company secretly guarantees every user will save money after using the new planning tool.",
+      sourceName: "Live News Test Source",
+      link: "https://example.com/planning-tool",
+      category: "Technology",
+      publishedAt: "2026-05-08T20:00:00.000Z",
+      hasLiveNewsStory: true,
+      approvedStoryUrl: "/stories/planning-tool-caption-test",
+    },
+    topStories: [],
+    feed: [],
+  },
+  {
+    origin: "https://newsmorenow.com",
+    limit: 1,
+    socialMemory: memory,
+  }
+);
+
 if (memory.schemaVersion !== SOCIAL_STYLE_MEMORY_SCHEMA_VERSION) {
   fail("Social style memory schema is not current.", failures);
 }
@@ -312,6 +395,77 @@ if (!(visualReadyDraft?.platforms?.instagram?.variants || []).every((variant) =>
 }
 if (!(visualReadyDraft?.platforms?.instagram?.variants || []).some((variant) => variant.publishable === true)) {
   fail("Instagram variant with durable image URL and exact story link should be publishable after review gates.", failures);
+}
+
+const approvedContextDraft = approvedContextResult.drafts[0];
+const approvedFacebook = approvedContextDraft?.platforms?.facebook || {};
+const approvedInstagram = approvedContextDraft?.platforms?.instagram || {};
+const approvedCombinedText = [
+  approvedFacebook.caption,
+  approvedInstagram.caption,
+  ...(approvedFacebook.variants || []).map((variant) => variant.message),
+  ...(approvedInstagram.variants || []).map((variant) => variant.caption),
+].join(" ");
+
+if (!approvedCombinedText.includes("Council members approved overnight station rules after public review")) {
+  fail("Social captions should use approved Live News story context.", failures);
+}
+
+if (/Publisher headline repeats raw wording/i.test(approvedCombinedText)) {
+  fail("Social captions should prefer approved Live News wording over raw publisher wording.", failures);
+}
+
+if (/Read the original source for the full report|A clear look at the latest source-linked details/i.test(approvedCombinedText)) {
+  fail("Social captions must not use generic fallback descriptions.", failures);
+}
+
+for (const variant of [
+  ...(approvedFacebook.variants || []),
+  ...(approvedInstagram.variants || []),
+]) {
+  if (!variant.writingExam || typeof variant.writingExam.total !== "number") {
+    fail(`${variant.id || "variant"} is missing a writing exam score.`, failures);
+  }
+  if (!variant.writingQualityStatus) {
+    fail(`${variant.id || "variant"} is missing writingQualityStatus.`, failures);
+  }
+  if (!(variant.teacherChecks || []).some((check) => check.id === "writing_quality_gate")) {
+    fail(`${variant.id || "variant"} is missing the writing quality teacher gate.`, failures);
+  }
+}
+
+if ((approvedFacebook.variants || []).length < 3 || (approvedInstagram.variants || []).length < 3) {
+  fail("Approved context draft should keep at least three variants per platform.", failures);
+}
+
+if (!approvedFacebook.caption.includes("https://newsmorenow.com/stories/transit-rules-approved-test")) {
+  fail("Facebook captions should include the exact /stories/... URL.", failures);
+}
+
+if (approvedFacebook.caption === approvedInstagram.caption) {
+  fail("Instagram caption should not be direct Facebook copy.", failures);
+}
+
+const copiedPublisherDraft = copiedPublisherResult.drafts[0];
+const copiedPublisherVariants = [
+  ...(copiedPublisherDraft?.platforms?.facebook?.variants || []),
+  ...(copiedPublisherDraft?.platforms?.instagram?.variants || []),
+];
+if (!copiedPublisherVariants.some((variant) =>
+  (variant.teacherChecks || []).some((check) => check.id === "writing_copy_risk_teacher" && check.passed === false)
+)) {
+  fail("Social captions should block copied publisher wording.", failures);
+}
+
+const unsupportedClaimDraft = unsupportedClaimResult.drafts[0];
+const unsupportedVariants = [
+  ...(unsupportedClaimDraft?.platforms?.facebook?.variants || []),
+  ...(unsupportedClaimDraft?.platforms?.instagram?.variants || []),
+];
+if (!unsupportedVariants.some((variant) =>
+  (variant.teacherChecks || []).some((check) => check.id === "writing_context_faithfulness_teacher" && check.passed === false)
+)) {
+  fail("Social captions should block unsupported or forced claims.", failures);
 }
 
 if (failures.length) {
