@@ -1796,15 +1796,35 @@ function renderTopStories(items, options = {}) {
   observeSeen();
 }
 
-function getEntertainmentItems() {
-  const allItems = getAllNewsItems();
-  return sortStoryPool(
-    filterBySearch(allItems).filter((item) => item.category === "Entertainment")
-  ).slice(0, 5);
-}
+const ENTERTAINMENT_SECTION_LIMIT = 9;
+const ENTERTAINMENT_SOURCE_TERMS = [
+  "e!",
+  "entertainment tonight",
+  "people.com",
+  "people magazine",
+  "variety",
+  "hollywood reporter",
+  "billboard",
+  "rolling stone",
+  "deadline",
+  "thewrap",
+  "vulture",
+  "pitchfork",
+  "tmz",
+  "access hollywood",
+  "page six",
+  "us weekly",
+  "vanity fair",
+];
+const ENTERTAINMENT_STORY_PATTERN = /\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|movie|film|box office|hollywood|trailer|cinema|streaming|netflix|hulu|disney\+?|prime video|tv show|tv series|television series|television awards|bafta tv|episode premiere|season premiere|album|song|single|concert|grammy|oscars|emmys|bafta|cannes|sundance|award show|red carpet|pop culture|reality tv|late-night|broadway|theater|festival|eurovision|song contest|saturday night live|snl)\b/;
 
-function getEntertainmentLabel(item) {
-  const text = [
+function getEntertainmentText(item) {
+  return [
+    item.category,
+    item.sourceName,
+    item.attribution,
+    item.sourceUrl,
+    item.domain,
     item.title,
     item.liveNewsHeadline,
     item.summary,
@@ -1813,6 +1833,54 @@ function getEntertainmentLabel(item) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+}
+
+function getEntertainmentSourceText(item) {
+  return [
+    item.sourceName,
+    item.attribution,
+    item.sourceUrl,
+    item.domain,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function hasEntertainmentAudienceSignal(item) {
+  const audience = item?.summaryAgent?.audience;
+  const primaryText = [
+    audience?.primaryPattern?.id,
+    audience?.primaryPattern?.label,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return primaryText.includes("entertainment");
+}
+
+function isEntertainmentStory(item) {
+  if (!item) return false;
+  if (item.category === "Entertainment") return true;
+  const sourceText = getEntertainmentSourceText(item);
+  const text = getEntertainmentText(item);
+  if (ENTERTAINMENT_SOURCE_TERMS.some((term) => sourceText.includes(term))) return true;
+  if (hasEntertainmentAudienceSignal(item)) return true;
+  return ENTERTAINMENT_STORY_PATTERN.test(text);
+}
+
+function getEntertainmentItems() {
+  const allItems = getAllNewsItems();
+  return sortStoryPool(
+    filterBySearch(allItems).filter((item) => isEntertainmentStory(item))
+  ).slice(0, ENTERTAINMENT_SECTION_LIMIT);
+}
+
+function getEntertainmentLabel(item) {
+  const text = getEntertainmentText(item);
+  if (/\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|red carpet|reality tv)\b/.test(text)) {
+    return "Celebrity";
+  }
   if (/\b(album|song|single|music|singer|artist|tour|concert|billboard|grammy|festival)\b/.test(text)) {
     return "Music";
   }
@@ -1826,7 +1894,7 @@ function getEntertainmentLabel(item) {
     return "Awards";
   }
   if (/\b(studio|deal|contract|rights|media company|industry|ratings)\b/.test(text)) {
-    return "Industry";
+    return "Entertainment biz";
   }
   return "Culture";
 }
@@ -1843,7 +1911,7 @@ function renderEntertainmentSection() {
   elements.entertainmentPanel.hidden = false;
   const [featured, ...supporting] = items;
   const featuredPublished = featured?.publishedAt ? formatTime(featured.publishedAt) : "";
-  const supportingCards = supporting.slice(0, 4).map((item) => {
+  const supportingCards = supporting.slice(0, ENTERTAINMENT_SECTION_LIMIT - 1).map((item) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
     return `
       <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">

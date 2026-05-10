@@ -2912,8 +2912,35 @@ function renderCrawlableFeedItem(item) {
   `;
 }
 
-function getCrawlerEntertainmentLabel(item) {
-  const text = [
+const ENTERTAINMENT_SECTION_LIMIT = 9;
+const ENTERTAINMENT_SOURCE_TERMS = [
+  "e!",
+  "entertainment tonight",
+  "people.com",
+  "people magazine",
+  "variety",
+  "hollywood reporter",
+  "billboard",
+  "rolling stone",
+  "deadline",
+  "thewrap",
+  "vulture",
+  "pitchfork",
+  "tmz",
+  "access hollywood",
+  "page six",
+  "us weekly",
+  "vanity fair",
+];
+const ENTERTAINMENT_STORY_PATTERN = /\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|movie|film|box office|hollywood|trailer|cinema|streaming|netflix|hulu|disney\+?|prime video|tv show|tv series|television series|television awards|bafta tv|episode premiere|season premiere|album|song|single|concert|grammy|oscars|emmys|bafta|cannes|sundance|award show|red carpet|pop culture|reality tv|late-night|broadway|theater|festival|eurovision|song contest|saturday night live|snl)\b/;
+
+function getCrawlerEntertainmentText(item) {
+  return [
+    item.category,
+    item.sourceName,
+    item.attribution,
+    item.sourceUrl,
+    item.domain,
     item.title,
     item.liveNewsHeadline,
     item.summary,
@@ -2922,22 +2949,61 @@ function getCrawlerEntertainmentLabel(item) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+}
+
+function getCrawlerEntertainmentSourceText(item) {
+  return [
+    item.sourceName,
+    item.attribution,
+    item.sourceUrl,
+    item.domain,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function hasCrawlerEntertainmentAudienceSignal(item) {
+  const audience = item?.summaryAgent?.audience;
+  const primaryText = [
+    audience?.primaryPattern?.id,
+    audience?.primaryPattern?.label,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return primaryText.includes("entertainment");
+}
+
+function isCrawlerEntertainmentStory(item) {
+  if (!item) return false;
+  if (item.category === "Entertainment") return true;
+  const sourceText = getCrawlerEntertainmentSourceText(item);
+  const text = getCrawlerEntertainmentText(item);
+  if (ENTERTAINMENT_SOURCE_TERMS.some((term) => sourceText.includes(term))) return true;
+  if (hasCrawlerEntertainmentAudienceSignal(item)) return true;
+  return ENTERTAINMENT_STORY_PATTERN.test(text);
+}
+
+function getCrawlerEntertainmentLabel(item) {
+  const text = getCrawlerEntertainmentText(item);
+  if (/\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|red carpet|reality tv)\b/.test(text)) return "Celebrity";
   if (/\b(album|song|single|music|singer|artist|tour|concert|billboard|grammy|festival)\b/.test(text)) return "Music";
   if (/\b(movie|film|box office|actor|actress|director|trailer|cinema)\b/.test(text)) return "Movies";
   if (/\b(tv|television|streaming|netflix|hulu|disney|series|show|episode|season)\b/.test(text)) return "TV & streaming";
   if (/\b(award|oscars|emmys|grammys|red carpet|nomination|winner)\b/.test(text)) return "Awards";
-  if (/\b(studio|deal|contract|rights|media company|industry|ratings)\b/.test(text)) return "Industry";
+  if (/\b(studio|deal|contract|rights|media company|industry|ratings)\b/.test(text)) return "Entertainment biz";
   return "Culture";
 }
 
 function renderCrawlableEntertainmentSection(items) {
   const entertainmentItems = (items || [])
-    .filter((item) => item.category === "Entertainment")
-    .slice(0, 5);
+    .filter((item) => isCrawlerEntertainmentStory(item))
+    .slice(0, ENTERTAINMENT_SECTION_LIMIT);
   if (!entertainmentItems.length) return "";
   const [featured, ...supporting] = entertainmentItems;
   const supportCards = supporting
-    .slice(0, 4)
+    .slice(0, ENTERTAINMENT_SECTION_LIMIT - 1)
     .map(
       (item) => `
         <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">

@@ -141,6 +141,126 @@
       "access": "official-rss"
     },
     {
+      "id": "variety-entertainment",
+      "name": "Variety",
+      "attribution": "Variety",
+      "feedUrl": "https://variety.com/feed/",
+      "homepage": "https://variety.com/",
+      "category": "Entertainment",
+      "weight": 0.92,
+      "access": "official-rss"
+    },
+    {
+      "id": "hollywood-reporter-entertainment",
+      "name": "The Hollywood Reporter",
+      "attribution": "The Hollywood Reporter",
+      "feedUrl": "https://www.hollywoodreporter.com/feed/",
+      "homepage": "https://www.hollywoodreporter.com/",
+      "category": "Entertainment",
+      "weight": 0.9,
+      "access": "official-rss"
+    },
+    {
+      "id": "page-six-celebrity",
+      "name": "Page Six",
+      "attribution": "Page Six",
+      "feedUrl": "https://pagesix.com/feed/",
+      "homepage": "https://pagesix.com/",
+      "category": "Entertainment",
+      "weight": 0.84,
+      "access": "official-rss"
+    },
+    {
+      "id": "fox-entertainment",
+      "name": "Fox News",
+      "attribution": "Fox News",
+      "feedUrl": "https://moxie.foxnews.com/google-publisher/entertainment.xml",
+      "homepage": "https://www.foxnews.com/entertainment",
+      "category": "Entertainment",
+      "weight": 0.86,
+      "access": "official-rss"
+    },
+    {
+      "id": "cbs-entertainment",
+      "name": "CBS News",
+      "attribution": "CBS News",
+      "feedUrl": "https://www.cbsnews.com/latest/rss/entertainment",
+      "homepage": "https://www.cbsnews.com/entertainment/",
+      "category": "Entertainment",
+      "weight": 0.86,
+      "access": "official-rss"
+    },
+    {
+      "id": "entertainment-tonight",
+      "name": "Entertainment Tonight",
+      "attribution": "Entertainment Tonight",
+      "feedUrl": "https://www.etonline.com/news/rss",
+      "homepage": "https://www.etonline.com/news",
+      "category": "Entertainment",
+      "weight": 0.84,
+      "access": "official-rss"
+    },
+    {
+      "id": "e-news-top",
+      "name": "E! Online",
+      "attribution": "E! Online",
+      "feedUrl": "https://www.eonline.com/syndication/feeds/rssfeeds/topstories.xml",
+      "homepage": "https://www.eonline.com/",
+      "category": "Entertainment",
+      "weight": 0.84,
+      "access": "official-rss"
+    },
+    {
+      "id": "tmz-celebrity",
+      "name": "TMZ",
+      "attribution": "TMZ",
+      "feedUrl": "https://www.tmz.com/rss.xml",
+      "homepage": "https://www.tmz.com/",
+      "category": "Entertainment",
+      "weight": 0.78,
+      "access": "official-rss"
+    },
+    {
+      "id": "deadline-entertainment",
+      "name": "Deadline",
+      "attribution": "Deadline",
+      "feedUrl": "https://deadline.com/feed/",
+      "homepage": "https://deadline.com/",
+      "category": "Entertainment",
+      "weight": 0.84,
+      "access": "official-rss"
+    },
+    {
+      "id": "thewrap-entertainment",
+      "name": "TheWrap",
+      "attribution": "TheWrap",
+      "feedUrl": "https://www.thewrap.com/feed/",
+      "homepage": "https://www.thewrap.com/",
+      "category": "Entertainment",
+      "weight": 0.82,
+      "access": "official-rss"
+    },
+    {
+      "id": "billboard-entertainment",
+      "name": "Billboard",
+      "attribution": "Billboard",
+      "feedUrl": "https://www.billboard.com/feed/",
+      "homepage": "https://www.billboard.com/",
+      "category": "Entertainment",
+      "weight": 0.8,
+      "access": "official-rss"
+    },
+    {
+      "id": "rolling-stone-music",
+      "name": "Rolling Stone",
+      "attribution": "Rolling Stone",
+      "feedUrl": "https://www.rollingstone.com/music/music-news/feed/",
+      "homepage": "https://www.rollingstone.com/music/music-news/",
+      "category": "Entertainment",
+      "weight": 0.8,
+      "access": "official-rss"
+    },
+    {
       "id": "techcrunch-top",
       "name": "TechCrunch",
       "attribution": "TechCrunch",
