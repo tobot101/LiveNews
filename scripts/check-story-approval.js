@@ -5,6 +5,10 @@ const {
 } = require("../lib/article-agents/approved-stories");
 const { runArticleAgents } = require("../lib/article-agents/pipeline");
 const { renderPublicStoryPage } = require("../lib/article-agents/story-renderer");
+const {
+  buildDraftWithEditorWritingEdits,
+  renderStoryWritingQualityPanel,
+} = require("../lib/article-agents/story-approval-dashboard");
 const { buildStoryWritingPackage } = require("../lib/article-agents/writing-quality");
 const { buildSocialPublisherRun } = require("../lib/social-publisher");
 
@@ -174,6 +178,59 @@ if (homepageUrlCheck.ok) {
 
 if (draft.writingQuality?.context?.publicSafetyRelevant !== false) {
   failures.push("Public safety should not be forced for a normal local approved-story draft.");
+}
+
+const writingPanelHtml = renderStoryWritingQualityPanel(draft, approvalCheck, { editable: true });
+if (!/Writing review before approval/.test(writingPanelHtml) || !/Writing quality/.test(writingPanelHtml)) {
+  failures.push("Admin story page should expose writing-quality results.");
+}
+if (!/Teacher score|Teacher scores/.test(writingPanelHtml)) {
+  failures.push("Admin story page should expose teacher scores.");
+}
+if (!/Candidate descriptions/.test(writingPanelHtml) || !/Source faithful/.test(writingPanelHtml)) {
+  failures.push("Candidate descriptions should be visible in the admin story page.");
+}
+if (!/Copy risk/i.test(writingPanelHtml)) {
+  failures.push("Copy-risk warnings should be visible in the admin story page.");
+}
+if (!/Editor reason for manual writing changes/.test(writingPanelHtml)) {
+  failures.push("Editor reason field should be visible when approval editing is supported.");
+}
+if (/YOUR_ADMIN_TOKEN|access_token=|token=/.test(writingPanelHtml)) {
+  failures.push("Writing-quality panel should not render real or placeholder tokens.");
+}
+
+const weakPanelHtml = renderStoryWritingQualityPanel(weakDraft, weakCheck, { editable: false });
+if (!/Missing context/.test(weakPanelHtml) || !/main_event_missing|confirmed_facts_missing/.test(weakPanelHtml)) {
+  failures.push("Missing context should be visible for weak drafts.");
+}
+
+const fallbackPanelHtml = renderStoryWritingQualityPanel(
+  {
+    ...draft,
+    description: "Read the original source for the full report.",
+    dek: "Read the original source for the full report.",
+    summary: ["Read the original source for the full report."],
+  },
+  { writingPackage: fallbackPackage, failures: fallbackPackage.blockingReasons || [] },
+  { editable: false }
+);
+if (!/Fallback risk/i.test(fallbackPanelHtml)) {
+  failures.push("Generic fallback warning should be visible in the admin story page.");
+}
+
+const editResult = buildDraftWithEditorWritingEdits(draft, {
+  approvedTitle: "Transit safety plan advances after public review",
+  approvedDescription: draft.description,
+  approvedSummary: Array.isArray(draft.summary) ? draft.summary.join(" ") : draft.summary,
+  approvedWhyItMatters: draft.whyItMatters,
+  editorReason: "Removed publisher-style wording and made the title clearer.",
+});
+if (editResult.draft.headline !== "Transit safety plan advances after public review") {
+  failures.push("Approved editor version should update the draft copy before approval.");
+}
+if (!editResult.writingEdits.length || editResult.writingEdits[0].editorReason !== "Removed publisher-style wording and made the title clearer.") {
+  failures.push("Editor edit reason should be captured for approved writing memory.");
 }
 
 const enriched = enrichNewsPayloadWithApprovedStories(

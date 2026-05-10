@@ -49,6 +49,10 @@ const {
   renderSocialVariantReviewHtml,
 } = require("./lib/social-dashboard-renderer");
 const {
+  buildDraftWithEditorWritingEdits,
+  renderStoryWritingQualityPanel,
+} = require("./lib/article-agents/story-approval-dashboard");
+const {
   readSocialPerformanceMemory,
   recordManualPostPerformance,
   recordPublicInterestSignal,
@@ -2499,12 +2503,13 @@ function renderStoryApprovalPage(req) {
             <strong>Original source</strong>
             ${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(sourceUrl)}</a>` : "<span>Missing original source URL</span>"}
           </div>
-          ${approvedStory ? "" : validation.ok ? `
+          ${approvedStory ? renderStoryWritingQualityPanel(draft, validation, { editable: false }) : validation.ok ? `
             <form method="post" action="${escapeHtml(buildAdminUrl(req, "/admin/stories/approve"))}">
               <input type="hidden" name="storyId" value="${escapeHtml(draft.storyId)}" />
+              ${renderStoryWritingQualityPanel(draft, validation, { editable: true })}
               <button class="approve-button" type="submit">Approve public story page</button>
             </form>
-          ` : `<div class="review-box fail"><strong>Approval blockers</strong><ul>${failures}</ul></div>`}
+          ` : `${renderStoryWritingQualityPanel(draft, validation, { editable: false })}<div class="review-box fail"><strong>Approval blockers</strong><ul>${failures}</ul></div>`}
         </article>
       `;
     })
@@ -2537,6 +2542,32 @@ function renderStoryApprovalPage(req) {
     .link-box small { color: #627893; }
     .review-box { border-radius: 14px; padding: 12px; margin-top: 10px; }
     .review-box.fail { background: #fff1f1; border: 1px solid #f2c2c2; }
+    .writing-quality-panel { background: #f8fbfd; border: 1px solid #d5e3f0; border-radius: 18px; padding: 14px; margin: 14px 0; display: grid; gap: 12px; }
+    .writing-quality-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .writing-quality-head h3 { margin: 0; font-size: 1.12rem; }
+    .writing-eyebrow { margin: 0 0 4px; color: #526984; font-size: .76rem; text-transform: uppercase; letter-spacing: .08em; }
+    .writing-score { min-width: 92px; text-align: center; border-radius: 16px; border: 1px solid #c8d6e6; background: #fff; padding: 8px; text-transform: capitalize; }
+    .writing-score strong { display: block; font-size: 1.7rem; line-height: 1; }
+    .writing-score.ready { background: #e8f5ee; color: #24573d; border-color: #bad8c6; }
+    .writing-score.needs_review { background: #fff8e7; color: #735329; border-color: #dfc99d; }
+    .writing-score.blocked { background: #fff1f1; color: #782828; border-color: #f2c2c2; }
+    .writing-current-grid, .warning-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+    .writing-current-grid > div, .writing-context, .selected-description, .candidate-card, .teacher-score, .editor-writing-fields label { background: #fff; border: 1px solid #dbe6f0; border-radius: 14px; padding: 10px; }
+    .writing-current-grid p, .selected-description p, .candidate-card p { margin: 5px 0 0; color: #30445d; }
+    .writing-context-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .writing-context-tags span, .field-score-grid span, .candidate-top span { background: #eef4fa; border: 1px solid #d8e3ef; border-radius: 999px; padding: 5px 8px; font-size: .8rem; color: #435c77; }
+    .candidate-list, .teacher-score-grid, .editor-writing-fields, .field-score-grid { display: grid; gap: 10px; margin-top: 10px; }
+    .candidate-card.selected { border-color: #0f75bc; box-shadow: inset 0 0 0 1px #0f75bc; }
+    .candidate-card.warn, .teacher-score.warn { background: #fffaf1; }
+    .candidate-card.passed, .teacher-score.passed { background: #f7fff9; }
+    .teacher-score.blocking { background: #fff1f1; border-color: #f2c2c2; }
+    .candidate-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .warning { color: #7a3f00; font-weight: 700; }
+    .writing-muted { color: #627893; }
+    .editor-writing-fields label { display: grid; gap: 6px; font-weight: 700; }
+    .editor-writing-fields input, .editor-writing-fields textarea { width: 100%; box-sizing: border-box; border: 1px solid #c8d6e6; border-radius: 12px; padding: 9px 10px; font: inherit; font-weight: 400; color: #101827; background: #fff; }
+    details { border-top: 1px solid #d8e3ef; padding-top: 10px; }
+    summary { cursor: pointer; font-weight: 700; }
     .notice.ok { background: #e8f5ee; border: 1px solid #bad8c6; color: #24573d; }
     .notice.fail { background: #fff1f1; border: 1px solid #f2c2c2; color: #782828; }
     .notice { border-radius: 14px; padding: 12px; margin: 12px 0; }
@@ -4069,8 +4100,10 @@ app.post("/admin/stories/approve", requireAgentAccess, (req, res) => {
         buildAdminUrl(req, "/admin/stories", { error: "Draft was not found. Generate the current private draft queue first." })
       );
     }
-    const story = approveDraft(draft, {
+    const approvalWriting = buildDraftWithEditorWritingEdits(draft, req.body || {});
+    const story = approveDraft(approvalWriting.draft, {
       approvedBy: "Live News editor",
+      writingEdits: approvalWriting.writingEdits,
     });
     const socialRun = refreshSocialDraftsForApprovedStories();
     return res.redirect(
@@ -4662,8 +4695,10 @@ app.post("/api/internal/stories/approve", requireAgentAccess, (req, res) => {
     });
   }
   try {
-    const story = approveDraft(draft, {
+    const approvalWriting = buildDraftWithEditorWritingEdits(draft, req.body || {});
+    const story = approveDraft(approvalWriting.draft, {
       approvedBy: cleanText(req.body?.approvedBy || "Live News editor"),
+      writingEdits: approvalWriting.writingEdits,
     });
     const socialRun = refreshSocialDraftsForApprovedStories();
     return res.json({
