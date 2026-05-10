@@ -1504,6 +1504,102 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
   font-size: 10px;
 }
 
+.entertainment-panel {
+  background:
+    linear-gradient(135deg, rgba(250, 239, 218, 0.92), rgba(245, 248, 252, 0.98) 46%, rgba(230, 239, 248, 0.94)),
+    var(--surface);
+  border-color: #d5c09b;
+}
+
+html[data-theme="night"] .entertainment-panel {
+  background:
+    linear-gradient(135deg, rgba(48, 38, 29, 0.96), rgba(20, 29, 41, 0.98) 48%, rgba(23, 38, 55, 0.96)),
+    var(--surface);
+  border-color: #6b5638;
+}
+
+.entertainment-panel .panel-header {
+  align-items: flex-start;
+}
+
+.entertainment-more {
+  white-space: nowrap;
+}
+
+.entertainment-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.05fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.entertainment-feature,
+.entertainment-mini-card {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 16px;
+}
+
+html[data-theme="night"] .entertainment-feature,
+html[data-theme="night"] .entertainment-mini-card {
+  background: rgba(16, 23, 33, 0.7);
+}
+
+.entertainment-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.42fr);
+  gap: 14px;
+  padding: 14px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.entertainment-feature-copy {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+
+.entertainment-feature h3 {
+  font-size: clamp(1.2rem, 2.5vw, 2.05rem);
+  line-height: 1.02;
+}
+
+.entertainment-feature p,
+.entertainment-mini-card p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.story-visual-entertainment {
+  min-height: 180px;
+}
+
+.entertainment-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.entertainment-mini-card {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  align-content: start;
+}
+
+.entertainment-mini-card h4 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.18;
+}
+
+.entertainment-title:hover {
+  text-decoration: underline;
+}
+
 .local-deep {
   display: grid;
   gap: 6px;
@@ -2082,6 +2178,15 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
     grid-template-columns: 1fr;
   }
 
+  .entertainment-grid,
+  .entertainment-feature {
+    grid-template-columns: 1fr;
+  }
+
+  .story-visual-entertainment {
+    min-height: 210px;
+  }
+
   .search-result-card {
     grid-template-columns: 140px minmax(0, 1fr);
   }
@@ -2192,5 +2297,17 @@ html[data-theme="night"] .category-lanes-panel .lane-more {
 
   .home-local-panel .local-featured {
     padding: 10px;
+  }
+
+  .entertainment-panel .panel-header {
+    gap: 12px;
+  }
+
+  .entertainment-list {
+    grid-template-columns: 1fr;
+  }
+
+  .story-visual-entertainment {
+    min-height: 170px;
   }
 }

@@ -2912,6 +2912,64 @@ function renderCrawlableFeedItem(item) {
   `;
 }
 
+function getCrawlerEntertainmentLabel(item) {
+  const text = [
+    item.title,
+    item.liveNewsHeadline,
+    item.summary,
+    item.liveNewsSummary,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/\b(album|song|single|music|singer|artist|tour|concert|billboard|grammy|festival)\b/.test(text)) return "Music";
+  if (/\b(movie|film|box office|actor|actress|director|trailer|cinema)\b/.test(text)) return "Movies";
+  if (/\b(tv|television|streaming|netflix|hulu|disney|series|show|episode|season)\b/.test(text)) return "TV & streaming";
+  if (/\b(award|oscars|emmys|grammys|red carpet|nomination|winner)\b/.test(text)) return "Awards";
+  if (/\b(studio|deal|contract|rights|media company|industry|ratings)\b/.test(text)) return "Industry";
+  return "Culture";
+}
+
+function renderCrawlableEntertainmentSection(items) {
+  const entertainmentItems = (items || [])
+    .filter((item) => item.category === "Entertainment")
+    .slice(0, 5);
+  if (!entertainmentItems.length) return "";
+  const [featured, ...supporting] = entertainmentItems;
+  const supportCards = supporting
+    .slice(0, 4)
+    .map(
+      (item) => `
+        <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">
+          <div class="story-eyebrow">
+            <span>${escapeHtml(getCrawlerEntertainmentLabel(item))}</span>
+            <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
+          </div>
+          <h4>${renderCrawlerTitleLink(item, "entertainment-title")}</h4>
+          <p>${escapeHtml(getCrawlerSummary(item))}</p>
+          ${renderCrawlerMeta(item)}
+        </article>
+      `
+    )
+    .join("");
+  return `
+    <article class="entertainment-feature" data-article-id="${escapeHtml(featured.id || "")}">
+      <div class="entertainment-feature-copy">
+        <div class="story-eyebrow">
+          <span>${escapeHtml(getCrawlerEntertainmentLabel(featured))}</span>
+          <span>${escapeHtml(formatCrawlerDateBadge(featured.publishedAt))}</span>
+        </div>
+        <h3>${renderCrawlerTitleLink(featured, "entertainment-title")}</h3>
+        <p>${escapeHtml(getCrawlerSummary(featured))}</p>
+        ${renderCrawlerMeta(featured)}
+      </div>
+    </article>
+    <div class="entertainment-list">
+      ${supportCards || '<div class="entertainment-mini-card">More entertainment updates will appear as fresh stories arrive.</div>'}
+    </div>
+  `;
+}
+
 function renderCrawlableHomepage() {
   const html = readPublicHtml("index.html");
   const payload = buildCurrentNewsPayload();
@@ -2930,6 +2988,10 @@ function renderCrawlableHomepage() {
   const feedCards = (payload.feed || [])
     .filter((item) => !topIds.has(item.id))
     .slice(0, 50);
+  const entertainmentCards = renderCrawlableEntertainmentSection([
+    ...(payload.topStories || []),
+    ...(payload.feed || []),
+  ]);
 
   return html
     .replace(
@@ -2939,6 +3001,10 @@ function renderCrawlableHomepage() {
     .replace(
       '<ol class="story-list" id="topStories"></ol>',
       `<ol class="story-list" id="topStories">${topCards.map((item, index) => renderCrawlableStoryCard(item, index + 1 + spotlightStories.length)).join("")}</ol>`
+    )
+    .replace(
+      '<div class="entertainment-grid" id="entertainmentGrid"></div>',
+      `<div class="entertainment-grid" id="entertainmentGrid">${entertainmentCards}</div>`
     )
     .replace(
       '<div class="feed" id="newsFeed"></div>',

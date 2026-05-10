@@ -88,6 +88,8 @@ const elements = {
   topStories: document.getElementById("topStories"),
   topStoriesTitle: document.getElementById("topStoriesTitle"),
   topStoriesTag: document.getElementById("topStoriesTag"),
+  entertainmentPanel: document.getElementById("entertainmentPanel"),
+  entertainmentGrid: document.getElementById("entertainmentGrid"),
   categoryLanesPanel: document.getElementById("categoryLanesPanel"),
   categoryLanes: document.getElementById("categoryLanes"),
   newsFeed: document.getElementById("newsFeed"),
@@ -1570,6 +1572,7 @@ function renderCurrent() {
   const limitedFeed = filteredFeed.slice(0, feedLimit);
   renderLeadStories(spotlightStories, { splitSpotlight: isDefaultView });
   renderTopStories(topCards, { rankOffset: spotlightStories.length });
+  renderEntertainmentSection();
   renderCategoryLanes();
   renderFeed(limitedFeed);
   const combined = [...spotlightStories, ...topCards, ...limitedFeed].filter(Boolean);
@@ -1791,6 +1794,91 @@ function renderTopStories(items, options = {}) {
     li.addEventListener("click", () => markSeenById(item.id));
   });
   observeSeen();
+}
+
+function getEntertainmentItems() {
+  const allItems = getAllNewsItems();
+  return sortStoryPool(
+    filterBySearch(allItems).filter((item) => item.category === "Entertainment")
+  ).slice(0, 5);
+}
+
+function getEntertainmentLabel(item) {
+  const text = [
+    item.title,
+    item.liveNewsHeadline,
+    item.summary,
+    item.liveNewsSummary,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/\b(album|song|single|music|singer|artist|tour|concert|billboard|grammy|festival)\b/.test(text)) {
+    return "Music";
+  }
+  if (/\b(movie|film|box office|actor|actress|director|trailer|cinema)\b/.test(text)) {
+    return "Movies";
+  }
+  if (/\b(tv|television|streaming|netflix|hulu|disney|series|show|episode|season)\b/.test(text)) {
+    return "TV & streaming";
+  }
+  if (/\b(award|oscars|emmys|grammys|red carpet|nomination|winner)\b/.test(text)) {
+    return "Awards";
+  }
+  if (/\b(studio|deal|contract|rights|media company|industry|ratings)\b/.test(text)) {
+    return "Industry";
+  }
+  return "Culture";
+}
+
+function renderEntertainmentSection() {
+  if (!elements.entertainmentPanel || !elements.entertainmentGrid) return;
+  const items = getEntertainmentItems();
+  if (!items.length) {
+    elements.entertainmentPanel.hidden = true;
+    elements.entertainmentGrid.innerHTML = "";
+    return;
+  }
+
+  elements.entertainmentPanel.hidden = false;
+  const [featured, ...supporting] = items;
+  const featuredPublished = featured?.publishedAt ? formatTime(featured.publishedAt) : "";
+  const supportingCards = supporting.slice(0, 4).map((item) => {
+    const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+    return `
+      <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">
+        <div class="story-eyebrow">
+          <span>${escapeHtml(getEntertainmentLabel(item))}</span>
+          <span>${escapeHtml(getPublishedDateBadge(item))}</span>
+        </div>
+        <h4>${buildStoryTitleLink(item, "entertainment-title")}</h4>
+        <p>${escapeHtml(getDisplaySummary(item, 112))}</p>
+        ${buildStoryMeta(item, published)}
+      </article>
+    `;
+  }).join("");
+
+  elements.entertainmentGrid.innerHTML = `
+    <article class="entertainment-feature" data-article-id="${escapeHtml(featured.id || "")}">
+      <div class="entertainment-feature-copy">
+        <div class="story-eyebrow">
+          <span>${escapeHtml(getEntertainmentLabel(featured))}</span>
+          <span>${escapeHtml(getPublishedDateBadge(featured))}</span>
+        </div>
+        <h3>${buildStoryTitleLink(featured, "entertainment-title")}</h3>
+        <p>${escapeHtml(getDisplaySummary(featured, 180))}</p>
+        ${buildStoryMeta(featured, featuredPublished)}
+      </div>
+      ${buildStoryVisual(featured, "entertainment")}
+    </article>
+    <div class="entertainment-list">
+      ${supportingCards || '<div class="entertainment-mini-card">More entertainment updates will appear as fresh stories arrive.</div>'}
+    </div>
+  `;
+
+  elements.entertainmentGrid.querySelectorAll("[data-article-id]").forEach((card) => {
+    card.addEventListener("click", () => markSeenById(card.dataset.articleId));
+  });
 }
 
 function renderCategoryLanes() {
