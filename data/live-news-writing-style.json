@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "live-news-writing-style-v1",
+  "brand": {
+    "name": "Live News",
+    "tagline": "Anytime & Anywhere",
+    "mission": "Make current coverage readable, low-clutter, source-respectful, and easy to verify through original source links."
+  },
+  "voice": {
+    "attributes": [
+      "clear",
+      "story-focused",
+      "source-respectful",
+      "human-readable",
+      "plain English",
+      "low hype",
+      "neutral when sensitive",
+      "specific instead of vague",
+      "grammatically correct",
+      "not robotic"
+    ],
+    "plainLanguageRule": "Use words a reader can understand quickly without flattening the facts.",
+    "sourceRespectRule": "Use Live News wording, keep attribution visible, and never replace the original publisher's full reporting.",
+    "sensitivityRule": "Use calm, neutral language for crime, death, injury, politics, legal claims, children, health, disasters, and active alerts.",
+    "publicSafetyRule": "Public safety language is allowed only when the article clearly supports an advisory, alert, evacuation, closure, recall, warning, missing person notice, disaster, or source-backed safety instruction."
+  },
+  "fieldRules": {
+    "title": {
+      "goal": "Name the confirmed event without hype or copied publisher structure.",
+      "rules": [
+        "Lead with the actual person, group, place, decision, event, or result.",
+        "Avoid default labels like Top Story or Breaking unless the source context explicitly supports that framing.",
+        "Do not copy the publisher headline exactly.",
+        "Keep titles compact enough for cards and search results."
+      ]
+    },
+    "description": {
+      "goal": "Explain what happened and why it matters in one or two source-faithful sentences.",
+      "rules": [
+        "Use one specific confirmed detail from the article context.",
+        "Avoid vague phrases like this article discusses or latest update on this topic.",
+        "Do not invent background, public reaction, or next steps.",
+        "If context is weak, return needs_more_context instead of public filler."
+      ]
+    },
+    "dek": {
+      "goal": "Give the reader a fast subheadline that adds context beyond the title.",
+      "rules": [
+        "Include a concrete source-backed detail not already obvious from the title.",
+        "Keep the tone calm and explanatory.",
+        "Do not use internal workflow terms."
+      ]
+    },
+    "summary": {
+      "goal": "Summarize the confirmed situation in plain language without copying RSS descriptions.",
+      "rules": [
+        "Prefer what happened first, then who is affected or why it matters.",
+        "Keep the summary short enough for cards.",
+        "Vary rhythm across nearby cards.",
+        "Block generic fallback text from public display."
+      ]
+    },
+    "whyItMatters": {
+      "goal": "Explain reader relevance without exaggerating impact.",
+      "rules": [
+        "Tie importance to confirmed people, places, companies, teams, policies, audiences, or services.",
+        "Avoid broad claims like may affect everyone unless the source context proves it.",
+        "Do not force public-safety framing."
+      ]
+    },
+    "homepageCard": {
+      "goal": "Help readers choose quickly without feeling pushed.",
+      "rules": [
+        "Make the title and summary understandable without opening the source.",
+        "Keep labels quiet and useful.",
+        "Avoid robotic badges or repeated template language."
+      ]
+    },
+    "seoMetadata": {
+      "goal": "Describe the page accurately for search without keyword stuffing.",
+      "rules": [
+        "Use the exact story/topic and Live News brand naturally.",
+        "Keep meta descriptions specific and source-respectful.",
+        "Do not include external publisher URLs in sitemap metadata.",
+        "Avoid generic page filler."
+      ]
+    },
+    "socialCaption": {
+      "goal": "Create human-readable Facebook and Instagram captions that drive to exact Live News story pages.",
+      "rules": [
+        "Use a useful lead, one context sentence, source-safe attribution, and the exact story URL when required.",
+        "Generate platform-specific variants instead of reusing the same caption.",
+        "Do not copy publisher wording or public comments.",
+        "Do not include internal workflow language."
+      ]
+    },
+    "socialCardText": {
+      "goal": "Make image/card text scannable, specific, and aligned with the article.",
+      "rules": [
+        "Use short card titles that match the story.",
+        "Use subtitles only when they add source-backed context.",
+        "Alt text should describe the card/story without inventing image details."
+      ]
+    }
+  },
+  "blockedPublicWritingExamples": [
+    "This article discusses...",
+    "In a recent development...",
+    "Readers are reacting...",
+    "The story continues to unfold...",
+    "A major update has emerged...",
+    "You won't believe...",
+    "Shocking...",
+    "Top Story:",
+    "Stay safe"
+  ],
+  "weakFallbackPatterns": [
+    "Read the original source for the full report.",
+    "Latest update on this topic",
+    "Read more about this story",
+    "A clear look at the latest source-linked details",
+    "Live News is tracking",
+    "This story matters because",
+    "What you need to know"
+  ],
+  "preferredWritingShapes": [
+    {
+      "id": "specific_event_plus_context",
+      "shape": "{{mainEvent}}. The story explains {{whyItMatters}}.",
+      "bestFor": ["description", "summary", "homepageCard", "seoMetadata"],
+      "notes": "Best when the article has a clear event and a confirmed reader relevance angle."
+    },
+    {
+      "id": "person_or_group_plus_action",
+      "shape": "{{personOrGroup}} is involved in {{mainEvent}}, with the story focusing on {{readerAngle}}.",
+      "bestFor": ["description", "socialCaption", "homepageCard"],
+      "notes": "Best for people, teams, companies, agencies, artists, officials, and local groups."
+    },
+    {
+      "id": "latest_development_plus_background",
+      "shape": "{{latestDevelopment}} adds new context to {{ongoingTopic}}.",
+      "bestFor": ["summary", "dek", "topStoryExplanation", "storyOfWeekExplanation"],
+      "notes": "Best when the story belongs to a continuing topic or multi-day arc."
+    },
+    {
+      "id": "source_backed_explainer",
+      "shape": "Source-linked coverage explains {{mainQuestion}}.",
+      "bestFor": ["dek", "seoMetadata", "socialCardText"],
+      "notes": "Use only when the main question is specific, source-backed, and not generic."
+    },
+    {
+      "id": "matchup_or_event_significance",
+      "shape": "{{eventOrMatchup}} drew attention because {{sourceBackedReason}}.",
+      "bestFor": ["sports", "entertainment", "socialCaption", "homepageCard"],
+      "notes": "Best for games, awards, premieres, concerts, TV moments, elections, hearings, and public events."
+    }
+  ],
+  "categoryGuidance": {
+    "local": {
+      "focus": "place, residents, daily impact, public services, local decisions",
+      "avoid": "turning every local story into public safety",
+      "preferredShapes": ["specific_event_plus_context", "person_or_group_plus_action"]
+    },
+    "national": {
+      "focus": "public decisions, policy, accountability, communities affected",
+      "avoid": "partisan hype or unsupported national impact",
+      "preferredShapes": ["specific_event_plus_context", "latest_development_plus_background"]
+    },
+    "international": {
+      "focus": "country, conflict, diplomacy, policy, global impact",
+      "avoid": "stereotypes, broad cultural assumptions, certainty beyond the source",
+      "preferredShapes": ["latest_development_plus_background", "source_backed_explainer"]
+    },
+    "business": {
+      "focus": "company, market, money, workers, consumers, investors",
+      "avoid": "unsupported market predictions",
+      "preferredShapes": ["specific_event_plus_context", "source_backed_explainer"]
+    },
+    "technology": {
+      "focus": "product, platform, users, privacy, tools, regulation",
+      "avoid": "inflated innovation language",
+      "preferredShapes": ["specific_event_plus_context", "source_backed_explainer"]
+    },
+    "sports": {
+      "focus": "team, result, player, injury, matchup, next game",
+      "avoid": "fan-bait or fake public reaction",
+      "preferredShapes": ["matchup_or_event_significance", "person_or_group_plus_action"]
+    },
+    "entertainment": {
+      "focus": "person, release, audience, event, culture moment, TV, movies, music",
+      "avoid": "gossip presented as fact or copied tabloid phrasing",
+      "preferredShapes": ["person_or_group_plus_action", "matchup_or_event_significance"]
+    }
+  }
+}

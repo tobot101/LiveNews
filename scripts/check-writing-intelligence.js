@@ -5,7 +5,12 @@ const {
   detectWeakWritingPhrases,
   evaluateWritingCandidate,
   generateDescriptionCandidates,
+  getBlockedWritingPhrases,
+  getPreferredWritingShapes,
+  getWritingRulesForField,
   getWritingQualityGateResult,
+  loadWritingCurriculum,
+  loadWritingStyleGuide,
   selectBestWritingCandidate,
 } = require("../lib/article-agents/writing-quality");
 
@@ -45,6 +50,46 @@ const approvedStory = {
 };
 
 const context = buildArticleWritingContext(approvedStory);
+
+const styleGuide = loadWritingStyleGuide();
+expect(styleGuide.schemaVersion === "live-news-writing-style-v1", "Style guide should load with schema version.");
+expect(styleGuide.voice.attributes.includes("story-focused"), "Style guide should include Live News voice rules.");
+expect(styleGuide.fieldRules.title.rules.length > 0, "Style guide should include title rules.");
+
+const curriculum = loadWritingCurriculum();
+expect(curriculum.schemaVersion === "live-news-writing-curriculum-v1", "Writing curriculum should load with schema version.");
+expect(
+  curriculum.rubrics.some((rubric) => rubric.id === "rhetorical_situation"),
+  "Curriculum should include rhetorical situation rubric."
+);
+
+const blockedPhrases = getBlockedWritingPhrases();
+expect(
+  blockedPhrases.some((phrase) => phrase.toLowerCase().includes("this article discusses")),
+  "Blocked writing phrases should be available."
+);
+expect(
+  blockedPhrases.some((phrase) => phrase.toLowerCase().startsWith("top story")),
+  "Top Story should be available as a blocked default phrase."
+);
+
+const entertainmentShapes = getPreferredWritingShapes("entertainment");
+expect(entertainmentShapes.length >= 3, "Preferred writing shapes should be available by category.");
+expect(
+  entertainmentShapes.some((shape) => shape.id === "person_or_group_plus_action"),
+  "Entertainment should receive person/group writing shape guidance."
+);
+
+const localDescriptionRules = getWritingRulesForField("description", "local");
+expect(localDescriptionRules.fieldName === "description", "Field writing rules should resolve by field name.");
+expect(
+  localDescriptionRules.categoryGuidance.focus.includes("residents"),
+  "Category-specific writing guidance should be available."
+);
+expect(
+  localDescriptionRules.blockedPhrases.some((phrase) => phrase.toLowerCase().startsWith("top story")),
+  "Top Story should not be a default writing pattern."
+);
 
 expect(context.storyId === "ln-writing-approved-1", "ArticleWritingContext should preserve storyId.");
 expect(context.exactArticleUrl === "/stories/city-transit-safety-plan-abc123", "ArticleWritingContext should preserve exact /stories/... URL.");

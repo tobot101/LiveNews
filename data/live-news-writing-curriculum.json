@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "live-news-writing-curriculum-v1",
+  "purpose": "Teach Live News writing systems to produce clear, source-respectful public writing with durable rubrics instead of scattered templates.",
+  "courseConceptPolicy": "Use communication and writing concepts as short original rubrics only. Do not copy course materials, lectures, textbooks, slides, or private student work into the repo.",
+  "rubrics": [
+    {
+      "id": "english_writing_clarity",
+      "name": "English Writing Clarity",
+      "teacherUse": "Check that each sentence has a clear subject, action, and object when possible.",
+      "publicRule": "Prefer plain words, clean grammar, and specific nouns over vague filler."
+    },
+    {
+      "id": "audience_adaptation",
+      "name": "Audience Adaptation",
+      "teacherUse": "Ask what a general reader needs first: event, person, place, consequence, or source.",
+      "publicRule": "Write for readers who may be scanning quickly and may not know the background."
+    },
+    {
+      "id": "rhetorical_situation",
+      "name": "Rhetorical Situation",
+      "teacherUse": "Match purpose, audience, context, and channel before choosing a title, summary, SEO line, or social caption.",
+      "publicRule": "Do not make a caption sound like a headline, and do not make SEO text sound like a social hook."
+    },
+    {
+      "id": "public_speaking_structure",
+      "name": "Public Speaking Structure",
+      "teacherUse": "Use an opening idea, one supporting detail, and a clean close when longer captions or deks need shape.",
+      "publicRule": "Lead with the point, support it with a confirmed detail, then send the reader to the exact Live News page when appropriate."
+    },
+    {
+      "id": "digital_media_scannability",
+      "name": "Digital Media Scannability",
+      "teacherUse": "Check whether text works on small screens, cards, search snippets, and social previews.",
+      "publicRule": "Short surfaces need one strong idea, not a compressed paragraph."
+    },
+    {
+      "id": "intercultural_respect",
+      "name": "Intercultural Respect",
+      "teacherUse": "Look for stereotyping, loaded labels, assumptions about groups, and language that turns people into props.",
+      "publicRule": "Use neutral, respectful wording, especially for identity, nationality, religion, immigration, crime, conflict, and health stories."
+    },
+    {
+      "id": "evidence_integration",
+      "name": "Evidence Integration",
+      "teacherUse": "Confirm that every public claim can be traced to title, summary, source metadata, approved story text, or trusted source research.",
+      "publicRule": "If the source context does not support a detail, do not publish that detail."
+    },
+    {
+      "id": "rhythm_and_cadence",
+      "name": "Rhythm and Cadence",
+      "teacherUse": "Avoid repeated sentence starts, repeated lengths, and robotic card-to-card patterns.",
+      "publicRule": "Vary sentence rhythm while keeping the writing calm and clear."
+    },
+    {
+      "id": "multimodal_alignment",
+      "name": "Multimodal Alignment",
+      "teacherUse": "Check that titles, summaries, card text, image plans, alt text, and captions all describe the same confirmed story.",
+      "publicRule": "The visual card should support the story, not create a different one."
+    }
+  ],
+  "lessonSequence": [
+    {
+      "step": 1,
+      "name": "Gather confirmed context",
+      "check": "Build ArticleWritingContext and stop if the main event, source, confirmed facts, or exact story URL are missing."
+    },
+    {
+      "step": 2,
+      "name": "Choose the field purpose",
+      "check": "Decide whether the text is a title, description, dek, summary, SEO line, homepage card, social caption, or image/card text."
+    },
+    {
+      "step": 3,
+      "name": "Pick a writing shape",
+      "check": "Use a preferred Live News shape that matches the category and field."
+    },
+    {
+      "step": 4,
+      "name": "Write from facts",
+      "check": "Use confirmed article context only; never invent facts or public reaction."
+    },
+    {
+      "step": 5,
+      "name": "Run teacher checks",
+      "check": "Block weak fallback language, unsupported claims, copy risk, missing exact links, homepage links, and forced public safety framing."
+    },
+    {
+      "step": 6,
+      "name": "Select the strongest candidate",
+      "check": "Choose the highest-scoring candidate that passes story focus, fact faithfulness, specificity, clarity, rhythm, source respect, and digital readability."
+    }
+  ],
+  "teacherMemoryRule": "Use editor-approved lessons and aggregate performance patterns as strategy only. Do not copy public comments, usernames, personal profiles, private messages, or creator wording."
+}
