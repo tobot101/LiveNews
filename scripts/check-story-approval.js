@@ -5,6 +5,7 @@ const {
 } = require("../lib/article-agents/approved-stories");
 const { runArticleAgents } = require("../lib/article-agents/pipeline");
 const { renderPublicStoryPage } = require("../lib/article-agents/story-renderer");
+const { buildStoryWritingPackage } = require("../lib/article-agents/writing-quality");
 const { buildSocialPublisherRun } = require("../lib/social-publisher");
 
 const sourceUrl = "https://example.com/city-council-transit-safety";
@@ -59,6 +60,14 @@ if (!approvalCheck.ok) {
   failures.push(`Fixture draft should be approval-ready: ${approvalCheck.failures.join("; ")}`);
 }
 
+if (draft.writingQualityStatus !== "ready") {
+  failures.push("Draft description should be evaluated by the writing-quality module before approval.");
+}
+
+if (!draft.writingExam?.fields?.description?.passed) {
+  failures.push("Draft description should pass the shared writing-quality description gate.");
+}
+
 const approvedStory = toApprovedStory(draft, {
   approvedAt: "2026-05-08T14:00:00.000Z",
   approvedBy: "Automated approval check",
@@ -70,6 +79,101 @@ if (!approvedStory.liveNewsUrl.startsWith("/stories/")) {
 
 if (approvedStory.originalSourceUrl !== sourceUrl) {
   failures.push("Approved story must preserve the exact original source URL.");
+}
+
+if (approvedStory.writingQualityStatus !== "ready") {
+  failures.push("Approved story description should be evaluated before public approval.");
+}
+
+if (!approvedStory.writingExam?.fields?.description?.passed) {
+  failures.push("Approved story description should pass the writing exam.");
+}
+
+if (!approvedStory.description || /source-linked coverage|read the original source/i.test(approvedStory.description)) {
+  failures.push("Approved story should have a story-focused description, not generic fallback wording.");
+}
+
+const weakDraft = {
+  ...draft,
+  headline: "",
+  title: "",
+  description: "",
+  dek: "",
+  summary: [],
+  sourceSummary: "",
+  sourceFacts: [],
+  keyPoints: [],
+  whyItMatters: "",
+};
+const weakCheck = validateDraftForApproval(weakDraft);
+if (weakCheck.ok || !["needs_review", "blocked"].includes(weakCheck.writingPackage?.writingQualityStatus)) {
+  failures.push("Weak approved-story context should be marked needs_review or blocked.");
+}
+
+const fallbackPackage = buildStoryWritingPackage({
+  ...draft,
+  description: "Read the original source for the full report.",
+  dek: "Read the original source for the full report.",
+  summary: ["Read the original source for the full report."],
+  whyItMatters: "Read the original source for the full report.",
+});
+const fallbackDescriptionCandidate = fallbackPackage.descriptionCandidates.find((candidate) => candidate.id === "existingDescription");
+if (fallbackDescriptionCandidate?.evaluation?.passed || fallbackPackage.fieldGates.whyItMatters.ok) {
+  failures.push("Generic fallback description and why-it-matters text should be blocked.");
+}
+
+const unsupportedPackage = buildStoryWritingPackage({
+  ...draft,
+  description: "The transit safety plan will cut taxes for every family.",
+  dek: "The transit safety plan will cut taxes for every family.",
+  summary: ["The transit safety plan will cut taxes for every family."],
+  whyItMatters: "The transit safety plan will cut taxes for every family.",
+});
+if (unsupportedPackage.writingQualityStatus === "ready") {
+  failures.push("Unsupported claims should not pass approved-story writing quality.");
+}
+
+const copiedPackage = buildStoryWritingPackage({
+  ...draft,
+  description: "City leaders approve overnight transit safety plan after public review.",
+  dek: "City leaders approve overnight transit safety plan after public review.",
+  summary: ["City leaders approve overnight transit safety plan after public review."],
+  whyItMatters: "City leaders approve overnight transit safety plan after public review.",
+});
+if (copiedPackage.writingQualityStatus === "ready") {
+  failures.push("Copied publisher wording should be warned or blocked before approval.");
+}
+
+const broadWhyPackage = buildStoryWritingPackage({
+  ...draft,
+  whyItMatters: "City transit safety plan may affect daily life, public services, traffic, schools, or local planning.",
+});
+if (broadWhyPackage.fieldGates.whyItMatters.ok) {
+  failures.push("Generic why-it-matters fallback should be blocked or marked needs_review.");
+}
+
+const missingUrlCheck = validateDraftForApproval({
+  ...draft,
+  canonicalLiveNewsUrl: "",
+  liveNewsUrl: "",
+  canonicalUrl: "",
+});
+if (missingUrlCheck.ok) {
+  failures.push("Exact /stories/... URL should be required before approval.");
+}
+
+const homepageUrlCheck = validateDraftForApproval({
+  ...draft,
+  canonicalLiveNewsUrl: "https://newsmorenow.com/",
+  liveNewsUrl: "https://newsmorenow.com/",
+  canonicalUrl: "https://newsmorenow.com/",
+});
+if (homepageUrlCheck.ok) {
+  failures.push("Homepage URLs should be blocked before approval.");
+}
+
+if (draft.writingQuality?.context?.publicSafetyRelevant !== false) {
+  failures.push("Public safety should not be forced for a normal local approved-story draft.");
 }
 
 const enriched = enrichNewsPayloadWithApprovedStories(
