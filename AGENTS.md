@@ -149,6 +149,112 @@ Generate at least 3 variants:
 
 The editor should be able to choose one variant.
 
+## Live News Writing Intelligence Rules
+
+Live News must write from article context, not from generic templates.
+
+The writing system should improve:
+
+- Article titles.
+- Article descriptions.
+- Deks/subheadlines.
+- Story summaries.
+- Why-it-matters text.
+- Homepage card text.
+- Top Story of the Day explanations.
+- Story of the Week explanations.
+- SEO titles.
+- Meta descriptions.
+- Facebook captions.
+- Instagram captions.
+- Image/card text.
+
+The Live News writing voice is:
+
+- Clear.
+- Story-focused.
+- Source-respectful.
+- Human-readable.
+- Low-hype.
+- Grammatically correct.
+- Context-aware.
+- Not robotic.
+- Not generic.
+- Not copied from the original publisher.
+
+Every public-facing title, description, summary, and caption must answer:
+
+1. What happened?
+2. Who or what is involved?
+3. Why does it matter to readers?
+4. What is confirmed?
+5. What should not be overstated?
+
+The writing system must not:
+
+- Invent facts.
+- Copy publisher wording.
+- Copy public comments.
+- Use private user data.
+- Use usernames or personal profiles.
+- Use unsupported claims from social comments.
+- Depend on weak fallback text.
+- Use vague filler such as "This article discusses..."
+- Use robotic phrases such as "In a recent development..."
+- Create clickbait.
+- Force public-safety framing unless the article clearly supports it.
+
+Use communication-course principles as rubrics:
+
+- Audience adaptation.
+- Structural framing.
+- Rhetorical situation.
+- Conversational repair.
+- Evidence integration.
+- Respectful intercultural language.
+- Rhythm and cadence.
+- Multimodal alignment.
+
+Do not ingest or copy entire course materials into the repo.
+Use course concepts as writing rubrics and teacher checks only.
+
+Fallback rule:
+
+If the system cannot describe the actual article situation, it should return a blocked or needs-more-context status instead of publishing a generic public description.
+
+Required future teacher checks:
+
+- `StoryFocusTeacher`
+- `ContextFaithfulnessTeacher`
+- `HumanClarityTeacher`
+- `DescriptionSpecificityTeacher`
+- `RhetoricalSituationTeacher`
+- `RhythmCadenceTeacher`
+- `InterculturalRespectTeacher`
+- `DigitalMediaTeacher`
+- `CopyRiskTeacher`
+- `FallbackDependencyTeacher`
+
+Writing quality gate:
+
+- Block public title/description if fact faithfulness is below 90.
+- Block public title/description if story focus is below 85.
+- Block public title/description if generic fallback language appears.
+- Block public title/description if unsupported claims appear.
+- Block public title/description if it copies publisher wording too closely.
+
+Keep existing rules:
+
+- Exact `/stories/...` links.
+- Homepage link blocking.
+- Human approval.
+- Source attribution.
+- Safe aggregate learning only.
+- No private user data.
+- No copied comments.
+- No exposed tokens.
+- Public safety conditional only, not default.
+
 ## Safety Categories Requiring Human Review
 
 Always require human review for:
