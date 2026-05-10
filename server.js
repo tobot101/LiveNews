@@ -1853,7 +1853,6 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
   );
   const stored = readSocialDraftStore();
   const metaReadiness = buildMetaReadiness();
-  const storyApprovalUrl = req ? buildAdminUrl(req, "/admin/stories") : "/admin/stories";
   const performanceUrl = req ? buildAdminUrl(req, "/admin/performance") : "/admin/performance";
   const metaUrl = req ? buildAdminUrl(req, "/admin/meta") : "/admin/meta";
   const notice = cleanText(req?.query?.posted || req?.query?.selected || req?.query?.error || "");
@@ -1874,9 +1873,6 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
       const failures = (draft.supervisor?.failures || []).map((failure) => `<li>${escapeHtml(failure)}</li>`).join("");
       const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
       const variants = renderSocialVariantReviewHtml({ draft, platform, actionUrl: selectVariantUrl });
-      const postAction = platform === "facebook"
-        ? req ? buildAdminUrl(req, "/admin/meta/publish/facebook") : "/admin/meta/publish/facebook"
-        : req ? buildAdminUrl(req, "/admin/meta/publish/instagram") : "/admin/meta/publish/instagram";
       const visualLine = platform === "instagram"
         ? `<div class="link-box compact"><strong>Instagram image/card</strong><span>${escapeHtml(plan.imageUrl || "Image/card pending")}</span><small>${escapeHtml(plan.renderStatus || "not checked")}</small></div>`
         : "";
@@ -1904,14 +1900,11 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           ${variants}
           <div class="meta-api-box">
             <strong>${escapeHtml(platformLabel)} posting</strong>
-            <small>Choose one ${escapeHtml(platformLabel)} caption option above. Posting stays locked until the article link, selected caption, Meta setup, and image/card requirements are ready.</small>
-            <div class="platform-actions">
-              <form method="post" action="${escapeHtml(postAction)}">
-                <input type="hidden" name="socialDraftId" value="${escapeHtml(draft.socialDraftId)}" />
-                <button type="submit" ${disabled ? "disabled" : ""}>Post to ${escapeHtml(platformLabel)}</button>
-                ${blockedReasons ? `<ul>${blockedReasons}</ul>` : ""}
-              </form>
-            </div>
+            <label class="post-choice">
+              <input type="checkbox" name="targets" value="${escapeHtml(`${draft.socialDraftId}:${platform}`)}" form="bulk-social-post-form" ${disabled ? "disabled" : ""} />
+              Add this ${escapeHtml(platformLabel)} draft to the post selection
+            </label>
+            ${blockedReasons ? `<ul>${blockedReasons}</ul>` : ""}
           </div>
           ${failures ? `<div class="review-box fail"><strong>Failures</strong><ul>${failures}</ul></div>` : ""}
           ${warnings ? `<div class="review-box warn"><strong>Warnings</strong><ul>${warnings}</ul></div>` : ""}
@@ -1966,6 +1959,11 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .meta-api-box { display: grid; gap: 8px; background: #eef5f7; border: 1px solid #c8dbe4; border-radius: 14px; padding: 12px; margin-top: 12px; }
     .meta-api-box small { color: #526984; }
     .meta-api-box ul { margin: 0; padding-left: 18px; color: #79512b; }
+    .post-choice { display: flex; gap: 8px; align-items: flex-start; color: #20384f; font-weight: 700; }
+    .post-choice input { width: 18px; height: 18px; accent-color: #275a72; margin-top: 2px; }
+    .bulk-post-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #10243a; color: #fff; border-radius: 18px; padding: 14px; margin-top: 14px; }
+    .bulk-post-form small { color: #dbe7f2; }
+    .bulk-post-form button { background: #d0ad67; color: #10243a; border-color: #d0ad67; }
     .platform-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
     .platform-actions form { display: grid; gap: 8px; align-content: end; }
     .platform-actions input { border: 1px solid #c6d5e4; border-radius: 12px; padding: 10px 12px; }
@@ -2001,9 +1999,9 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     <section class="panel">
       <p class="pill">Private social traffic engine</p>
       <h1>Live News Social Publisher</h1>
-      <p>This dashboard is private, noindex, and review-only. It creates Instagram and Facebook draft packages from Live News stories, then unlocks manual API posting only after Meta setup is ready.</p>
-      ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
-      <p><a href="${escapeHtml(storyApprovalUrl)}">Story approval</a> • <a href="${escapeHtml(performanceUrl)}">Performance Memory</a> • <a href="${escapeHtml(metaUrl)}">Meta readiness</a></p>
+	      <p>This dashboard is private and focused on choosing what to post. Select one or more ready Facebook/Instagram drafts below, then post the selected platforms together.</p>
+	      ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
+	      <p><a href="${escapeHtml(performanceUrl)}">Performance Memory</a> • <a href="${escapeHtml(metaUrl)}">Meta readiness</a></p>
       <div class="grid">
         <div class="metric"><strong>${liveRun.run.draftCount}</strong> drafts now</div>
         <div class="metric"><strong>${liveRun.run.readyForManualReview}</strong> ready with exact links</div>
@@ -2011,8 +2009,11 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
         <div class="metric"><strong>${selectedCount}</strong> selected variants</div>
         <div class="metric"><strong>${stored.drafts?.length || 0}</strong> saved last run</div>
       </div>
-	      <p>Choose a platform section below, select the caption you want, then post only when the button is unlocked.</p>
-	    </section>
+	      <form id="bulk-social-post-form" class="bulk-post-form" method="post" action="${escapeHtml(req ? buildAdminUrl(req, "/admin/meta/publish-selected") : "/admin/meta/publish-selected")}">
+	        <button type="submit">Post selected drafts</button>
+	        <small>Choose Facebook, Instagram, or both. You can select one article or several at the same time.</small>
+	      </form>
+		    </section>
 	    <section class="platform-board">
 	      <div class="platform-column">
 	        <div class="platform-heading instagram">
@@ -2089,6 +2090,26 @@ function safeAdminMessage(value) {
     .replace(/EA[A-Za-z0-9_-]{20,}/g, "[redacted-token]")
     .replace(/access_token=[^&\s]+/gi, "access_token=[redacted]")
     .slice(0, 260);
+}
+
+function normalizeSocialPostTargets(value) {
+  const rawTargets = Array.isArray(value) ? value : [value].filter(Boolean);
+  const seen = new Set();
+  return rawTargets
+    .map((entry) => {
+      const [socialDraftId, platform] = cleanText(entry).split(":");
+      return {
+        socialDraftId: cleanText(socialDraftId),
+        platform: cleanText(platform).toLowerCase(),
+      };
+    })
+    .filter((target) => target.socialDraftId && ["facebook", "instagram"].includes(target.platform))
+    .filter((target) => {
+      const key = `${target.socialDraftId}:${target.platform}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function refreshSocialDraftsForApprovedStories(limit = AGENT_DRAFT_LIMIT) {
@@ -3435,6 +3456,50 @@ app.get("/admin/meta", requireAgentAccess, (req, res) => {
   res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   res.setHeader("Cache-Control", "no-store");
   res.type("html").send(renderMetaReadinessPage(req));
+});
+
+app.post("/admin/meta/publish-selected", requireAgentAccess, async (req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.setHeader("Cache-Control", "no-store");
+  const targets = normalizeSocialPostTargets(req.body?.targets || req.query.targets);
+  if (!targets.length) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        error: "Select at least one ready Facebook or Instagram draft before posting.",
+      })
+    );
+  }
+
+  const posted = [];
+  const failed = [];
+  for (const target of targets) {
+    const draft = findSocialDraftForMetaPublish(target.socialDraftId);
+    try {
+      const result = target.platform === "facebook"
+        ? await publishFacebookDraft(draft)
+        : await publishInstagramDraft(draft);
+      posted.push(`${target.platform}: ${result.record.exactArticleUrl}`);
+    } catch (error) {
+      failed.push(`${target.platform}: ${safeAdminMessage(error.failures?.join(" ") || error.message || "Posting failed.")}`);
+    }
+  }
+
+  if (failed.length) {
+    return res.redirect(
+      303,
+      buildAdminUrl(req, "/admin/social", {
+        error: `${posted.length ? `Posted ${posted.length}. ` : ""}${failed.join(" ")}`,
+      })
+    );
+  }
+
+  return res.redirect(
+    303,
+    buildAdminUrl(req, "/admin/social", {
+      posted: `Posted ${posted.length} selected draft${posted.length === 1 ? "" : "s"}: ${posted.join(" | ")}`,
+    })
+  );
 });
 
 app.post("/admin/meta/publish/facebook", requireAgentAccess, async (req, res) => {

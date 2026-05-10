@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { buildSocialPublisherRun } = require("../lib/social-publisher");
 const { buildFacebookPublishPlan } = require("../lib/meta-publisher");
 const { renderSocialVariantReviewHtml } = require("../lib/social-dashboard-renderer");
@@ -81,6 +83,11 @@ if (/Teacher checks|Teacher scores/i.test(facebookHtml + instagramHtml)) {
 }
 if (!facebookHtml.includes("https://newsmorenow.com/stories/city-council-transit-safety-test")) {
   fail("Dashboard variants should show the exact article URL.");
+}
+
+const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
+if (!serverSource.includes("/admin/meta/publish-selected") || !serverSource.includes("bulk-social-post-form")) {
+  fail("Social dashboard should support selecting multiple Facebook/Instagram drafts before posting.");
 }
 
 const noSelectionPlan = buildFacebookPublishPlan(draft, {}, env);

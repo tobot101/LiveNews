@@ -136,6 +136,13 @@ if (!approvedDraft?.platforms?.instagram?.caption.includes("https://newsmorenow.
   failures.push("Instagram caption must include the exact Live News article link.");
 }
 
+if (/source-linked coverage|#SourceLinkedCoverage/i.test([
+  approvedDraft?.platforms?.facebook?.caption,
+  approvedDraft?.platforms?.instagram?.caption,
+].join(" "))) {
+  failures.push("Social captions should not use stiff source-linked coverage wording.");
+}
+
 if (failures.length) {
   console.error("Live News social-publisher check failed:");
   failures.forEach((failure) => console.error(`- ${failure}`));
