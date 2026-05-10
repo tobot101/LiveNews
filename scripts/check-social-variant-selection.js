@@ -95,6 +95,12 @@ if (!serverSource.includes("Post checked drafts to socials") || !serverSource.in
 if (!serverSource.includes("selected-post-picker") || !serverSource.includes("Choose selected drafts to post")) {
   fail("Social dashboard should show a top dropdown picker for selected draft checkboxes.");
 }
+if (!serverSource.includes("Every selected Facebook or Instagram variant appears here. Check one, several, or all of them before posting.")) {
+  fail("Social dashboard should explain that multiple selected drafts can be checked from the top picker.");
+}
+if (/selected-post-option[\s\S]{0,500}name="targets"[\s\S]{0,160}disabled/.test(serverSource)) {
+  fail("Selected draft picker checkboxes must stay enabled so the finalize pipeline can prepare pages before posting.");
+}
 if (!serverSource.includes("/admin/social/prepare-story-pages") || !serverSource.includes("Prepare Live News story pages")) {
   fail("Social dashboard should let the editor prepare exact story pages before choosing social posts.");
 }

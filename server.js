@@ -1883,13 +1883,13 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     }
     const options = rows
       .map((row) => {
-        const disabled = !row.plan.ready;
+        const waitingForReadiness = !row.plan.ready;
         const statusText = row.plan.ready
           ? "Ready to post"
           : row.blockers[0] || "Needs one more readiness check";
         return `
-          <label class="selected-post-option ${disabled ? "blocked" : "ready"}">
-            <input type="checkbox" name="targets" value="${escapeHtml(`${row.draft.socialDraftId}:${row.platform}`)}" ${disabled ? "disabled" : ""} />
+          <label class="selected-post-option ${waitingForReadiness ? "blocked" : "ready"}">
+            <input type="checkbox" name="targets" value="${escapeHtml(`${row.draft.socialDraftId}:${row.platform}`)}" />
             <span class="selected-post-body">
               <strong>${escapeHtml(row.platformLabel)} • ${escapeHtml(row.draft.title)}</strong>
               <span>Variant: ${escapeHtml(row.selectedVariant.label || row.selectedVariant.id || "selected")}</span>
@@ -1906,7 +1906,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
           <span>Choose selected drafts to post</span>
           <strong>${rows.length}</strong>
         </summary>
-        <p>Only drafts with a selected Facebook or Instagram variant appear here. Check the ones you want to send now.</p>
+        <p>Every selected Facebook or Instagram variant appears here. Check one, several, or all of them before posting.</p>
         <div class="selected-post-grid">
           ${options || '<div class="empty-selected-posts">Select a Facebook or Instagram variant below, then it will appear here as a checkbox.</div>'}
         </div>
