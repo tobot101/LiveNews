@@ -104,6 +104,23 @@ if (instagramNoImage.ready || !instagramNoImage.failures.some((failure) => failu
   failures.push("Instagram publish plan should block when no public image URL exists.");
 }
 
+const generatedCardDraft = {
+  ...noImageDraft,
+  platforms: {
+    ...noImageDraft.platforms,
+    instagram: {
+      ...noImageDraft.platforms.instagram,
+      imagePlan: {
+        generatedCardUrl: "https://newsmorenow.com/social-cards/live-news-test-story.png",
+      },
+    },
+  },
+};
+const instagramGeneratedCard = buildInstagramPublishPlan(generatedCardDraft, {}, env);
+if (!instagramGeneratedCard.ready || instagramGeneratedCard.imageUrl !== "https://newsmorenow.com/social-cards/live-news-test-story.png") {
+  failures.push("Instagram publish plan should accept a durable generated social-card URL.");
+}
+
 const calls = [];
 async function mockFetch(endpoint, init) {
   calls.push({ endpoint, body: String(init.body || "") });

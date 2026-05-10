@@ -7,9 +7,9 @@
       "id": "public_safety",
       "label": "public safety",
       "priority": 95,
-      "categories": ["local", "national", "world", "international", "top"],
-      "keywords": ["shooting", "stabbing", "fire", "crash", "storm", "tornado", "flood", "evacuation", "police", "suspect", "injured", "killed", "hospital", "emergency", "threat", "security"],
-      "humanQuestions": ["Who is in danger?", "What happened to residents or victims?", "What changes for public safety?"]
+      "categories": ["public_safety", "emergency", "alert", "weather_alert", "evacuation", "road_closure", "missing_person", "recall", "health_warning", "disaster", "official_advisory"],
+      "keywords": ["evacuation order", "shelter in place", "boil water notice", "road closure", "public advisory", "emergency alert", "officials warned", "official warning", "recall notice", "safety advisory", "missing person", "active alert"],
+      "humanQuestions": ["What alert, advisory, closure, recall, or warning is active?", "Who needs the practical update?"]
     },
     {
       "id": "health_and_care",

@@ -120,9 +120,9 @@ if (!/#LiveNews\b/.test(approvedDraft?.platforms?.facebook?.caption || "")) {
   failures.push("Facebook captions should include a small relevant hashtag set.");
 }
 
-if (/review-only|source packet|held for editor review|posting stays paused/i.test(approvedDraft?.platforms?.facebook?.caption || "")) {
-  failures.push("Facebook captions must not expose internal review workflow language.");
-}
+  if (/review-only|source packet|draft packet|teacher layer|private dashboard|api test|held for editor review|posting stays paused/i.test(approvedDraft?.platforms?.facebook?.caption || "")) {
+    failures.push("Facebook captions must not expose internal review workflow language.");
+  }
 
 if (!/Read the Live News page:/i.test(approvedDraft?.platforms?.facebook?.caption || "")) {
   failures.push("Facebook captions should use a clear exact-article call to action.");
