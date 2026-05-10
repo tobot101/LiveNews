@@ -118,6 +118,31 @@ const safetyResult = buildSocialPublisherRun(safetyFixturePayload, {
   socialMemory: memory,
 });
 
+const visualReadyResult = buildSocialPublisherRun(
+  {
+    topStoryOfDay: {
+      id: "visual-ready-test",
+      title: "Library expansion opens with new public study rooms",
+      liveNewsSummary:
+        "The city library opened new study rooms after a year of construction. Students and residents now have more public workspace downtown.",
+      sourceName: "Live News Test Source",
+      link: "https://example.com/library-expansion",
+      category: "Local",
+      publishedAt: "2026-05-08T17:00:00.000Z",
+      hasLiveNewsStory: true,
+      approvedStoryUrl: "/stories/library-expansion-test",
+      imageUrl: "https://newsmorenow.com/social-cards/library-expansion-test.png",
+    },
+    topStories: [],
+    feed: [],
+  },
+  {
+    origin: "https://newsmorenow.com",
+    limit: 1,
+    socialMemory: memory,
+  }
+);
+
 if (memory.schemaVersion !== SOCIAL_STYLE_MEMORY_SCHEMA_VERSION) {
   fail("Social style memory schema is not current.", failures);
 }
@@ -256,16 +281,33 @@ for (const draft of safetyResult.drafts) {
   if ((draft.platforms?.instagram?.variants || []).length < 3) {
     fail(`${draft.socialDraftId} needs at least three Instagram variants.`, failures);
   }
+  if ((draft.platforms?.instagram?.variants || []).some((variant) => variant.publishable === true)) {
+    fail(`${draft.socialDraftId} Instagram variants without durable image/card URLs must not be publishable.`, failures);
+  }
   for (const variant of draft.platforms?.facebook?.variants || []) {
     for (const field of ["id", "label", "title", "message", "description", "exactArticleUrl", "sourceAttribution", "hashtags", "captionShape", "safetyFlags", "teacherChecks", "publishable"]) {
       if (!(field in variant)) fail(`${draft.socialDraftId} Facebook variant ${variant.id || "unknown"} is missing ${field}.`, failures);
     }
   }
   for (const variant of draft.platforms?.instagram?.variants || []) {
-    for (const field of ["id", "label", "shortTitle", "caption", "cardTitle", "cardSubtitle", "altText", "storyText", "carouselSlides", "hashtags", "imagePlan", "exactArticleUrl", "sourceAttribution", "captionShape", "safetyFlags", "teacherChecks", "publishable"]) {
+    for (const field of ["id", "label", "shortTitle", "caption", "cardTitle", "cardSubtitle", "altText", "storyText", "carouselSlides", "hashtags", "imagePlan", "exactArticleUrl", "sourceAttribution", "captionShape", "safetyFlags", "teacherChecks", "publishable", "renderStatus"]) {
       if (!(field in variant)) fail(`${draft.socialDraftId} Instagram variant ${variant.id || "unknown"} is missing ${field}.`, failures);
     }
+    if (!variant.cardTitle || !variant.altText) {
+      fail(`${draft.socialDraftId} Instagram variant ${variant.id || "unknown"} needs card title and alt text.`, failures);
+    }
   }
+}
+
+const visualReadyDraft = visualReadyResult.drafts[0];
+if (visualReadyDraft?.platforms?.instagram?.imagePlan?.renderStatus !== "ready") {
+  fail("Instagram package with durable public image URL should pass visual readiness.", failures);
+}
+if (!(visualReadyDraft?.platforms?.instagram?.variants || []).every((variant) => variant.imagePlan?.renderStatus === "ready")) {
+  fail("Every Instagram variant should receive the ready visual plan when a durable image URL exists.", failures);
+}
+if (!(visualReadyDraft?.platforms?.instagram?.variants || []).some((variant) => variant.publishable === true)) {
+  fail("Instagram variant with durable image URL and exact story link should be publishable after review gates.", failures);
 }
 
 if (failures.length) {

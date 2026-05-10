@@ -117,6 +117,9 @@ const instagramNoImage = buildInstagramPublishPlan(noImageDraft, {}, env);
 if (instagramNoImage.ready || !instagramNoImage.failures.some((failure) => failure.includes("public image URL"))) {
   failures.push("Instagram publish plan should block when no public image URL exists.");
 }
+if (!instagramNoImage.failures.some((failure) => /visual readiness/i.test(failure))) {
+  failures.push("Instagram publish plan should explain visual readiness blocking.");
+}
 
 const generatedCardDraft = {
   ...noImageDraft,
@@ -133,6 +136,14 @@ const generatedCardDraft = {
 const instagramGeneratedCard = buildInstagramPublishPlan(generatedCardDraft, {}, env);
 if (!instagramGeneratedCard.ready || instagramGeneratedCard.imageUrl !== "https://newsmorenow.com/social-cards/live-news-test-story.png") {
   failures.push("Instagram publish plan should accept a durable generated social-card URL.");
+}
+
+const instagramSwitchLocked = buildInstagramPublishPlan(draft, {}, {
+  ...env,
+  LIVE_NEWS_META_POSTING_ENABLED: "false",
+});
+if (instagramSwitchLocked.ready || !instagramSwitchLocked.failures.some((failure) => /posting is locked/i.test(failure))) {
+  failures.push("Instagram publishing should remain behind the private posting switch.");
 }
 
 const calls = [];
