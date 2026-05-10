@@ -418,8 +418,14 @@ const localJs = fs.readFileSync(path.join(root, "public", "local.js"), "utf8");
 const localHtml = fs.readFileSync(path.join(root, "public", "local.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(root, "public", "styles.css"), "utf8");
 expect(serverJs.includes("applyLiveNewsSummary"), "Server should apply summary agents before stories reach the UI.");
-expect(appJs.includes("getDisplaySummary(item, 150)"), "Latest News Feed should render the shared Live News summary field.");
-expect(appJs.includes("if (item.liveNewsSummary)"), "UI summary rendering should prefer Live News agent summaries.");
+expect(
+  appJs.includes("buildDisplaySummaryParagraph(item, 150)") || appJs.includes("getDisplaySummary(item, 150)"),
+  "Latest News Feed should render the shared safe Live News summary field."
+);
+expect(
+  appJs.includes("getSafeDisplaySummary") || appJs.includes("if (item.liveNewsSummary)"),
+  "UI summary rendering should prefer safe Live News agent summaries."
+);
 expect(!appJs.includes("Live News is tracking this"), "Latest News fallback should not return the old generic tracking sentence.");
 expect(!appJs.includes("if (item.summary) return truncateText(item.summary"), "Homepage cards should not fall back to RSS summaries as final copy.");
 expect(!categoryJs.includes("Live News found this result"), "Category results should not return the old generic result summary.");

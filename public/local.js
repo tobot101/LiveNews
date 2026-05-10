@@ -447,6 +447,7 @@ function renderLocalFeed() {
       card.className = "story-card local-story-card";
       const published = item.publishedAt ? formatTime(item.publishedAt) : "";
       const dateBadge = getPublishedDateBadge(item);
+      const summary = getDisplaySummary(item);
       card.innerHTML = `
         <div class="story-card-top local-story-card-top">
           <div class="story-eyebrow">
@@ -455,7 +456,7 @@ function renderLocalFeed() {
           </div>
         </div>
         <h3>${buildTitleLink(item, "story-card-title")}</h3>
-        <p>${escapeHtml(getDisplaySummary(item))}</p>
+        ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
         ${buildLocalMeta(item, published)}
       `;
       list.appendChild(card);
@@ -527,16 +528,24 @@ function getPublishedDateBadge(item) {
 }
 
 function getDisplaySummary(item) {
-  if (item.liveNewsSummary) return item.liveNewsSummary;
-  if (item.summaryAgent?.version && item.summary) return item.summary;
-  return "Read the original source for the full report.";
+  if (window.LiveNewsPublicWriting?.getSafeDisplaySummary) {
+    return window.LiveNewsPublicWriting.getSafeDisplaySummary(item, 210);
+  }
+  return item.liveNewsSummary || "";
+}
+
+function getDisplayTitle(item) {
+  return window.LiveNewsPublicWriting?.getSafeDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story";
 }
 
 function buildTitleLink(item, className = "") {
-  const title = escapeHtml(item.title || "Untitled story");
-  if (!item.link) return title;
+  const title = escapeHtml(getDisplayTitle(item));
+  const href = item.liveNewsUrl || item.approvedStoryUrl || item.link || "";
+  if (!href) return title;
   const classAttr = className ? ` class="${escapeHtml(className)}"` : "";
-  return `<a${classAttr} href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title}</a>`;
+  const isSource = href === item.link;
+  const target = isSource ? ` target="_blank" rel="noopener noreferrer"` : "";
+  return `<a${classAttr} href="${escapeHtml(href)}"${target}>${title}</a>`;
 }
 
 function buildOriginalSourceLink(item) {

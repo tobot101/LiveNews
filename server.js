@@ -46,6 +46,11 @@ const {
   recordSocialVariantSelection,
 } = require("./lib/social-variant-selections");
 const {
+  getPublicCardWritingStatus,
+  getSafeDisplaySummary,
+  getSafeDisplayTitle,
+} = require("./lib/public-card-writing");
+const {
   renderSocialVariantReviewHtml,
 } = require("./lib/social-dashboard-renderer");
 const {
@@ -2947,15 +2952,11 @@ function formatCrawlerDateBadge(value) {
 }
 
 function getCrawlerTitle(item) {
-  return item.liveNewsHeadline || item.title || "Untitled story";
+  return getSafeDisplayTitle(item);
 }
 
 function getCrawlerSummary(item) {
-  return (
-    item.liveNewsSummary ||
-    item.summaryShort ||
-    "Read the original source for the full report."
-  );
+  return getSafeDisplaySummary(item, 260);
 }
 
 function getCrawlerCategory(item) {
@@ -3003,6 +3004,7 @@ function renderCrawlerTitleLink(item, className = "") {
 function renderCrawlableLeadCard(item, { label = "Top Story", headingTag = "h1", variant = "day" } = {}) {
   if (!item) return "";
   const Heading = headingTag === "h2" ? "h2" : "h1";
+  const summary = getCrawlerSummary(item);
   return `
     <article class="lead-card lead-card-${escapeHtml(variant)}" data-article-id="${escapeHtml(item.id || "")}">
       <div class="lead-copy">
@@ -3011,7 +3013,7 @@ function renderCrawlableLeadCard(item, { label = "Top Story", headingTag = "h1",
           <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
         </div>
         <${Heading}>${renderCrawlerTitleLink(item, "lead-title")}</${Heading}>
-        <p>${escapeHtml(getCrawlerSummary(item))}</p>
+        ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
         ${renderCrawlerStoryContext(item)}
         ${renderCrawlerMeta(item)}
       </div>
@@ -3049,6 +3051,7 @@ function renderCrawlableLeadSpotlights(items) {
 }
 
 function renderCrawlableStoryCard(item, rank = 1) {
+  const summary = getCrawlerSummary(item);
   return `
     <li class="story-card" data-article-id="${escapeHtml(item.id || "")}">
       <div class="story-card-top">
@@ -3058,7 +3061,7 @@ function renderCrawlableStoryCard(item, rank = 1) {
         </div>
       </div>
       <h3>${renderCrawlerTitleLink(item, "story-card-title")}</h3>
-      <p>${escapeHtml(getCrawlerSummary(item))}</p>
+      ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
       ${renderCrawlerStoryContext(item)}
       ${renderCrawlerMeta(item)}
     </li>
@@ -3066,6 +3069,7 @@ function renderCrawlableStoryCard(item, rank = 1) {
 }
 
 function renderCrawlableFeedItem(item) {
+  const summary = getCrawlerSummary(item);
   return `
     <article class="feed-item" data-article-id="${escapeHtml(item.id || "")}">
       <div class="feed-item-main">
@@ -3073,7 +3077,7 @@ function renderCrawlableFeedItem(item) {
           <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
         </div>
         <div class="feed-title">${renderCrawlerTitleLink(item)}</div>
-        <p>${escapeHtml(getCrawlerSummary(item))}</p>
+        ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
         ${renderCrawlerStoryContext(item)}
         ${renderCrawlerMeta(item)}
       </div>
@@ -3203,18 +3207,21 @@ function renderCrawlableEntertainmentSection(items) {
   if (!entertainmentItems.length) return "";
   const supportCards = entertainmentItems
     .map(
-      (item) => `
+      (item) => {
+        const summary = getCrawlerSummary(item);
+        return `
         <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">
           <div class="story-eyebrow">
             <span>${escapeHtml(getCrawlerEntertainmentLabel(item))}</span>
             <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
           </div>
           <h4>${renderCrawlerTitleLink(item, "entertainment-title")}</h4>
-          <p>${escapeHtml(getCrawlerSummary(item))}</p>
+          ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
           ${renderCrawlerStoryContext(item)}
           ${renderCrawlerMeta(item)}
         </article>
-      `
+      `;
+      }
     )
     .join("");
   return `
@@ -3512,11 +3519,15 @@ function normalizeCategorySection(value) {
 
 function serializeNewsResultItem(item, extra = {}) {
   const summary = summarizeSearchResult(item);
+  const publicCardWritingStatus = getPublicCardWritingStatus(item);
+  const title = getSafeDisplayTitle(item);
   return {
     id: item.id,
-    title: item.liveNewsHeadline || item.title,
+    title,
+    liveNewsHeadline: item.liveNewsHeadline || (item.hasLiveNewsStory ? title : ""),
     summary,
     liveNewsSummary: summary,
+    publicCardWritingStatus,
     category: item.category || "Top",
     sourceName: item.sourceName || item.source || "Source",
     sourceDomain: item.sourceDomain || getDomain(item.link || ""),
@@ -3560,8 +3571,7 @@ function getSearchText(item) {
 }
 
 function summarizeSearchResult(item) {
-  const summary = item.liveNewsSummary || item.summary || "";
-  return buildSummary(summary, 180);
+  return getSafeDisplaySummary(item, 180);
 }
 
 async function searchCurrentNews(query, limit = 30) {

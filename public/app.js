@@ -1609,13 +1609,20 @@ function getLiveNewsUrl(item) {
 }
 
 function getDisplayTitle(item) {
-  return item.liveNewsHeadline || item.title || "Untitled story";
+  return window.LiveNewsPublicWriting?.getSafeDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story";
 }
 
 function getDisplaySummary(item, maxLength = 210) {
+  if (window.LiveNewsPublicWriting?.getSafeDisplaySummary) {
+    return window.LiveNewsPublicWriting.getSafeDisplaySummary(item, maxLength);
+  }
   if (item.liveNewsSummary) return truncateText(item.liveNewsSummary, maxLength);
-  if (item.summaryAgent?.version && item.summary) return truncateText(item.summary, maxLength);
-  return "Read the original source for the full report.";
+  return "";
+}
+
+function buildDisplaySummaryParagraph(item, maxLength = 210) {
+  const summary = getDisplaySummary(item, maxLength);
+  return summary ? `<p>${escapeHtml(summary)}</p>` : "";
 }
 
 function getPublishedDateBadge(item) {
@@ -1745,7 +1752,7 @@ function renderLeadStoryCard(item, { label = "Top Story", headingTag = "h1", var
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
         <${Heading}>${buildStoryTitleLink(item, "lead-title")}</${Heading}>
-        <p>${escapeHtml(getDisplaySummary(item, 340))}</p>
+        ${buildDisplaySummaryParagraph(item, 340)}
         ${buildStoryContext(item)}
         ${buildStoryMeta(item, published)}
         ${buildStoryActions(item)}
@@ -1809,7 +1816,7 @@ function renderTopStories(items, options = {}) {
         </div>
       </div>
       <h3>${buildStoryTitleLink(item, "story-card-title")}</h3>
-      <p>${escapeHtml(getDisplaySummary(item, 190))}</p>
+      ${buildDisplaySummaryParagraph(item, 190)}
       ${buildStoryContext(item)}
       ${buildStoryMeta(item, published)}
       ${buildStoryVisual(item, "card")}
@@ -2025,7 +2032,7 @@ function renderEntertainmentArticleCards(items) {
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
         <h4>${buildStoryTitleLink(item, "entertainment-title")}</h4>
-        <p>${escapeHtml(getDisplaySummary(item, 118))}</p>
+        ${buildDisplaySummaryParagraph(item, 118)}
         ${buildStoryContext(item)}
         ${buildStoryMeta(item, published)}
       </article>
@@ -2101,7 +2108,7 @@ function renderCategoryLanes() {
                   <article class="lane-story" data-article-id="${escapeHtml(item.id || "")}">
                     <div class="story-eyebrow"><span>${escapeHtml(getPublishedDateBadge(item))}</span></div>
                     <h4>${buildStoryTitleLink(item, "lane-story-title")}</h4>
-                    <p>${escapeHtml(getDisplaySummary(item, 120))}</p>
+                    ${buildDisplaySummaryParagraph(item, 120)}
                     ${buildStoryContext(item)}
                     ${buildStoryMeta(item, item.publishedAt ? formatTime(item.publishedAt) : "")}
                   </article>
@@ -2150,7 +2157,7 @@ function renderFeed(items) {
             <span>${escapeHtml(getPublishedDateBadge(item))}</span>
           </div>
           <div class="feed-title">${buildStoryTitleLink(item)}</div>
-          <p>${escapeHtml(getDisplaySummary(item, 150))}</p>
+          ${buildDisplaySummaryParagraph(item, 150)}
           ${buildStoryContext(item)}
           ${buildStoryMeta(item, published)}
         </div>

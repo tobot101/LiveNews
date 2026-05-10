@@ -170,6 +170,7 @@ function renderResultCard(item) {
   const href = item.liveNewsUrl || item.link || "#";
   const target = item.liveNewsUrl ? "" : ` target="_blank" rel="noopener noreferrer"`;
   const time = item.publishedAt ? formatTime(item.publishedAt) : "";
+  const summary = getResultSummary(item);
   const liveAction = item.liveNewsUrl
     ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(item.liveNewsUrl)}">Open Live News page</a></div>`
     : "";
@@ -180,8 +181,8 @@ function renderResultCard(item) {
         <div class="story-eyebrow">
           <span>${escapeHtml(item.category || "Top")}</span>
         </div>
-        <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(item.title || "Untitled story")}</a></h2>
-        <p>${escapeHtml(getResultSummary(item))}</p>
+        <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(getResultTitle(item))}</a></h2>
+        ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
         ${buildResultMeta(item, time)}
         ${liveAction}
       </div>
@@ -189,10 +190,15 @@ function renderResultCard(item) {
   `;
 }
 
+function getResultTitle(item) {
+  return window.LiveNewsPublicWriting?.getSafeDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story";
+}
+
 function getResultSummary(item) {
-  if (item.liveNewsSummary) return item.liveNewsSummary;
-  if (item.summaryAgent?.version && item.summary) return item.summary;
-  return "Read the original source for the full report.";
+  if (window.LiveNewsPublicWriting?.getSafeDisplaySummary) {
+    return window.LiveNewsPublicWriting.getSafeDisplaySummary(item, 210);
+  }
+  return item.liveNewsSummary || "";
 }
 
 function buildOriginalSourceLink(item) {
