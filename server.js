@@ -3485,6 +3485,14 @@ const ENTERTAINMENT_CATEGORY_SUBBEATS = [
   "general_entertainment",
 ];
 const ENTERTAINMENT_HUB_SECTION_LIMIT = 6;
+const HOMEPAGE_CATEGORY_OPTIONS = [
+  { label: "National", apiCategory: "National", href: "/category/national", note: "U.S. coverage" },
+  { label: "World", apiCategory: "International", href: "/category/world", note: "World coverage" },
+  { label: "Business", apiCategory: "Business", href: "/category/business", note: "Markets & money" },
+  { label: "Technology", apiCategory: "Tech", href: "/category/technology", note: "Technology" },
+  { label: "Sports", apiCategory: "Sports", href: "/category/sports", note: "Sports" },
+  { label: "Entertainment", apiCategory: "Entertainment", href: "/category/entertainment", note: "Entertainment" },
+];
 
 function isExactStoryPath(value) {
   const text = String(value || "").trim();
@@ -3912,6 +3920,30 @@ function renderCrawlerEntertainmentHub(items) {
   `;
 }
 
+function getHomepageCategoryOptionCount(option, items) {
+  if (option.apiCategory === "Entertainment") {
+    return items.filter((item) => isEntertainmentStory(item)).length;
+  }
+  return items.filter((item) => item.category === option.apiCategory).length;
+}
+
+function renderCrawlableCategoryLaneOptions(items) {
+  const uniqueItems = getUniqueCrawlerStories(items || []);
+  return HOMEPAGE_CATEGORY_OPTIONS
+    .map((option) => {
+      const count = getHomepageCategoryOptionCount(option, uniqueItems);
+      const countLabel = count === 1 ? "1 story" : `${count} stories`;
+      return `
+        <a class="category-option" href="${escapeHtml(option.href)}" aria-label="Open ${escapeHtml(option.label)} coverage">
+          <span class="category-option-title">${escapeHtml(option.label)}</span>
+          <span class="category-option-note">${escapeHtml(option.note)}</span>
+          <span class="category-option-count">${escapeHtml(countLabel)}</span>
+        </a>
+      `;
+    })
+    .join("");
+}
+
 function renderEntertainmentCategoryRoutePage(config, items) {
   return renderPageShell({
     canonicalPath: `/category/${config.slug}`,
@@ -3955,6 +3987,10 @@ function renderCrawlableHomepage() {
     ...(payload.topStories || []),
     ...(payload.feed || []),
   ]);
+  const categoryOptions = renderCrawlableCategoryLaneOptions([
+    ...(payload.topStories || []),
+    ...(payload.feed || []),
+  ]);
   const homeStructuredData = renderJsonLdScripts(
     buildHomeStructuredData({ spotlightStories, topCards, feedCards })
   );
@@ -3971,6 +4007,10 @@ function renderCrawlableHomepage() {
     .replace(
       '<div class="entertainment-grid" id="entertainmentGrid"></div>',
       `<div class="entertainment-grid" id="entertainmentGrid">${entertainmentCards}</div>`
+    )
+    .replace(
+      '<div class="category-lanes" id="categoryLanes"></div>',
+      `<div class="category-lanes" id="categoryLanes">${categoryOptions}</div>`
     )
     .replace(
       '<div class="feed" id="newsFeed"></div>',

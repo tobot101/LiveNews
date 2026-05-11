@@ -23,6 +23,9 @@ if (categoryPosition === -1) fail("Homepage must include Category Lanes.");
 if (!(topStoriesPosition < entertainmentPosition && entertainmentPosition < categoryPosition)) {
   fail("Entertainment panel should sit below Top Stories and above Category Lanes.");
 }
+if (!indexHtml.includes("Choose a section to open its full page")) {
+  fail("Category Lanes should be positioned as compact navigation, not article previews.");
+}
 if (!indexHtml.includes('href="/category/entertainment"')) {
   fail("Entertainment panel should link to the Entertainment category page.");
 }
@@ -35,6 +38,27 @@ if (!indexHtml.includes("pop-culture stories")) {
 if (!appJs.includes("renderEntertainmentSection")) {
   fail("Homepage JavaScript must render the Entertainment section.");
 }
+if (!appJs.includes("renderCategoryLaneOption") || !appJs.includes("category-option")) {
+  fail("Homepage Category Lanes should render compact category option links.");
+}
+if (appJs.includes("class=\"lane-story") || appJs.includes("lane-story-title")) {
+  fail("Homepage Category Lanes should not render inline article cards anymore.");
+}
+if (!serverJs.includes("renderCrawlableCategoryLaneOptions") || !serverJs.includes("category-option")) {
+  fail("Crawlable homepage should render compact Category Lane links.");
+}
+[
+  "/category/national",
+  "/category/world",
+  "/category/business",
+  "/category/technology",
+  "/category/sports",
+  "/category/entertainment",
+].forEach((categoryHref) => {
+  if (!serverJs.includes(categoryHref)) {
+    fail(`Crawlable Category Lanes should link to ${categoryHref}.`);
+  }
+});
 if (!appJs.includes("ENTERTAINMENT_FILTERS") || !appJs.includes("matchesEntertainmentFilter")) {
   fail("Entertainment panel should include left-side topic filters.");
 }

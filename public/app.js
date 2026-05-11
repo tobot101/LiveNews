@@ -18,6 +18,18 @@ const CATEGORY_PAGE_SLUGS = {
   Sports: "sports",
   Entertainment: "entertainment",
 };
+const CATEGORY_LANE_LABELS = {
+  International: "World",
+  Tech: "Technology",
+};
+const CATEGORY_LANE_DESCRIPTIONS = {
+  National: "U.S. coverage",
+  International: "World coverage",
+  Business: "Markets & money",
+  Tech: "Technology",
+  Sports: "Sports",
+  Entertainment: "Entertainment",
+};
 const TOP_US_CITIES = Array.isArray(window.LIVE_NEWS_TOP_CITIES)
   ? window.LIVE_NEWS_TOP_CITIES
   : [];
@@ -2035,49 +2047,48 @@ function renderEntertainmentSection(options = {}) {
 
 function renderCategoryLanes() {
   if (!elements.categoryLanes || !elements.categoryLanesPanel) return;
-  const baseItems = filterBySearch(getAllNewsItems());
-  const lanes = CATEGORY_LANES.map((category) => {
-    const items = sortStoryPool(baseItems.filter((item) => item.category === category)).slice(0, 4);
-    return { category, items };
-  }).filter((lane) => lane.items.length);
+  const baseItems = getAllNewsItems();
+  const lanes = CATEGORY_LANES.map((category) => ({
+    category,
+    count: getCategoryLaneCount(category, baseItems),
+  }));
 
-  if (!lanes.length) {
+  if (!lanes.length || !baseItems.length) {
     elements.categoryLanesPanel.hidden = true;
     elements.categoryLanes.innerHTML = "";
     return;
   }
 
   elements.categoryLanesPanel.hidden = false;
-  elements.categoryLanes.innerHTML = lanes
-    .map(
-      (lane) => `
-        <section class="category-lane">
-          <div class="category-lane-head">
-            <h3>${escapeHtml(lane.category)}</h3>
-            <a class="lane-more" href="${getCategoryPageHref(lane.category)}">See more</a>
-          </div>
-          <div class="category-lane-list">
-            ${lane.items
-              .map(
-                (item) => `
-                  <article class="lane-story" data-article-id="${escapeHtml(item.id || "")}">
-                    <div class="story-eyebrow"><span>${escapeHtml(getPublishedDateBadge(item))}</span></div>
-                    <h4>${buildStoryTitleLink(item, "lane-story-title")}</h4>
-                    ${buildDisplaySummaryParagraph(item, 120)}
-                    ${buildStoryContext(item)}
-                    ${buildStoryMeta(item, item.publishedAt ? formatTime(item.publishedAt) : "")}
-                  </article>
-                `
-              )
-              .join("")}
-          </div>
-        </section>
-      `
-    )
-    .join("");
-  elements.categoryLanes.querySelectorAll("[data-article-id]").forEach((card) => {
-    card.addEventListener("click", () => markSeenById(card.dataset.articleId));
-  });
+  elements.categoryLanes.innerHTML = lanes.map(renderCategoryLaneOption).join("");
+}
+
+function getCategoryLaneLabel(category) {
+  return CATEGORY_LANE_LABELS[category] || category;
+}
+
+function getCategoryLaneDescription(category) {
+  return CATEGORY_LANE_DESCRIPTIONS[category] || `${getCategoryLaneLabel(category)} coverage`;
+}
+
+function getCategoryLaneCount(category, items) {
+  if (category === "Entertainment") {
+    return items.filter((item) => isEntertainmentStory(item)).length;
+  }
+  return items.filter((item) => item.category === category).length;
+}
+
+function renderCategoryLaneOption(lane) {
+  const label = getCategoryLaneLabel(lane.category);
+  const count = Number(lane.count || 0);
+  const countLabel = count === 1 ? "1 story" : `${count} stories`;
+  return `
+    <a class="category-option" href="${getCategoryPageHref(lane.category)}" aria-label="Open ${escapeHtml(label)} coverage">
+      <span class="category-option-title">${escapeHtml(label)}</span>
+      <span class="category-option-note">${escapeHtml(getCategoryLaneDescription(lane.category))}</span>
+      <span class="category-option-count">${escapeHtml(countLabel)}</span>
+    </a>
+  `;
 }
 
 function renderFeed(items) {
