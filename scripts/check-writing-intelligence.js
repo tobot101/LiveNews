@@ -35,6 +35,16 @@ const {
   generateOriginalWhyItMattersCandidates,
   selectOriginalWritingCandidate,
 } = require("../lib/article-agents/original-writer");
+const {
+  calculateLexicalOverlap,
+  calculateNgramOverlap,
+  calculatePhraseOverlap,
+  calculateStructuralSimilarity,
+  detectDistinctiveSourcePhrases,
+  explainCopyRisk,
+  getCopyDistanceScore,
+  suggestCopyRiskRewriteStrategy,
+} = require("../lib/article-agents/copy-distance");
 
 const failures = [];
 
@@ -404,6 +414,76 @@ const copyRisk = detectCopyRisk(copied, approvedStory.originalPublisherTitle);
 const copiedEvaluation = evaluateWritingCandidate(copied, context, "description");
 expect(copyRisk.risk, "Copied publisher wording should be detected.");
 expect(!copiedEvaluation.passed, "Copied publisher wording should be blocked or fail approval.");
+const copiedTitleDistance = getCopyDistanceScore(
+  "City leaders approve overnight transit safety plan after public review",
+  [approvedStory.originalPublisherTitle],
+  factMap
+);
+expect(copiedTitleDistance.risk === "blocked", "Exact copied publisher title should be blocked by copy-distance.");
+const rearrangedTitleDistance = getCopyDistanceScore(
+  "After public review, city leaders approve overnight transit safety plan",
+  [approvedStory.originalPublisherTitle],
+  factMap
+);
+expect(rearrangedTitleDistance.risk === "blocked", "Slightly rearranged publisher title should be blocked by copy-distance.");
+const synonymSwappedDistance = getCopyDistanceScore(
+  "City officials approved a late-night transit security proposal after community review.",
+  [approvedStory.originalPublisherTitle],
+  factMap
+);
+expect(
+  ["high", "blocked"].includes(synonymSwappedDistance.risk),
+  "Synonym-swapped source sentence should remain high copy risk."
+);
+const originalDistance = getCopyDistanceScore(
+  "The transit plan moved forward after review, with late-night riders and station workers among the groups affected.",
+  [approvedStory.originalPublisherTitle, factMap.sourceSummary],
+  factMap
+);
+expect(originalDistance.risk === "low" || originalDistance.risk === "medium", "Same facts with different structure should avoid high copy risk.");
+const properNounDistance = getCopyDistanceScore(
+  "Maria Lopez and Metro Transit are named in the source-backed coverage.",
+  ["Maria Lopez and Metro Transit"],
+  factMap
+);
+expect(properNounDistance.risk !== "blocked", "Proper nouns should not automatically trigger a copy block.");
+const distinctivePhrases = detectDistinctiveSourcePhrases(
+  "The update repeats overnight transit safety plan after public review in the copy.",
+  factMap.doNotCopyPhrases
+);
+expect(distinctivePhrases.length > 0, "Distinctive source phrase should be detected.");
+expect(
+  calculateLexicalOverlap(copied, [approvedStory.originalPublisherTitle]) > 0.8,
+  "Copy-distance should calculate lexical overlap."
+);
+expect(
+  calculatePhraseOverlap(copied, [approvedStory.originalPublisherTitle]) > 0.8,
+  "Copy-distance should calculate phrase overlap."
+);
+expect(
+  calculateNgramOverlap(copied, [approvedStory.originalPublisherTitle], 3) > 0.8,
+  "Copy-distance should calculate n-gram overlap."
+);
+expect(
+  calculateStructuralSimilarity(synonymSwappedDistance.recommendedStrategy, [approvedStory.originalPublisherTitle]) >= 0 ||
+    calculateStructuralSimilarity("City officials approved a late-night transit security proposal after community review.", [approvedStory.originalPublisherTitle]) > 0.55,
+  "Source sentence skeleton similarity should be detected."
+);
+const copiedDistanceEvaluation = evaluateWritingCandidate(
+  "After public review, city leaders approve overnight transit safety plan.",
+  context,
+  "title"
+);
+const copiedDistanceTeacher = copiedDistanceEvaluation.teachers.find((teacher) => teacher.name === "CopyRiskTeacher");
+expect(copiedDistanceTeacher?.copyDistance, "CopyRiskTeacher should expose copy-distance result.");
+expect(copiedDistanceTeacher?.blocking, "CopyRiskTeacher should block high copy-distance writing.");
+const copyRiskExplanation = explainCopyRisk(copied, [approvedStory.originalPublisherTitle], factMap);
+expect(copyRiskExplanation.explanation.includes("copy risk"), "Copy-risk explanation should be available for dashboard use.");
+expect(
+  suggestCopyRiskRewriteStrategy(copyRiskExplanation).toLowerCase().includes("fact map") ||
+    suggestCopyRiskRewriteStrategy(copyRiskExplanation).toLowerCase().includes("sentence"),
+  "Copy-risk rewrite strategy should be available."
+);
 
 const generated = generateDescriptionCandidates(context);
 expect(generated.status === "ready", "Strong context should generate description candidates.");
