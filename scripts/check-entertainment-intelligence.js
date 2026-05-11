@@ -12,6 +12,10 @@ const {
   isEntertainmentStory,
   normalizeEntertainmentStory,
 } = require("../lib/entertainment-classifier");
+const {
+  getSafeDisplaySummary,
+  getSafeDisplayTitle,
+} = require("../lib/public-card-writing");
 
 function fail(message) {
   failures.push(message);
@@ -118,6 +122,18 @@ expectClassification({
   summary: "The singer will perform new songs during the festival weekend.",
   sourceName: "Live News source",
 }, "music", "Top artist/festival story");
+const topCategoryEntertainmentStory = normalizeEntertainmentStory({
+  category: "Top",
+  title: "Singer announces arena tour after new album release",
+  summary: "The artist added dates for the tour tied to the album rollout.",
+  liveNewsHeadline: "Singer adds arena tour dates after album release",
+});
+if (!topCategoryEntertainmentStory.entertainmentClassification?.isEntertainment || topCategoryEntertainmentStory.entertainmentSubbeat !== "music") {
+  fail("Source category Top should still enter the homepage Entertainment lane when the shared classifier says entertainment.");
+}
+if (getSafeDisplayTitle(topCategoryEntertainmentStory) !== "Singer adds arena tour dates after album release") {
+  fail("Entertainment cards should prefer the approved Live News headline over the raw publisher title.");
+}
 
 const actorInterview = classifyEntertainmentStory({
   category: "Top",
@@ -173,6 +189,37 @@ if (!serverJs.includes("isEntertainmentStory(item)") || !serverJs.includes('norm
 if (!appJs.includes("entertainmentClassification") || appJs.includes("ENTERTAINMENT_STORY_PATTERN")) {
   fail("Homepage should use server-provided shared classification instead of local regex matching.");
 }
+["getSafeEntertainmentTitle", "getSafeEntertainmentSummary", "getEntertainmentCardStatus"].forEach((helper) => {
+  if (!appJs.includes(helper)) fail(`Homepage Entertainment renderer is missing helper: ${helper}`);
+  if (!serverJs.includes(helper)) fail(`Crawlable Entertainment renderer is missing helper: ${helper}`);
+});
+if (!appJs.includes("buildEntertainmentTitleLink") || !appJs.includes("buildEntertainmentSummaryParagraph")) {
+  fail("Homepage Entertainment cards should render through safe Entertainment-specific title and summary helpers.");
+}
+if (!serverJs.includes("renderCrawlerEntertainmentTitleLink")) {
+  fail("Crawlable Entertainment cards should render through a safe Entertainment-specific title link helper.");
+}
+if (!appJs.includes("data-card-status") || !serverJs.includes("data-card-status")) {
+  fail("Entertainment cards should carry internal safe-writing card status on homepage and crawlable HTML.");
+}
+const weakSummaryStory = normalizeEntertainmentStory({
+  category: "Top",
+  title: "Actor joins new streaming series",
+  liveNewsHeadline: "Actor joins new streaming series",
+  summary: "This article discusses a recent entertainment update.",
+});
+if (getSafeDisplaySummary(weakSummaryStory, 118)) {
+  fail("Homepage Entertainment cards should block generic fallback summaries.");
+}
+[
+  "This article discusses a film premiere.",
+  "In a recent development, a singer released a song.",
+  "Top Story: Actor joins a new series.",
+].forEach((weakText) => {
+  if (getSafeDisplaySummary({ ...weakSummaryStory, liveNewsSummary: weakText }, 118)) {
+    fail(`Entertainment public summary should block weak phrase: ${weakText}`);
+  }
+});
 if (/box_office|what_to_watch|entertainment_biz/.test(fs.readFileSync(path.join(__dirname, "..", "lib", "entertainment-classifier.js"), "utf8"))) {
   fail("Shared entertainment classifier must not define forbidden subbeats.");
 }

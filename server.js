@@ -3478,6 +3478,34 @@ function getCrawlerEntertainmentLabel(item) {
   return normalized.entertainmentLabel || getEntertainmentSubbeatLabel("general_entertainment");
 }
 
+function getSafeEntertainmentTitle(item) {
+  return getCrawlerTitle(item);
+}
+
+function getSafeEntertainmentSummary(item) {
+  return getCrawlerSummary(item);
+}
+
+function getEntertainmentCardStatus(item) {
+  const title = getSafeEntertainmentTitle(item);
+  const summary = getSafeEntertainmentSummary(item);
+  return {
+    status: summary ? "ready" : title ? "title_only" : "needs_review",
+    isEntertainment: isEntertainmentStory(item),
+    subbeat: normalizeEntertainmentStory(item).entertainmentSubbeat || "",
+    label: getCrawlerEntertainmentLabel(item),
+  };
+}
+
+function renderCrawlerEntertainmentTitleLink(item, className = "") {
+  const title = escapeHtml(getSafeEntertainmentTitle(item));
+  const href = item.approvedStoryUrl || item.liveNewsUrl || item.link || "";
+  if (!href) return `<span class="${className}">${title}</span>`;
+  const isSource = href === item.link;
+  const target = isSource ? ` target="_blank" rel="noopener noreferrer"` : "";
+  return `<a class="${className}" href="${escapeHtml(href)}"${target}>${title}</a>`;
+}
+
 function renderCrawlerEntertainmentControls(totalCount, visibleCount) {
   const filters = [
     "All",
@@ -3529,14 +3557,15 @@ function renderCrawlableEntertainmentSection(items) {
   const supportCards = entertainmentItems
     .map(
       (item) => {
-        const summary = getCrawlerSummary(item);
+        const summary = getSafeEntertainmentSummary(item);
+        const cardStatus = getEntertainmentCardStatus(item);
         return `
-        <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">
+        <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}" data-card-status="${escapeHtml(cardStatus.status)}">
           <div class="story-eyebrow">
             <span>${escapeHtml(getCrawlerEntertainmentLabel(item))}</span>
             <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
           </div>
-          <h4>${renderCrawlerTitleLink(item, "entertainment-title")}</h4>
+          <h4>${renderCrawlerEntertainmentTitleLink(item, "entertainment-title")}</h4>
           ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
           ${renderCrawlerStoryContext(item)}
           ${renderCrawlerMeta(item)}

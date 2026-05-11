@@ -1876,6 +1876,42 @@ function getEntertainmentLabel(item) {
   return item.entertainmentLabel || "General entertainment";
 }
 
+function getSafeEntertainmentTitle(item) {
+  return getDisplayTitle(item);
+}
+
+function getSafeEntertainmentSummary(item, maxLength = 118) {
+  return getDisplaySummary(item, maxLength);
+}
+
+function getEntertainmentCardStatus(item) {
+  const title = getSafeEntertainmentTitle(item);
+  const summary = getSafeEntertainmentSummary(item);
+  return {
+    status: summary ? "ready" : title ? "title_only" : "needs_review",
+    isEntertainment: isEntertainmentStory(item),
+    subbeat: item.entertainmentSubbeat || "",
+    label: getEntertainmentLabel(item),
+  };
+}
+
+function buildEntertainmentTitleLink(item, className = "") {
+  const liveUrl = getLiveNewsUrl(item);
+  const title = escapeHtml(getSafeEntertainmentTitle(item));
+  if (liveUrl) {
+    return `<a class="${className}" href="${escapeHtml(liveUrl)}">${title}</a>`;
+  }
+  if (item.link) {
+    return `<a class="${className}" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title}</a>`;
+  }
+  return `<span class="${className}">${title}</span>`;
+}
+
+function buildEntertainmentSummaryParagraph(item, maxLength = 118) {
+  const summary = getSafeEntertainmentSummary(item, maxLength);
+  return summary ? `<p>${escapeHtml(summary)}</p>` : "";
+}
+
 function getEntertainmentFilterLabel() {
   return ENTERTAINMENT_FILTERS.find((filter) => filter.id === state.entertainmentFilter)?.label || "All";
 }
@@ -1942,14 +1978,15 @@ function renderEntertainmentArticleCards(items) {
   }
   return items.map((item) => {
     const published = item.publishedAt ? formatTime(item.publishedAt) : "";
+    const cardStatus = getEntertainmentCardStatus(item);
     return `
-      <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}">
+      <article class="entertainment-mini-card" data-article-id="${escapeHtml(item.id || "")}" data-card-status="${escapeHtml(cardStatus.status)}">
         <div class="story-eyebrow">
           <span>${escapeHtml(getEntertainmentLabel(item))}</span>
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
-        <h4>${buildStoryTitleLink(item, "entertainment-title")}</h4>
-        ${buildDisplaySummaryParagraph(item, 118)}
+        <h4>${buildEntertainmentTitleLink(item, "entertainment-title")}</h4>
+        ${buildEntertainmentSummaryParagraph(item, 118)}
         ${buildStoryContext(item)}
         ${buildStoryMeta(item, published)}
       </article>

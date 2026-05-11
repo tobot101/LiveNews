@@ -44,13 +44,30 @@ if (!appJs.includes("entertainmentSearch") || !appJs.includes("matchesEntertainm
 if (!appJs.includes("isEntertainmentStory") || !appJs.includes("entertainmentClassification")) {
   fail("Entertainment renderer must use the shared server entertainment classification.");
 }
+if (!appJs.includes("getSafeEntertainmentTitle") || !appJs.includes("getSafeEntertainmentSummary") || !appJs.includes("getEntertainmentCardStatus")) {
+  fail("Entertainment renderer should use dedicated safe title, summary, and card-status helpers.");
+}
+if (!appJs.includes("buildEntertainmentTitleLink") || !appJs.includes("buildEntertainmentSummaryParagraph")) {
+  fail("Entertainment cards should render through safe Entertainment-specific title and summary helpers.");
+}
+if (appJs.includes("buildDisplaySummaryParagraph(item, 118)")) {
+  fail("Entertainment cards should not render generic display summaries directly.");
+}
+if (!appJs.includes("data-card-status")) {
+  fail("Entertainment cards should expose an internal writing status for safe title-only cards.");
+}
 if (!appJs.includes("Celebrity & culture")) {
   fail("Entertainment cards should be able to label celebrity and culture stories.");
 }
 if (appJs.includes('"people",')) {
   fail("Entertainment matching should not treat every mention of people as celebrity coverage.");
 }
-if (appJs.includes("Entertainment biz") || serverJs.includes("Entertainment biz")) {
+["Box Office", "What To Watch", "Entertainment Biz"].forEach((blockedSection) => {
+  if (indexHtml.includes(blockedSection) || appJs.includes(blockedSection) || serverJs.includes(blockedSection)) {
+    fail(`Entertainment should not expose a ${blockedSection} public section.`);
+  }
+});
+if (/entertainment\s+biz/i.test(appJs) || /entertainment\s+biz/i.test(serverJs)) {
   fail("Entertainment should not expose an Entertainment biz public label.");
 }
 if (!stylesCss.includes(".entertainment-panel") || !stylesCss.includes(".entertainment-grid")) {
@@ -67,6 +84,15 @@ if (!serverJs.includes("renderCrawlerEntertainmentControls")) {
 }
 if (!serverJs.includes("isCrawlerEntertainmentStory")) {
   fail("Server crawlable homepage must use smart Entertainment matching.");
+}
+if (!serverJs.includes('require("./lib/entertainment-classifier")')) {
+  fail("Server crawlable homepage must use the shared entertainment classifier module.");
+}
+if (!serverJs.includes("getSafeEntertainmentTitle") || !serverJs.includes("getSafeEntertainmentSummary") || !serverJs.includes("getEntertainmentCardStatus")) {
+  fail("Server crawlable Entertainment rendering should use safe title, summary, and card-status helpers.");
+}
+if (!serverJs.includes("renderCrawlerEntertainmentTitleLink") || !serverJs.includes("data-card-status")) {
+  fail("Server crawlable Entertainment cards should render with safe title links and card status.");
 }
 if (!serverJs.includes("ENTERTAINMENT_SECTION_LIMIT = 9")) {
   fail("Entertainment section should allow more than a small five-story set.");
