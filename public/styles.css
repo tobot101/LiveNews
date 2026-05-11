@@ -2001,6 +2001,42 @@ html[data-theme="night"] .entertainment-filter {
   color: var(--accent-cyan);
 }
 
+.category-entertainment-controls {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(250, 239, 218, 0.74), rgba(245, 248, 252, 0.95)),
+    var(--surface-muted);
+}
+
+.category-entertainment-controls > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.category-entertainment-controls strong {
+  color: var(--text);
+  font-family: "Newsreader", serif;
+  font-size: 18px;
+}
+
+.category-entertainment-controls .entertainment-filter span {
+  opacity: 0.74;
+}
+
+html[data-theme="night"] .category-entertainment-controls {
+  background:
+    linear-gradient(135deg, rgba(48, 38, 29, 0.76), rgba(16, 23, 33, 0.95)),
+    var(--surface-muted);
+}
+
 .search-result-card {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);

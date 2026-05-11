@@ -5,6 +5,7 @@ const failures = [];
 const memoryPath = path.join(__dirname, "..", "data", "entertainment-intelligence.json");
 const briefPath = path.join(__dirname, "..", "docs", "entertainment-intelligence-brief.md");
 const appPath = path.join(__dirname, "..", "public", "app.js");
+const categoryPath = path.join(__dirname, "..", "public", "category.js");
 const serverPath = path.join(__dirname, "..", "server.js");
 const {
   classifyEntertainmentStory,
@@ -31,6 +32,7 @@ if (!fs.existsSync(briefPath)) fail("Entertainment intelligence brief is missing
 const memory = fs.existsSync(memoryPath) ? readJson(memoryPath) : {};
 const brief = fs.existsSync(briefPath) ? fs.readFileSync(briefPath, "utf8") : "";
 const appJs = fs.existsSync(appPath) ? fs.readFileSync(appPath, "utf8") : "";
+const categoryJs = fs.existsSync(categoryPath) ? fs.readFileSync(categoryPath, "utf8") : "";
 const serverJs = fs.existsSync(serverPath) ? fs.readFileSync(serverPath, "utf8") : "";
 
 if (memory.schemaVersion !== "live-news-entertainment-intelligence-v1") {
@@ -134,6 +136,15 @@ if (!topCategoryEntertainmentStory.entertainmentClassification?.isEntertainment 
 if (getSafeDisplayTitle(topCategoryEntertainmentStory) !== "Singer adds arena tour dates after album release") {
   fail("Entertainment cards should prefer the approved Live News headline over the raw publisher title.");
 }
+const approvedEntertainmentStory = normalizeEntertainmentStory({
+  category: "Top",
+  title: "Public figure attends a verified culture event",
+  entertainmentSubbeat: "celebrity_culture",
+  entertainmentConfidence: 72,
+});
+if (!approvedEntertainmentStory.entertainmentClassification?.isEntertainment || approvedEntertainmentStory.entertainmentSubbeat !== "celebrity_culture") {
+  fail("Approved entertainmentSubbeat and entertainmentConfidence should keep a Top-category story in Entertainment.");
+}
 
 const actorInterview = classifyEntertainmentStory({
   category: "Top",
@@ -186,6 +197,45 @@ if (!serverJs.includes('require("./lib/entertainment-classifier")')) {
 if (!serverJs.includes("isEntertainmentStory(item)") || !serverJs.includes('normalizedCategory === "Entertainment"')) {
   fail("/category/entertainment should use the shared entertainment classifier.");
 }
+if (!serverJs.includes("renderEntertainmentCategoryRoutePage") || !serverJs.includes("renderCrawlerEntertainmentCategoryGroups")) {
+  fail("/category/entertainment crawlable route should render Entertainment-specific grouped content.");
+}
+if (!serverJs.includes("ENTERTAINMENT_CATEGORY_SUBBEATS") || !serverJs.includes("getCrawlerEntertainmentSubbeat")) {
+  fail("/category/entertainment route should expose allowed Entertainment subbeat grouping.");
+}
+if (!categoryJs.includes("ENTERTAINMENT_SUBBEAT_FILTERS") || !categoryJs.includes("isEntertainmentCategoryItem")) {
+  fail("Browser category page should include Entertainment subbeat filters and classifier-aware item checks.");
+}
+if (!categoryJs.includes("entertainmentClassification?.isEntertainment") || !categoryJs.includes("entertainmentConfidence")) {
+  fail("Browser /category/entertainment should accept shared classifier and approved entertainment confidence signals.");
+}
+[
+  "movies",
+  "tv_streaming",
+  "music",
+  "celebrity_culture",
+  "awards",
+  "books_publishing",
+  "theater_arts",
+  "gaming_creator",
+  "trailers_releases",
+  "stars_we_lost",
+  "general_entertainment",
+].forEach((subbeat) => {
+  if (!categoryJs.includes(subbeat) || !serverJs.includes(subbeat)) {
+    fail(`/category/entertainment should support subbeat: ${subbeat}`);
+  }
+});
+[
+  "Box Office",
+  "What To Watch",
+  "Entertainment Biz",
+  "Business of Entertainment",
+].forEach((blockedPublicSection) => {
+  if (categoryJs.includes(blockedPublicSection) || appJs.includes(blockedPublicSection) || serverJs.includes(blockedPublicSection)) {
+    fail(`Entertainment pages should not expose blocked public section: ${blockedPublicSection}`);
+  }
+});
 if (!appJs.includes("entertainmentClassification") || appJs.includes("ENTERTAINMENT_STORY_PATTERN")) {
   fail("Homepage should use server-provided shared classification instead of local regex matching.");
 }

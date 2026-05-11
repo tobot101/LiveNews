@@ -3468,14 +3468,31 @@ function renderCrawlableFeedItem(item) {
 }
 
 const ENTERTAINMENT_SECTION_LIMIT = 9;
+const ENTERTAINMENT_CATEGORY_SUBBEATS = [
+  "movies",
+  "tv_streaming",
+  "music",
+  "celebrity_culture",
+  "awards",
+  "books_publishing",
+  "theater_arts",
+  "gaming_creator",
+  "trailers_releases",
+  "stars_we_lost",
+  "general_entertainment",
+];
 
 function isCrawlerEntertainmentStory(item) {
   return isEntertainmentStory(item);
 }
 
-function getCrawlerEntertainmentLabel(item) {
+function getCrawlerEntertainmentSubbeat(item) {
   const normalized = normalizeEntertainmentStory(item);
-  return normalized.entertainmentLabel || getEntertainmentSubbeatLabel("general_entertainment");
+  return normalized.entertainmentSubbeat || "general_entertainment";
+}
+
+function getCrawlerEntertainmentLabel(item) {
+  return getEntertainmentSubbeatLabel(getCrawlerEntertainmentSubbeat(item));
 }
 
 function getSafeEntertainmentTitle(item) {
@@ -3586,6 +3603,91 @@ function renderCrawlableEntertainmentSection(items) {
       </div>
     </div>
   `;
+}
+
+function getCrawlerEntertainmentSubbeatCounts(items) {
+  return (items || []).reduce((counts, item) => {
+    const subbeat = getCrawlerEntertainmentSubbeat(item);
+    counts[subbeat] = (counts[subbeat] || 0) + 1;
+    counts.all = (counts.all || 0) + 1;
+    return counts;
+  }, { all: 0 });
+}
+
+function renderCrawlerEntertainmentCategoryFilters(items) {
+  const counts = getCrawlerEntertainmentSubbeatCounts(items);
+  const filters = [
+    { id: "all", label: "All" },
+    ...ENTERTAINMENT_CATEGORY_SUBBEATS.map((id) => ({ id, label: getEntertainmentSubbeatLabel(id) })),
+  ]
+    .map((filter, index) => {
+      const count = counts[filter.id] || 0;
+      return `
+        <a class="entertainment-filter${index === 0 ? " active" : ""}" href="/category/entertainment${filter.id === "all" ? "" : `#${escapeHtml(filter.id)}`}">
+          ${escapeHtml(filter.label)} <span>${escapeHtml(String(count))}</span>
+        </a>
+      `;
+    })
+    .join("");
+  return `
+    <aside class="category-entertainment-controls" aria-label="Entertainment topic filters">
+      <div>
+        <strong>Entertainment topics</strong>
+        <span>${escapeHtml(String(items.length))} source-linked stories</span>
+      </div>
+      <div class="entertainment-filter-list">
+        ${filters}
+      </div>
+    </aside>
+  `;
+}
+
+function renderCrawlerEntertainmentCategoryGroups(items) {
+  if (!items.length) return renderCrawlerList(items);
+  const grouped = ENTERTAINMENT_CATEGORY_SUBBEATS
+    .map((subbeat) => ({
+      subbeat,
+      label: getEntertainmentSubbeatLabel(subbeat),
+      items: items.filter((item) => getCrawlerEntertainmentSubbeat(item) === subbeat),
+    }))
+    .filter((group) => group.items.length);
+  return grouped
+    .map(
+      (group) => `
+        <section class="entertainment-category-group" id="${escapeHtml(group.subbeat)}">
+          <div class="entertainment-results-head">
+            <span>${escapeHtml(group.label)}</span>
+            <small>${escapeHtml(String(group.items.length))} stories</small>
+          </div>
+          <div class="feed">
+            ${group.items.map(renderCrawlableFeedItem).join("")}
+          </div>
+        </section>
+      `
+    )
+    .join("");
+}
+
+function renderEntertainmentCategoryRoutePage(config, items) {
+  return renderPageShell({
+    canonicalPath: `/category/${config.slug}`,
+    title: `${config.label} News | Live News`,
+    description: config.description,
+    h1: `${config.label} News`,
+    kicker: "Category coverage",
+    pageType: "CollectionPage",
+    items,
+    bodyHtml: `
+      <section class="panel search-results-panel entertainment-category-panel">
+        <div class="panel-header">
+          <h2>${escapeHtml(config.label)} stories</h2>
+          <span class="tag">${escapeHtml(String(items.length))} visible</span>
+        </div>
+        ${renderCrawlerEntertainmentCategoryFilters(items)}
+        ${renderCrawlerEntertainmentCategoryGroups(items)}
+      </section>
+    `,
+  });
 }
 
 function renderCrawlableHomepage() {
@@ -3803,6 +3905,9 @@ function renderCategoryRoutePage(slug) {
         : item.category === config.apiCategory
     ))
     .slice(0, 75);
+  if (config.apiCategory === "Entertainment") {
+    return renderEntertainmentCategoryRoutePage(config, items);
+  }
   return renderNewsIndexPage({
     canonicalPath: `/category/${config.slug}`,
     title: `${config.label} News | Live News`,

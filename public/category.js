@@ -17,10 +17,25 @@ const CATEGORY_SLUG_ALIASES = {
   sports: "Sports",
   entertainment: "Entertainment",
 };
+const ENTERTAINMENT_SUBBEAT_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "movies", label: "Movies" },
+  { id: "tv_streaming", label: "TV & streaming" },
+  { id: "music", label: "Music" },
+  { id: "celebrity_culture", label: "Celebrity & culture" },
+  { id: "awards", label: "Awards" },
+  { id: "books_publishing", label: "Books & publishing" },
+  { id: "theater_arts", label: "Theater & arts" },
+  { id: "gaming_creator", label: "Gaming & creator culture" },
+  { id: "trailers_releases", label: "Trailers & releases" },
+  { id: "stars_we_lost", label: "Stars we lost" },
+  { id: "general_entertainment", label: "General entertainment" },
+];
 
 const state = {
   mode: "auto",
   category: "",
+  entertainmentSubbeat: "all",
 };
 
 const elements = {
@@ -118,6 +133,15 @@ function bindControls() {
     const query = String(elements.siteSearch?.value || "").trim();
     if (query) window.location.href = `/search.html?q=${encodeURIComponent(query)}`;
   });
+
+  elements.categoryResults?.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-entertainment-subbeat]");
+    if (!target) return;
+    state.entertainmentSubbeat = target.dataset.entertainmentSubbeat || "all";
+    const items = elements.categoryResults.__categoryItems || [];
+    const total = Number(elements.categoryResults.__categoryTotal || items.length);
+    renderCategoryResults(items, state.category, total);
+  });
 }
 
 function renderCategoryTabs() {
@@ -128,6 +152,7 @@ function renderCategoryTabs() {
 }
 
 async function loadCategory(category) {
+  state.entertainmentSubbeat = "all";
   elements.categoryTitle.textContent = `${category} News`;
   elements.categoryResultsTitle.textContent = `${category} stories`;
   elements.categorySummary.textContent =
@@ -153,9 +178,18 @@ async function loadCategory(category) {
 }
 
 function renderCategoryResults(items, category, total) {
-  elements.categoryCount.textContent = total === 1 ? "1 story" : `${total} stories`;
-  if (!items.length) {
+  const isEntertainment = category === "Entertainment";
+  const categoryItems = isEntertainment ? items.filter(isEntertainmentCategoryItem) : items;
+  const visibleItems = isEntertainment
+    ? categoryItems.filter((item) => matchesEntertainmentSubbeat(item, state.entertainmentSubbeat))
+    : categoryItems;
+  elements.categoryResults.__categoryItems = categoryItems;
+  elements.categoryResults.__categoryTotal = total;
+  elements.categoryCount.textContent = getCategoryCountLabel(category, visibleItems.length, total);
+  const controls = isEntertainment ? renderEntertainmentCategoryFilters(categoryItems, visibleItems.length, total) : "";
+  if (!visibleItems.length) {
     elements.categoryResults.innerHTML = `
+      ${controls}
       <div class="search-empty-card">
         <strong>No ${escapeHtml(category)} stories are available yet.</strong>
         <span>Live News will fill this section as fresh source-linked coverage arrives.</span>
@@ -163,7 +197,7 @@ function renderCategoryResults(items, category, total) {
     `;
     return;
   }
-  elements.categoryResults.innerHTML = items.map(renderResultCard).join("");
+  elements.categoryResults.innerHTML = `${controls}${visibleItems.map(renderResultCard).join("")}`;
 }
 
 function renderResultCard(item) {
@@ -179,7 +213,7 @@ function renderResultCard(item) {
       ${buildCategoryVisual(item)}
       <div class="search-result-copy">
         <div class="story-eyebrow">
-          <span>${escapeHtml(item.category || "Top")}</span>
+          <span>${escapeHtml(getResultCategoryLabel(item))}</span>
         </div>
         <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(getResultTitle(item))}</a></h2>
         ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
@@ -201,6 +235,82 @@ function getResultSummary(item) {
   return item.liveNewsSummary || "";
 }
 
+function getResultCategoryLabel(item) {
+  if (state.category === "Entertainment" && isEntertainmentCategoryItem(item)) {
+    return getEntertainmentSubbeatLabel(getEntertainmentSubbeat(item));
+  }
+  return item.category || "Top";
+}
+
+function getEntertainmentSubbeat(item) {
+  const subbeat = item.entertainmentSubbeat || item.entertainmentClassification?.subbeat || "";
+  return ENTERTAINMENT_SUBBEAT_FILTERS.some((filter) => filter.id === subbeat)
+    ? subbeat
+    : "general_entertainment";
+}
+
+function getEntertainmentSubbeatLabel(subbeat) {
+  return ENTERTAINMENT_SUBBEAT_FILTERS.find((filter) => filter.id === subbeat)?.label || "General entertainment";
+}
+
+function isEntertainmentCategoryItem(item) {
+  if (!item) return false;
+  return (
+    item.category === "Entertainment" ||
+    item.entertainmentClassification?.isEntertainment === true ||
+    Boolean(item.entertainmentSubbeat) ||
+    Number(item.entertainmentConfidence || 0) >= 45
+  );
+}
+
+function matchesEntertainmentSubbeat(item, selectedSubbeat) {
+  if (!selectedSubbeat || selectedSubbeat === "all") return true;
+  return getEntertainmentSubbeat(item) === selectedSubbeat;
+}
+
+function getCategoryCountLabel(category, visibleCount, totalCount) {
+  if (category === "Entertainment" && state.entertainmentSubbeat !== "all") {
+    return `${visibleCount} shown • ${totalCount} stories`;
+  }
+  return totalCount === 1 ? "1 story" : `${totalCount} stories`;
+}
+
+function getEntertainmentSubbeatCounts(items) {
+  return items.reduce((counts, item) => {
+    const subbeat = getEntertainmentSubbeat(item);
+    counts[subbeat] = (counts[subbeat] || 0) + 1;
+    counts.all = (counts.all || 0) + 1;
+    return counts;
+  }, { all: 0 });
+}
+
+function renderEntertainmentCategoryFilters(items, visibleCount, totalCount) {
+  const counts = getEntertainmentSubbeatCounts(items);
+  const filters = ENTERTAINMENT_SUBBEAT_FILTERS.map((filter) => {
+    const active = state.entertainmentSubbeat === filter.id;
+    const count = Number(counts[filter.id] || 0);
+    return `
+      <button
+        type="button"
+        class="entertainment-filter${active ? " active" : ""}"
+        data-entertainment-subbeat="${escapeHtml(filter.id)}"
+        aria-pressed="${active ? "true" : "false"}"
+      >${escapeHtml(filter.label)} <span>${escapeHtml(String(count))}</span></button>
+    `;
+  }).join("");
+  return `
+    <aside class="category-entertainment-controls" aria-label="Entertainment topic filters">
+      <div>
+        <strong>Entertainment topics</strong>
+        <span>${escapeHtml(String(visibleCount))} shown from ${escapeHtml(String(totalCount))} source-linked stories</span>
+      </div>
+      <div class="entertainment-filter-list">
+        ${filters}
+      </div>
+    </aside>
+  `;
+}
+
 function buildOriginalSourceLink(item) {
   const source = item.sourceName || item.sourceDomain || "Source";
   if (!item.link) return `<span>${escapeHtml(source)}</span>`;
@@ -210,7 +320,7 @@ function buildOriginalSourceLink(item) {
 function buildResultMeta(item, time = "") {
   return `
     <div class="story-meta">
-      ${buildOriginalSourceLink(item)} • ${escapeHtml(item.category || "Top")} • ${escapeHtml(time || "Time unavailable")}
+      ${buildOriginalSourceLink(item)} • ${escapeHtml(getResultCategoryLabel(item))} • ${escapeHtml(time || "Time unavailable")}
     </div>
   `;
 }
