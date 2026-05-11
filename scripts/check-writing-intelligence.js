@@ -13,6 +13,17 @@ const {
   loadWritingStyleGuide,
   selectBestWritingCandidate,
 } = require("../lib/article-agents/writing-quality");
+const {
+  buildSourceFactMap,
+  compareCandidateToFactMap,
+  extractConfirmedFacts,
+  extractDoNotCopyPhrases,
+  extractEntities,
+  extractReaderAngleCandidates,
+  extractTimeline,
+  summarizeFactMapForWriter,
+  validateFactMap,
+} = require("../lib/article-agents/source-fact-map");
 
 const failures = [];
 
@@ -50,6 +61,20 @@ const approvedStory = {
 };
 
 const context = buildArticleWritingContext(approvedStory);
+
+const factMapStory = {
+  ...approvedStory,
+  sourceSummary:
+    "City leaders approved an overnight transit safety plan after public review. The plan adds late-night station staffing and new lighting.",
+  comments: [
+    "A commenter claimed the mayor promised free concert tickets, but this is not source-backed.",
+  ],
+  publicComments: [
+    "Fans are saying the plan secretly changes fares.",
+  ],
+};
+const factMap = buildSourceFactMap(factMapStory);
+const factMapValidation = validateFactMap(factMap);
 
 const styleGuide = loadWritingStyleGuide();
 expect(styleGuide.schemaVersion === "live-news-writing-style-v1", "Style guide should load with schema version.");
@@ -97,6 +122,49 @@ expect(context.sourceName === "Metro Daily", "ArticleWritingContext should prese
 expect(context.mainEvent.includes("City transit safety plan advances"), "ArticleWritingContext should create a main event.");
 expect(context.confirmedFacts.length >= 3, "ArticleWritingContext should collect confirmed facts.");
 expect(context.contextConfidence >= 0.8, "Complete approved story should have strong context confidence.");
+expect(factMap.storyId === "ln-writing-approved-1", "SourceFactMap should preserve storyId.");
+expect(factMap.exactArticleUrl === "/stories/city-transit-safety-plan-abc123", "SourceFactMap should preserve exact /stories/... URL.");
+expect(factMap.sourceName === "Metro Daily", "SourceFactMap should preserve source name.");
+expect(factMap.sourceUrl === "https://example.com/transit-safety-plan", "SourceFactMap should preserve source URL.");
+expect(factMapValidation.ready, "Complete SourceFactMap should be ready for original writing.");
+expect(factMap.confirmedFacts.length >= 4, "SourceFactMap should extract confirmed facts.");
+expect(extractConfirmedFacts(factMapStory).length >= 4, "extractConfirmedFacts should return source-backed facts.");
+expect(factMap.mainEvent.includes("City transit safety plan advances"), "SourceFactMap should extract the main event.");
+const factEntities = extractEntities(factMapStory);
+expect(factEntities.people.includes("Maria Lopez"), "SourceFactMap should extract people.");
+expect(factEntities.organizations.includes("City Council"), "SourceFactMap should extract organizations.");
+expect(factEntities.places.some((place) => place.includes("San Diego")), "SourceFactMap should extract places.");
+expect(extractTimeline(factMapStory).some((entry) => entry.includes("2026-05-10")), "SourceFactMap should extract timeline dates.");
+expect(extractReaderAngleCandidates(factMapStory).length > 0, "SourceFactMap should extract reader angle candidates.");
+const doNotCopy = extractDoNotCopyPhrases(factMapStory);
+expect(doNotCopy.length > 0, "SourceFactMap should extract do-not-copy source fragments.");
+expect(
+  doNotCopy.some((phrase) => phrase.toLowerCase().includes("overnight transit safety plan")),
+  "Do-not-copy fragments should include distinctive publisher title/summary wording."
+);
+expect(factMap.doNotSay.some((phrase) => /this article discusses/i.test(phrase)), "SourceFactMap should include blocked do-not-say phrases.");
+expect(
+  !factMap.confirmedFacts.some((entry) => /free concert tickets|secretly changes fares/i.test(entry.fact)),
+  "Comments should not be treated as confirmed facts."
+);
+const writerFactSummary = summarizeFactMapForWriter(factMap);
+expect(!Object.prototype.hasOwnProperty.call(writerFactSummary, "doNotCopyPhrases"), "Writer fact summary should not expose source fragments as writing material.");
+expect(
+  !JSON.stringify(writerFactSummary).includes("City leaders approve overnight transit safety plan after public review"),
+  "Writer fact summary should not carry full publisher wording as preferred style."
+);
+const copiedFactComparison = compareCandidateToFactMap(
+  "City leaders approved an overnight transit safety plan after public review.",
+  factMap
+);
+expect(copiedFactComparison.copyRisk.risk, "compareCandidateToFactMap should detect copied source wording.");
+expect(copiedFactComparison.copyRisk.use === "copy_risk_detection_only", "Source fragments should be marked for copy-risk detection only.");
+const originalFactComparison = compareCandidateToFactMap(
+  "An overnight transit safety plan moved forward after public review, with late-night riders and station workers among the groups affected.",
+  factMap
+);
+expect(originalFactComparison.storyFocusScore >= 70, "Original fact-map writing should remain story-focused.");
+expect(!originalFactComparison.copyRisk.risk, "Original fact-map writing should avoid copy-risk flags.");
 
 const missingMainEvent = buildArticleWritingContext({
   storyId: "missing-main",
@@ -106,6 +174,14 @@ const missingMainEvent = buildArticleWritingContext({
 });
 expect(missingMainEvent.missingContext.includes("main_event_missing"), "Missing mainEvent should be listed in missingContext.");
 expect(missingMainEvent.missingContext.includes("confirmed_facts_missing"), "Missing confirmed facts should be listed in missingContext.");
+const missingMainFactMap = buildSourceFactMap({
+  storyId: "missing-fact-main",
+  liveNewsUrl: "/stories/missing-fact-main-abc123",
+  primarySourceName: "Metro Daily",
+  originalSourceUrl: "https://example.com/missing-fact-main",
+});
+expect(missingMainFactMap.missingContext.includes("main_event_missing"), "SourceFactMap should flag missing main event.");
+expect(missingMainFactMap.missingContext.includes("confirmed_facts_missing"), "SourceFactMap should flag missing confirmed facts.");
 
 const missingExactContext = buildArticleWritingContext({
   ...approvedStory,
@@ -119,6 +195,17 @@ const missingExactGate = getWritingQualityGateResult(
 );
 expect(!missingExactGate.ok, "Missing exact /stories/... URL should block public writing.");
 expect(missingExactGate.blockingReasons.join(" ").includes("/stories"), "Missing exact URL block should mention /stories.");
+const missingExactFactMap = buildSourceFactMap({
+  ...factMapStory,
+  liveNewsUrl: "",
+  canonicalUrl: "",
+});
+const missingExactFactMapValidation = validateFactMap(missingExactFactMap);
+expect(!missingExactFactMapValidation.ready, "Missing exact /stories/... URL should block fact-map writing readiness.");
+expect(
+  missingExactFactMapValidation.missingContext.includes("exact_article_url_missing"),
+  "Missing exact URL should be listed in SourceFactMap missingContext."
+);
 
 const homepageContext = buildArticleWritingContext({
   ...approvedStory,
@@ -132,6 +219,14 @@ const homepageGate = getWritingQualityGateResult(
 );
 expect(!homepageGate.ok, "Homepage URL should be blocked.");
 expect(homepageGate.blockingReasons.join(" ").toLowerCase().includes("homepage"), "Homepage block should be visible.");
+const homepageFactMap = buildSourceFactMap({
+  ...factMapStory,
+  liveNewsUrl: "https://newsmorenow.com/",
+  canonicalUrl: "https://newsmorenow.com/",
+});
+const homepageFactMapValidation = validateFactMap(homepageFactMap);
+expect(!homepageFactMapValidation.ready, "Homepage URL should block SourceFactMap readiness.");
+expect(homepageFactMapValidation.missingContext.includes("homepage_url_blocked"), "Homepage URL block should be listed in SourceFactMap.");
 
 const fallback = "Read the original source for the full report.";
 expect(detectFallbackRisk(fallback).risky, "Generic fallback description should be detected.");
