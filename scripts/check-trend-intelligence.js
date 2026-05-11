@@ -3,6 +3,7 @@ const {
   clusterStoriesByTrendTopic,
   containsForbiddenPrivateData,
   explainTrendRanking,
+  metricMatchesTopic,
   normalizeTrendSignal,
   rankStoryOfWeek,
   rankTopStoryOfDay,
@@ -148,8 +149,22 @@ const siteMetrics = [
 const day = rankTopStoryOfDay(stories, trendSignals, siteMetrics, { now });
 const week = rankStoryOfWeek(stories, trendSignals, siteMetrics, { now, daySelection: day });
 const spikeDay = rankTopStoryOfDay([stories[0], stories[3]], trendSignals, [], { now });
+const unrelatedSustainedMetric = [
+  {
+    storyId: "unrelated-week-topic",
+    topic: "unrelated politics topic",
+    keywords: ["unrelated", "politics"],
+    category: "national",
+    timeframe: "7d",
+    views: 5000,
+    linkClicks: 600,
+    sustainedDays: 7,
+  },
+];
+const spikeWeekWithUnrelatedMetric = rankStoryOfWeek([stories[0]], [trendSignals[0]], unrelatedSustainedMetric, { now });
 
 expect(spikeDay?.storyId === "viral-day-1", "One-day viral spike should be able to win Top Story of the Day.");
+expect(!spikeWeekWithUnrelatedMetric, "One-day spike should not borrow unrelated site metrics to qualify for Story of the Week.");
 expect(week?.storyId !== day?.storyId, "Top Story of the Day and Story of the Week should not select the same article when alternatives exist.");
 expect(week?.storyId !== "viral-day-1", "One-day viral spike should not win Story of the Week by default.");
 expect(week?.sustainedDays >= 2, "Story of the Week should require at least 2-3 days of sustained interest.");
@@ -180,6 +195,9 @@ expect(duplicateWithDay?.duplicateStatus === "same_article_as_day", "Same exact 
 const topics = clusterStoriesByTrendTopic(stories, trendSignals);
 expect(topics.length >= 2, "Trend clustering should group stories into multiple reusable topics.");
 expect(topics.every((topic) => topic.topicId && Array.isArray(topic.trendSignals)), "TrendTopic objects should include IDs and signal arrays.");
+const moroccoTopic = topics.find((topic) => /morocco/i.test(topic.topicName));
+expect(metricMatchesTopic(siteMetrics[0], moroccoTopic, stories.slice(1, 3)), "Matching site metrics should attach only to the correct sustained topic.");
+expect(!metricMatchesTopic(unrelatedSustainedMetric[0], moroccoTopic, stories.slice(1, 3)), "Unrelated site metrics should not attach to another topic.");
 
 expect(trendSignals[0].source === "google_trends", "Mock Google Trends signal should normalize as google_trends.");
 expect(trendSignals[0].absoluteVolumeEstimate === null, "Google Trends 0-100 data must not be treated as raw search volume.");
@@ -192,6 +210,20 @@ const unsafeSignal = normalizeTrendSignal({
   normalizedInterest: 80,
 });
 expect(!unsafeSignal, "TrendSignal normalization should reject private usernames.");
+const unsafeCommentSignal = normalizeTrendSignal({
+  source: "manual",
+  topic: "unsafe comment signal",
+  notes: "A commenter said this exact line should be used.",
+  normalizedInterest: 60,
+});
+expect(!unsafeCommentSignal, "TrendSignal normalization should reject copied comment references.");
+const unsafeUrlSignal = normalizeTrendSignal({
+  source: "manual",
+  topic: "unsafe admin URL",
+  sourceUrl: "https://newsmorenow.com/admin/performance?token=SHOULD_NOT_SAVE",
+  normalizedInterest: 60,
+});
+expect(!unsafeUrlSignal, "TrendSignal normalization should reject private admin or tokenized URLs.");
 expect(containsForbiddenPrivateData({ privateMessages: ["do not store"] }), "Private messages should be detected as forbidden.");
 
 const trendInputs = buildTrendInputs({

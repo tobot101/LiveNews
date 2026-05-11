@@ -12,6 +12,8 @@
     "Do not store usernames, copied comments, private messages, personal profiles, cookies, tokens, or individual identities.",
     "Treat Google Trends-style 0-100 values as relative normalized interest, not raw search volume.",
     "Treat third-party volume numbers as directional signals, not absolute truth.",
-    "Use trend signals to improve story selection and reader usefulness, never to invent facts."
+    "Use trend signals to improve story selection and reader usefulness, never to invent facts.",
+    "Missing external trend APIs must not block ranking; use placeholders, fixtures, exports, or manual aggregate inputs.",
+    "Trend claims should not appear in public article copy unless separately source-backed."
   ]
 }
