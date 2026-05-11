@@ -255,6 +255,155 @@ Keep existing rules:
 - No exposed tokens.
 - Public safety conditional only, not default.
 
+## Live News Original Writer Engine Rules
+
+Live News must not act like a transcriber.
+
+The original writer must transform source-backed facts into original Live News writing.
+
+The system should not rewrite source sentences line by line.
+The system should extract facts, set source wording aside, then write from a clean fact map.
+
+Core principle:
+Facts can be reused.
+Publisher wording and sentence structure should not be copied.
+
+The writer must:
+
+- Understand the article situation.
+- Identify the main event.
+- Identify people, organizations, projects, places, dates, and context.
+- Separate confirmed facts from uncertain claims.
+- Build a fact map before writing.
+- Choose a clear reader angle.
+- Write in Live News voice.
+- Use source attribution.
+- Preserve exact `/stories/...` links.
+- Stay story-focused.
+- Use clean grammar.
+- Avoid robotic language.
+- Avoid generic fallback text.
+- Avoid copied publisher wording.
+- Avoid copied comments.
+- Avoid unsupported claims.
+- Ask for more context when context is too weak.
+
+The writer may improve:
+
+- Structure.
+- Clarity.
+- Grammar.
+- Rhythm.
+- Sentence flow.
+- Reader angle.
+- Title strength.
+- Description specificity.
+- SEO description usefulness.
+- Social caption clarity.
+- Homepage card readability.
+
+The writer must not:
+
+- Invent facts.
+- Copy publisher wording.
+- Copy publisher sentence structure.
+- Copy comments.
+- Use private user data.
+- Use usernames or profiles.
+- Use unsupported facts from comments.
+- Create gossip bait.
+- Create clickbait.
+- Force public safety framing.
+- Publish weak fallback text.
+- Weaken quality gates just to pass.
+
+If `CopyRiskTeacher` fails:
+
+- Do not simply swap words.
+- Rebuild from extracted facts.
+- Change sentence structure.
+- Change opening angle.
+- Use Live News voice.
+- Keep the meaning accurate.
+- Preserve attribution.
+
+If `StoryFocusTeacher` fails:
+
+- Identify who or what the story is about.
+- Identify what happened.
+- Identify why it matters.
+- Identify what is confirmed.
+- Rewrite around the actual situation.
+
+If context is weak:
+
+- Return `needs_more_context`.
+- List what is missing.
+- Do not publish filler.
+
+The writing process should follow this internal workflow:
+
+1. Read source context.
+2. Extract facts.
+3. Close the source wording.
+4. Write from the fact map.
+5. Check accuracy.
+6. Check copy distance.
+7. Check story focus.
+8. Rewrite until passing or `needs_more_context`.
+9. Save approved lessons safely.
+
+The Original Writer should use communication-course rubrics:
+
+- Audience adaptation.
+- Structural framing.
+- Rhetorical situation.
+- Evidence integration.
+- Directness calibration.
+- Rhythm and cadence.
+- Intercultural respect.
+- Digital media scannability.
+- Conversational repair when a draft fails.
+
+Blocked phrases:
+
+- This article discusses.
+- In a recent development.
+- The story continues to unfold.
+- Readers are reacting.
+- A major update has emerged.
+- You won't believe.
+- Shocking.
+- `Top Story:` as a default.
+- Stay safe unless `publicSafetyRelevant` is true.
+
+Bounded persistence:
+
+- Maximum 3 rewrite rounds.
+- Maximum 5 candidates per round.
+- Maximum 15 total attempts.
+- Never infinite loop.
+- If still failing, return `needs_more_context` with reasons.
+
+Memory rule:
+
+- Store safe lessons from approved rewrites.
+- Do not store full source article text as training memory.
+- Do not store copied publisher wording as a preferred style.
+- Do not store copied comments.
+- Do not store private user data.
+
+Keep existing Live News rules:
+
+- Exact `/stories/...` links.
+- Homepage link blocking.
+- Human approval.
+- Source attribution.
+- No real tokens.
+- No private user data.
+- No copied comments.
+- Public safety conditional only.
+
 ## Live News Entertainment Intelligence Rules
 
 Entertainment is an important Live News section, but it must stay source-linked, readable, accurate, and not gossip bait.
