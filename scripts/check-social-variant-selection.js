@@ -75,14 +75,29 @@ if ((instagramHtml.match(/class="variant-card/g) || []).length < 3) {
 if (!facebookHtml.includes("Quality status") || !instagramHtml.includes("Quality status")) {
   fail("Dashboard variants should show editor-friendly quality status.");
 }
+if (!facebookHtml.includes("Writing quality score") || !instagramHtml.includes("Writing quality score")) {
+  fail("Dashboard variants should show the writing-quality score.");
+}
+if (!facebookHtml.includes("Social readiness score") || !instagramHtml.includes("Social readiness score")) {
+  fail("Dashboard variants should show social readiness scores.");
+}
+if (!facebookHtml.includes("Writing warnings") || !instagramHtml.includes("Social readiness warnings")) {
+  fail("Dashboard variants should show writing and social warning sections.");
+}
 if (!facebookHtml.includes("Readiness notes") || !instagramHtml.includes("Readiness notes")) {
   fail("Dashboard variants should show readiness notes.");
 }
-if (/Teacher checks|Teacher scores/i.test(facebookHtml + instagramHtml)) {
-  fail("Dashboard variants should not expose teacher-check wording.");
+if (/teacher layer/i.test(facebookHtml + instagramHtml)) {
+  fail("Dashboard variants should not expose internal teacher-layer wording.");
 }
 if (!facebookHtml.includes("https://newsmorenow.com/stories/city-council-transit-safety-test")) {
   fail("Dashboard variants should show the exact article URL.");
+}
+if (!facebookHtml.includes("Read the Live News page: https://newsmorenow.com/stories/city-council-transit-safety-test")) {
+  fail("Dashboard variants should show the exact CTA.");
+}
+if (/Public safety language needs explicit source support/i.test(facebookHtml + instagramHtml)) {
+  fail("Public safety must not appear as a default dashboard warning.");
 }
 
 const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
@@ -121,7 +136,7 @@ const facebookSelection = recordSocialVariantSelectionInStore(
   draft,
   "facebook",
   selectedFacebookVariantId,
-  { selectedAt: "2026-05-08T18:00:00.000Z", selectedBy: "Live News editor" }
+  { selectedAt: "2026-05-08T18:00:00.000Z", selectedBy: "editor" }
 );
 store = facebookSelection.store;
 const instagramSelection = recordSocialVariantSelectionInStore(
@@ -129,9 +144,16 @@ const instagramSelection = recordSocialVariantSelectionInStore(
   draft,
   "instagram",
   selectedInstagramVariantId,
-  { selectedAt: "2026-05-08T18:05:00.000Z", selectedBy: "Live News editor" }
+  { selectedAt: "2026-05-08T18:05:00.000Z", selectedBy: "editor" }
 );
 store = instagramSelection.store;
+
+if (facebookSelection.selection.selectedVariantId !== selectedFacebookVariantId) {
+  fail("Selection records should store selectedVariantId.");
+}
+if (facebookSelection.selection.selectedBy !== "editor") {
+  fail("Selection records should store selectedBy as editor.");
+}
 
 const selectedRun = applySocialVariantSelectionsToRun(run, store);
 const selectedDraft = selectedRun.drafts[0];
@@ -169,6 +191,14 @@ if (selectedDraft.platforms.facebook.caption === facebookVariants[0].message && 
 }
 if (!selectedInstagram?.caption) {
   fail("Selected Instagram variant should remain available for review.");
+}
+
+const selectedFacebookHtml = renderSocialVariantReviewHtml({
+  draft: selectedDraft,
+  platform: "facebook",
+});
+if (!selectedFacebookHtml.includes("Selected") || !selectedFacebookHtml.includes("Keep selected Facebook variant")) {
+  fail("Dashboard should show selected/not selected state for chosen variants.");
 }
 
 const blockedInstagramDraft = JSON.parse(JSON.stringify(draft));

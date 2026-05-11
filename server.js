@@ -2174,6 +2174,9 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .variant-card pre { margin: 0; max-height: 220px; overflow: auto; }
     .variant-warnings { background: #fff; border: 1px solid #dfe8f1; border-radius: 12px; padding: 10px; }
     .variant-warnings ul { margin: 6px 0 0; padding-left: 18px; color: #775226; }
+    .variant-score-panel { display: grid; gap: 6px; background: #fffaf0; border: 1px solid #ead7ad; border-radius: 12px; padding: 10px; }
+    .variant-score-panel ul { margin: 0 0 6px; padding-left: 18px; color: #775226; }
+    .variant-score-panel strong { color: #223a52; }
     .teacher-list, .variant-list, .variant-list ul { padding-left: 18px; }
     .teacher-list .pass { color: #285d43; }
     .teacher-list .needs { color: #8a4d19; }
@@ -4029,7 +4032,7 @@ app.post("/admin/social/select-variant", requireAgentAccess, (req, res) => {
       draft,
       req.body?.platform || req.query.platform,
       req.body?.variantId || req.query.variantId,
-      { selectedBy: "Live News editor" }
+      { selectedBy: "editor" }
     );
     const selectedMessage = result.selection.exactArticleUrl
       ? `Selected ${result.selection.platform} variant ${result.selection.variantId} for ${result.selection.exactArticleUrl}.`
