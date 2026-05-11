@@ -255,6 +255,73 @@ Keep existing rules:
 - No exposed tokens.
 - Public safety conditional only, not default.
 
+## Live News Entertainment Intelligence Rules
+
+Entertainment is an important Live News section, but it must stay source-linked, readable, accurate, and not gossip bait.
+
+Allowed public entertainment sections/subbeats:
+
+- Movies.
+- TV and streaming.
+- Music.
+- Celebrity and culture.
+- Awards season.
+- Books and publishing.
+- Theater and arts.
+- Gaming and creator culture.
+- Trailers and releases.
+- Stars we lost, handled respectfully.
+- General entertainment.
+
+Do not create public sections for:
+
+- Box Office.
+- What To Watch.
+- Entertainment Biz.
+- Business of Entertainment.
+- Trends.
+
+Entertainment classification rules:
+
+- Entertainment-adjacent stories should be recognized even if the publisher category is Top, Culture, Lifestyle, or General.
+- A story should classify as entertainment only when the title, summary, source, tags, or entities support it.
+- Do not force unrelated sports, crime, public safety, or general news into entertainment.
+- Celebrity death, legal, allegation, family tragedy, or health stories must stay neutral and sensitive.
+- Public comments are not verified facts.
+- Do not copy publisher wording.
+- Do not copy comments.
+- Do not scrape private accounts.
+- Public safety remains conditional only, not default.
+
+Entertainment writing rules:
+
+- Prefer approved Live News headline/description over raw publisher title.
+- Do not show generic fallback summaries publicly.
+- Do not use robotic phrases like "This article discusses..." or "In a recent development..."
+- Describe the actual entertainment situation.
+- Name the person, project, show, film, song, album, book, award, platform, studio, or event when source-backed.
+- Avoid fake hype and gossip bait.
+
+Entertainment build exclusions:
+
+- Do not add box office features in this entertainment pass.
+- Do not add what-to-watch features in this entertainment pass.
+- Do not add trend intelligence, Google Trends, Search Console, Semrush, Ahrefs, Glimpse, or Exploding Topics in this entertainment pass.
+- Do not add new social-caption expansion or new Instagram/Facebook entertainment packages in this entertainment pass.
+- Do not add public "Entertainment Biz" or "Business of Entertainment" sections.
+
+Keep existing Live News rules:
+
+- Exact `/stories/...` links.
+- Homepage link blocking.
+- Human approval.
+- Source attribution.
+- Writing-quality gates.
+- No real tokens.
+- No private user data.
+- No copied comments.
+- No copied publisher wording.
+
 ## Safety Categories Requiring Human Review
 
 Always require human review for:
