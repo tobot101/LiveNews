@@ -2047,7 +2047,7 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
       const warnings = (draft.supervisor?.warnings || []).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("");
       const variants = renderSocialVariantReviewHtml({ draft, platform, actionUrl: selectVariantUrl });
       const visualLine = platform === "instagram"
-        ? `<div class="link-box compact"><strong>Instagram image/card</strong><span>${escapeHtml(plan.imageUrl || "Image/card pending")}</span><small>${escapeHtml(plan.renderStatus || "not checked")}</small></div>`
+        ? `<div class="link-box compact"><strong>Instagram image/card</strong><span>${escapeHtml(plan.imageUrl || plan.imagePlan?.plannedGeneratedCardUrl || "Image/card pending")}</span><small>${escapeHtml(plan.imagePlan?.imageSource || "unknown source")} • ${escapeHtml(plan.renderStatus || "not checked")}</small></div>`
         : "";
       const qualityLabel = draft.teacherReport?.passed === true ? "Passed" : "Needs attention";
       return `

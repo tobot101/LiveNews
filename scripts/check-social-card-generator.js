@@ -20,11 +20,15 @@ const noImagePlan = buildInstagramCardPlan({
 if (noImagePlan.platform !== "instagram" || noImagePlan.format !== "feed_card") {
   fail("Instagram card plan should describe the platform and feed-card format.");
 }
-if (noImagePlan.renderStatus !== "ready" || noImagePlan.publishable !== true) {
-  fail("Instagram card plan without a publisher image should use a generated Live News card and become publish-ready.");
+if (noImagePlan.renderStatus !== "needs_rendering" || noImagePlan.publishable !== false) {
+  fail("Instagram card plan without an image/card should need rendering and stay unpublishable.");
 }
-if (noImagePlan.imageSource !== "generated_live_news_card" || !noImagePlan.generatedCardUrl.includes("/social-cards/transit-plan-test.png")) {
-  fail("No-image Instagram plan should create a stable generated card URL.");
+if (
+  noImagePlan.imageSource !== "generated_card_needed" ||
+  noImagePlan.generatedCardUrl ||
+  !noImagePlan.plannedGeneratedCardUrl.includes("/social-cards/transit-plan-test.png")
+) {
+  fail("No-image Instagram plan should create a generated-card-needed plan with a planned render URL.");
 }
 
 const readyPlan = buildInstagramCardPlan({
@@ -46,6 +50,21 @@ if (!readyPlan.cardTitle || !readyPlan.altText) {
 }
 if (isDurablePublicImageUrl("http://newsmorenow.com/card.png") || isDurablePublicImageUrl("https://localhost/card.png")) {
   fail("Durable image validation must reject non-HTTPS or local URLs.");
+}
+
+const renderedCardPlan = buildInstagramCardPlan({
+  cardTitle: "Rendered social card is available",
+  cardSubtitle: "A durable generated card URL has already been created.",
+  sourceLabel: "Live News Test Source",
+  exactArticleUrl: "https://newsmorenow.com/stories/rendered-card-test",
+  generatedCardUrl: "https://newsmorenow.com/social-cards/rendered-card-test.png",
+});
+if (
+  renderedCardPlan.renderStatus !== "ready" ||
+  renderedCardPlan.publishable !== true ||
+  renderedCardPlan.imageSource !== "generated_card_needed"
+) {
+  fail("Rendered generated-card URL should pass readiness while keeping generated_card_needed as the image source type.");
 }
 
 const png = renderInstagramCardPng({

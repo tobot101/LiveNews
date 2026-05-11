@@ -114,8 +114,8 @@ const noImageDraft = {
   },
 };
 const instagramNoImage = buildInstagramPublishPlan(noImageDraft, {}, env);
-if (!instagramNoImage.ready || !instagramNoImage.imageUrl.includes("/social-cards/live-news-test-story-abc123.png")) {
-  failures.push("Instagram publish plan should use a generated Live News card URL when no publisher image exists.");
+if (instagramNoImage.ready || !instagramNoImage.failures.some((failure) => /visual readiness is blocked/i.test(failure))) {
+  failures.push("Instagram publish plan should block no-image drafts until a durable image or rendered card URL exists.");
 }
 
 const generatedCardDraft = {

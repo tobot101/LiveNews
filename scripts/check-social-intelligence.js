@@ -143,6 +143,30 @@ const visualReadyResult = buildSocialPublisherRun(
   }
 );
 
+const noImageResult = buildSocialPublisherRun(
+  {
+    topStoryOfDay: {
+      id: "visual-not-ready-test",
+      title: "Community center opens with new evening classes",
+      liveNewsSummary:
+        "The community center opened new evening classes after a city review. Residents have more public program options this month.",
+      sourceName: "Live News Test Source",
+      link: "https://example.com/community-center",
+      category: "Local",
+      publishedAt: "2026-05-08T17:30:00.000Z",
+      hasLiveNewsStory: true,
+      approvedStoryUrl: "/stories/community-center-test",
+    },
+    topStories: [],
+    feed: [],
+  },
+  {
+    origin: "https://newsmorenow.com",
+    limit: 1,
+    socialMemory: memory,
+  }
+);
+
 const approvedContextResult = buildSocialPublisherRun(
   {
     topStoryOfDay: {
@@ -364,13 +388,6 @@ for (const draft of safetyResult.drafts) {
   if ((draft.platforms?.instagram?.variants || []).length < 3) {
     fail(`${draft.socialDraftId} needs at least three Instagram variants.`, failures);
   }
-  if (
-    draft.linkState?.shareableNow &&
-    draft.platforms?.instagram?.imagePlan?.imageSource === "generated_live_news_card" &&
-    !draft.platforms?.instagram?.imagePlan?.generatedCardUrl
-  ) {
-    fail(`${draft.socialDraftId} needs a stable generated Instagram card URL.`, failures);
-  }
   for (const variant of draft.platforms?.facebook?.variants || []) {
     for (const field of ["id", "label", "title", "message", "description", "exactArticleUrl", "sourceAttribution", "hashtags", "captionShape", "safetyFlags", "teacherChecks", "publishable"]) {
       if (!(field in variant)) fail(`${draft.socialDraftId} Facebook variant ${variant.id || "unknown"} is missing ${field}.`, failures);
@@ -395,6 +412,17 @@ if (!(visualReadyDraft?.platforms?.instagram?.variants || []).every((variant) =>
 }
 if (!(visualReadyDraft?.platforms?.instagram?.variants || []).some((variant) => variant.publishable === true)) {
   fail("Instagram variant with durable image URL and exact story link should be publishable after review gates.", failures);
+}
+
+const noImageDraft = noImageResult.drafts[0];
+if (noImageDraft?.platforms?.instagram?.imagePlan?.renderStatus !== "needs_rendering") {
+  fail("Instagram package with no image/card should need rendering.", failures);
+}
+if ((noImageDraft?.platforms?.instagram?.variants || []).some((variant) => variant.publishable === true)) {
+  fail("Instagram package with no image/card should not be publishable.", failures);
+}
+if (!noImageDraft?.platforms?.instagram?.imagePlan?.plannedGeneratedCardUrl?.includes("/social-cards/community-center-test.png")) {
+  fail("Instagram no-image draft should include a planned generated-card URL for rendering.", failures);
 }
 
 const approvedContextDraft = approvedContextResult.drafts[0];
