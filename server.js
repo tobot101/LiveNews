@@ -1973,6 +1973,19 @@ function getSummaryReviewSuggestions(item) {
   }];
 }
 
+function isSummarySuggestionSelectable(suggestion) {
+  const text = cleanText(suggestion?.text || "");
+  if (!text || text === FALLBACK_SUMMARY) return false;
+  const failures = (suggestion?.failures || []).map(cleanText);
+  const hardBlocks = new Set([
+    "empty_summary",
+    "fallback_summary",
+    "needs_more_source_context",
+    "too_close_to_rss",
+  ]);
+  return !failures.some((failure) => hardBlocks.has(failure));
+}
+
 function getSummaryReviewItems(payload = buildCurrentNewsPayload()) {
   const decisionMap = getSummaryDecisionMap();
   return getUniqueCurrentNewsItems(payload).map((item) => {
@@ -2079,8 +2092,8 @@ function recordSummaryReviewDecision({ key, action, item, selectedSummaryKey }) 
   }
   const selectedSuggestion = item.suggestions?.find((suggestion) => suggestion.key === selectedSummaryKey) || null;
   const summaryToPublish = cleanText(selectedSuggestion?.text || item.currentSummary);
-  if (normalizedAction === "published" && (!selectedSuggestion || !selectedSuggestion.passed)) {
-    const error = new Error("Choose a suggested summary that passed quality checks before publishing.");
+  if (normalizedAction === "published" && (!selectedSuggestion || !isSummarySuggestionSelectable(selectedSuggestion))) {
+    const error = new Error("Choose a selectable suggested summary before publishing.");
     error.status = 422;
     throw error;
   }
@@ -2099,10 +2112,15 @@ function recordSummaryReviewDecision({ key, action, item, selectedSummaryKey }) 
     category: cleanText(item.category),
     currentSummary: summaryToPublish,
     selectedSummaryKey: cleanText(selectedSummaryKey),
+    selectedSummaryPassed: Boolean(selectedSuggestion?.passed),
+    selectedSummaryFailures: selectedSuggestion?.failures || [],
+    editorOverride: normalizedAction === "published" ? !selectedSuggestion?.passed : false,
     reasons: item.reasons || [],
     storesPrivateData: false,
     note: normalizedAction === "published"
-      ? "Editor approved a suggested non-fallback summary for public use."
+      ? selectedSuggestion?.passed
+        ? "Editor approved a suggested non-fallback summary for public use."
+        : "Editor approved a non-fallback suggested summary with visible quality warnings."
       : "Editor removed this item from the private summary review queue.",
   };
   const decisions = [
@@ -2146,6 +2164,8 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload(), req = null
       const decisionNote = item.decision
         ? `<p><strong>Editor decision:</strong> ${escapeHtml(item.decision.action)} • ${escapeHtml(item.decision.decidedAt || "")}</p>`
         : "";
+      const selectableSuggestions = item.suggestions?.filter(isSummarySuggestionSelectable) || [];
+      const firstSelectableIndex = item.suggestions?.findIndex(isSummarySuggestionSelectable) ?? -1;
       const actionForms = view === "needs-review"
         ? `
           <div class="summary-actions">
@@ -2158,22 +2178,27 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload(), req = null
                   item.suggestions?.length
                     ? item.suggestions
                         .map(
-                          (suggestion, index) => `
-                            <label class="summary-suggestion ${suggestion.passed ? "passed" : "blocked"}">
-                              <input type="radio" name="selectedSummaryKey" value="${escapeHtml(suggestion.key)}" ${suggestion.passed && index === item.suggestions.findIndex((entry) => entry.passed) ? "checked" : ""} ${suggestion.passed ? "" : "disabled"} />
+                          (suggestion, index) => {
+                            const selectable = isSummarySuggestionSelectable(suggestion);
+                            const state = suggestion.passed ? "passed" : selectable ? "warning" : "blocked";
+                            const label = suggestion.passed ? "Ready suggestion" : selectable ? "Needs editor judgment" : "Blocked suggestion";
+                            return `
+                            <label class="summary-suggestion ${state}">
+                              <input type="radio" name="selectedSummaryKey" value="${escapeHtml(suggestion.key)}" ${selectable && index === firstSelectableIndex ? "checked" : ""} ${selectable ? "" : "disabled"} />
                               <span>
-                                <b>${suggestion.passed ? "Ready suggestion" : "Blocked suggestion"}</b>
+                                <b>${label}</b>
                                 ${escapeHtml(suggestion.text)}
                                 <small>${escapeHtml(suggestion.reason)}</small>
                               </span>
-                            </label>`
+                            </label>`;
+                          }
                         )
                         .join("")
                     : '<p>No safe suggested summaries are available yet.</p>'
                 }
               </div>
-              <button type="submit" ${item.suggestions?.some((suggestion) => suggestion.passed) ? "" : "disabled"}>Publish selected summary</button>
-              ${item.suggestions?.some((suggestion) => suggestion.passed) ? "" : "<small>No suggestion passed quality checks yet.</small>"}
+              <button type="submit" ${selectableSuggestions.length ? "" : "disabled"}>Publish selected summary</button>
+              ${selectableSuggestions.length ? "<small>Warnings stay saved with the editor decision.</small>" : "<small>No suggestion has enough source-safe detail to publish yet.</small>"}
             </form>
             <form method="post" action="${escapeHtml(buildSummaryReviewUrl(req, {}).replace("/admin/summaries", "/admin/summaries/decision"))}">
               <input type="hidden" name="key" value="${escapeHtml(item.key)}" />
@@ -2229,6 +2254,7 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload(), req = null
     .suggestion-list { display: grid; gap: 10px; width: 100%; }
     .summary-suggestion { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; background: #f8fbfd; }
     .summary-suggestion.passed { border-color: #b9d9c9; background: #eef8f3; }
+    .summary-suggestion.warning { border-color: #e4c27a; background: #fffaf0; }
     .summary-suggestion.blocked { border-color: #ead4a2; background: #fff9ea; opacity: .82; }
     .summary-suggestion input { margin-top: 4px; }
     .summary-suggestion span { display: grid; gap: 5px; }

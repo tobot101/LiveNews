@@ -456,7 +456,10 @@ expect(serverJs.includes("recordSummaryReviewDecision"), "Summary review decisio
 expect(serverJs.includes("Fallback summaries cannot be published"), "Summary review should block publishing neutral fallback summaries.");
 expect(serverJs.includes("buildSummarySuggestions"), "Needs-review summaries should show suggested summaries before publishing.");
 expect(serverJs.includes("Publish selected summary"), "Summary review should publish the editor-selected suggested summary.");
-expect(serverJs.includes("Choose a suggested summary that passed quality checks"), "Summary review should block unselected or failed suggestions.");
+expect(serverJs.includes("isSummarySuggestionSelectable"), "Summary review should let editors select warning-level suggestions while preserving hard blocks.");
+expect(serverJs.includes("Choose a selectable suggested summary"), "Summary review should block publishing without a selectable suggestion.");
+expect(serverJs.includes("Needs editor judgment"), "Summary review should label warning-level suggestions as editor-judgment choices.");
+expect(serverJs.includes("editorOverride"), "Summary review should save when an editor publishes a warning-level suggestion.");
 expect(serverJs.includes("needs_more_source_context"), "Needs-review summaries should explain when no safe suggestion can be generated yet.");
 expect(serverJs.includes("Why this is in"), "Filtered summary pages should explain why each item appears in its selected view.");
 expect(serverJs.includes("Delete from review"), "Needs-review summaries should include a delete/remove option.");
