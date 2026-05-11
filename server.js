@@ -103,6 +103,11 @@ const {
   rankStoryOfWeek,
   rankTopStoryOfDay,
 } = require("./lib/top-story-ranker");
+const {
+  getEntertainmentSubbeatLabel,
+  isEntertainmentStory,
+  normalizeEntertainmentStory,
+} = require("./lib/entertainment-classifier");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -1807,7 +1812,7 @@ function refreshNewsSafely() {
 function buildCurrentNewsPayload() {
   if (!cache.lastUpdated) {
     const fallback = loadFallback();
-    return enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
+    return applyEntertainmentClassificationsToPayload(enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
       updatedAt: new Date().toISOString(),
       maxAgeHours: MAX_AGE_HOURS,
       fallback: true,
@@ -1827,10 +1832,10 @@ function buildCurrentNewsPayload() {
         },
       },
       ...fallback,
-    })));
+    }))));
   }
 
-  return enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
+  return applyEntertainmentClassificationsToPayload(enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
     updatedAt: cache.lastUpdated,
     maxAgeHours: MAX_AGE_HOURS,
     fallback: false,
@@ -1846,7 +1851,24 @@ function buildCurrentNewsPayload() {
     sourceErrors: cache.sourceErrors,
     sourceMix: cache.sourceMix,
     configuredSources: cache.configuredSources,
-  })));
+  }))));
+}
+
+function applyEntertainmentClassificationsToItems(items = []) {
+  return (items || []).map((item) => normalizeEntertainmentStory(item));
+}
+
+function applyEntertainmentClassificationsToPayload(payload = {}) {
+  const topStoryOfDay = payload.topStoryOfDay ? normalizeEntertainmentStory(payload.topStoryOfDay) : null;
+  const topStoryOfWeek = payload.topStoryOfWeek ? normalizeEntertainmentStory(payload.topStoryOfWeek) : null;
+  return {
+    ...payload,
+    topStoryOfDay,
+    topStoryOfWeek,
+    topStories: applyEntertainmentClassificationsToItems(payload.topStories || []),
+    feed: applyEntertainmentClassificationsToItems(payload.feed || []),
+    approvedStories: applyEntertainmentClassificationsToItems(payload.approvedStories || []),
+  };
 }
 
 function getUniqueCurrentNewsItems(payload = buildCurrentNewsPayload()) {
@@ -3446,91 +3468,30 @@ function renderCrawlableFeedItem(item) {
 }
 
 const ENTERTAINMENT_SECTION_LIMIT = 9;
-const ENTERTAINMENT_SOURCE_TERMS = [
-  "e!",
-  "entertainment tonight",
-  "people.com",
-  "people magazine",
-  "variety",
-  "hollywood reporter",
-  "billboard",
-  "rolling stone",
-  "deadline",
-  "thewrap",
-  "vulture",
-  "pitchfork",
-  "tmz",
-  "access hollywood",
-  "page six",
-  "us weekly",
-  "vanity fair",
-];
-const ENTERTAINMENT_STORY_PATTERN = /\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|movie|film|box office|hollywood|trailer|cinema|streaming|netflix|hulu|disney\+?|prime video|tv show|tv series|television series|television awards|bafta tv|episode premiere|season premiere|album|song|single|concert|grammy|oscars|emmys|bafta|cannes|sundance|award show|red carpet|pop culture|reality tv|late-night|broadway|theater|festival|eurovision|song contest|saturday night live|snl)\b/;
-
-function getCrawlerEntertainmentText(item) {
-  return [
-    item.category,
-    item.sourceName,
-    item.attribution,
-    item.sourceUrl,
-    item.domain,
-    item.title,
-    item.liveNewsHeadline,
-    item.summary,
-    item.liveNewsSummary,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function getCrawlerEntertainmentSourceText(item) {
-  return [
-    item.sourceName,
-    item.attribution,
-    item.sourceUrl,
-    item.domain,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function hasCrawlerEntertainmentAudienceSignal(item) {
-  const audience = item?.summaryAgent?.audience;
-  const primaryText = [
-    audience?.primaryPattern?.id,
-    audience?.primaryPattern?.label,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return primaryText.includes("entertainment");
-}
 
 function isCrawlerEntertainmentStory(item) {
-  if (!item) return false;
-  if (item.category === "Entertainment") return true;
-  const sourceText = getCrawlerEntertainmentSourceText(item);
-  const text = getCrawlerEntertainmentText(item);
-  if (ENTERTAINMENT_SOURCE_TERMS.some((term) => sourceText.includes(term))) return true;
-  if (hasCrawlerEntertainmentAudienceSignal(item)) return true;
-  return ENTERTAINMENT_STORY_PATTERN.test(text);
+  return isEntertainmentStory(item);
 }
 
 function getCrawlerEntertainmentLabel(item) {
-  const text = getCrawlerEntertainmentText(item);
-  if (/\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|red carpet|reality tv)\b/.test(text)) return "Celebrity";
-  if (/\b(album|song|single|music|singer|artist|tour|concert|billboard|grammy|festival)\b/.test(text)) return "Music";
-  if (/\b(movie|film|box office|actor|actress|director|trailer|cinema)\b/.test(text)) return "Movies";
-  if (/\b(tv|television|streaming|netflix|hulu|disney|series|show|episode|season)\b/.test(text)) return "TV & streaming";
-  if (/\b(award|oscars|emmys|grammys|red carpet|nomination|winner)\b/.test(text)) return "Awards";
-  if (/\b(studio|deal|contract|rights|media company|industry|ratings)\b/.test(text)) return "Entertainment biz";
-  return "Culture";
+  const normalized = normalizeEntertainmentStory(item);
+  return normalized.entertainmentLabel || getEntertainmentSubbeatLabel("general_entertainment");
 }
 
 function renderCrawlerEntertainmentControls(totalCount, visibleCount) {
-  const filters = ["All", "Celebrities", "Movies", "TV", "Music", "Awards", "Pop Culture"]
+  const filters = [
+    "All",
+    "Celebrity & culture",
+    "Movies",
+    "TV & streaming",
+    "Music",
+    "Awards",
+    "Books",
+    "Theater & arts",
+    "Gaming & creators",
+    "Trailers & releases",
+    "Stars we lost",
+  ]
     .map(
       (label, index) => `
         <button
@@ -3807,7 +3768,11 @@ function renderCategoryRoutePage(slug) {
   const payload = buildCurrentNewsPayload();
   const allItems = getUniqueCurrentNewsItems(payload);
   const items = allItems
-    .filter((item) => item.category === config.apiCategory)
+    .filter((item) => (
+      config.apiCategory === "Entertainment"
+        ? isEntertainmentStory(item)
+        : item.category === config.apiCategory
+    ))
     .slice(0, 75);
   return renderNewsIndexPage({
     canonicalPath: `/category/${config.slug}`,
@@ -3878,6 +3843,7 @@ function normalizeCategorySection(value) {
 }
 
 function serializeNewsResultItem(item, extra = {}) {
+  const entertainmentItem = normalizeEntertainmentStory(item);
   const summary = summarizeSearchResult(item);
   const publicCardWritingStatus = getPublicCardWritingStatus(item);
   const title = getSafeDisplayTitle(item);
@@ -3901,6 +3867,12 @@ function serializeNewsResultItem(item, extra = {}) {
     imageAlt: item.imageAlt || "",
     imageResearchQuery: item.imageResearchQuery || "",
     hasLiveNewsStory: Boolean(item.hasLiveNewsStory || item.approvedStoryUrl || item.liveNewsUrl),
+    entertainmentClassification: entertainmentItem.entertainmentClassification,
+    entertainmentSubbeat: entertainmentItem.entertainmentSubbeat,
+    entertainmentLabel: entertainmentItem.entertainmentLabel,
+    entertainmentConfidence: entertainmentItem.entertainmentConfidence,
+    entertainmentSensitive: entertainmentItem.entertainmentSensitive,
+    entertainmentSensitivityFlags: entertainmentItem.entertainmentSensitivityFlags || [],
     ...extra,
   };
 }
@@ -3994,7 +3966,11 @@ async function getCategoryNews(category, limit = 60) {
   }
 
   const items = getUniqueCurrentNewsItems()
-    .filter((item) => item.category === normalizedCategory)
+    .filter((item) => (
+      normalizedCategory === "Entertainment"
+        ? isEntertainmentStory(item)
+        : item.category === normalizedCategory
+    ))
     .sort(
       (a, b) =>
         new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0) ||

@@ -4,6 +4,14 @@ const path = require("path");
 const failures = [];
 const memoryPath = path.join(__dirname, "..", "data", "entertainment-intelligence.json");
 const briefPath = path.join(__dirname, "..", "docs", "entertainment-intelligence-brief.md");
+const appPath = path.join(__dirname, "..", "public", "app.js");
+const serverPath = path.join(__dirname, "..", "server.js");
+const {
+  classifyEntertainmentStory,
+  getEntertainmentSubbeatLabel,
+  isEntertainmentStory,
+  normalizeEntertainmentStory,
+} = require("../lib/entertainment-classifier");
 
 function fail(message) {
   failures.push(message);
@@ -18,6 +26,8 @@ if (!fs.existsSync(briefPath)) fail("Entertainment intelligence brief is missing
 
 const memory = fs.existsSync(memoryPath) ? readJson(memoryPath) : {};
 const brief = fs.existsSync(briefPath) ? fs.readFileSync(briefPath, "utf8") : "";
+const appJs = fs.existsSync(appPath) ? fs.readFileSync(appPath, "utf8") : "";
+const serverJs = fs.existsSync(serverPath) ? fs.readFileSync(serverPath, "utf8") : "";
 
 if (memory.schemaVersion !== "live-news-entertainment-intelligence-v1") {
   fail("Entertainment intelligence schema version is wrong.");
@@ -88,6 +98,86 @@ if (!brief.includes("Future Build Priorities")) {
 }
 if (!brief.includes("Research References")) {
   fail("Entertainment brief should include research references.");
+}
+
+function expectClassification(story, expectedSubbeat, label) {
+  const classification = classifyEntertainmentStory(story);
+  if (!classification.isEntertainment) {
+    fail(`${label} should classify as entertainment.`);
+    return classification;
+  }
+  if (classification.subbeat !== expectedSubbeat) {
+    fail(`${label} should classify as ${expectedSubbeat}, got ${classification.subbeat}.`);
+  }
+  return classification;
+}
+
+expectClassification({
+  category: "Top",
+  title: "Artist headlines downtown summer music festival",
+  summary: "The singer will perform new songs during the festival weekend.",
+  sourceName: "Live News source",
+}, "music", "Top artist/festival story");
+
+const actorInterview = classifyEntertainmentStory({
+  category: "Top",
+  title: "Actor opens up in verified public interview before new series",
+  summary: "The performer discussed the role and the TV project.",
+});
+if (!actorInterview.isEntertainment || !["celebrity_culture", "movies", "tv_streaming"].includes(actorInterview.subbeat)) {
+  fail(`Top actor interview should classify as celebrity_culture, movies, or tv_streaming, got ${actorInterview.subbeat}.`);
+}
+
+expectClassification({ category: "Entertainment", title: "Director announces cast for new film" }, "movies", "Movie story");
+expectClassification({ category: "Top", title: "Netflix renews hit series for another season" }, "tv_streaming", "Streaming renewal");
+expectClassification({ category: "General", title: "Singer releases new album before tour" }, "music", "Music story");
+expectClassification({ category: "Culture", title: "Grammy nominations put new artists in focus" }, "awards", "Awards nomination");
+expectClassification({ category: "Lifestyle", title: "Author announces novel adaptation and book release" }, "books_publishing", "Book/author story");
+expectClassification({ category: "General", title: "Broadway musical opens after stage previews" }, "theater_arts", "Theater/Broadway story");
+expectClassification({ category: "Top", title: "YouTube creator joins gaming release event" }, "gaming_creator", "Gaming/creator story");
+expectClassification({ category: "Top", title: "Film teaser trailer reveals premiere date" }, "trailers_releases", "Trailer story");
+const starsWeLost = expectClassification({ category: "Entertainment", title: "Beloved actor dies as fans and colleagues share tribute" }, "stars_we_lost", "Celebrity death story");
+if (!starsWeLost.sensitivityFlags.length) fail("Celebrity death story should include sensitivity flags.");
+
+if (isEntertainmentStory({ category: "Sports", title: "Lakers beat Warriors in playoff game" })) {
+  fail("Ordinary sports story should not become entertainment without entertainment signals.");
+}
+if (isEntertainmentStory({ category: "Local", title: "Road closure follows emergency alert downtown" })) {
+  fail("Ordinary public safety/local story should not become entertainment without entertainment signals.");
+}
+
+[
+  { category: "Entertainment", title: "Film earnings rise after weekend" },
+  { category: "Entertainment", title: "Streaming guide adds new shows" },
+  { category: "Entertainment", title: "Studio executive discusses media contract" },
+].forEach((story) => {
+  const classification = classifyEntertainmentStory(story);
+  if (["box_office", "what_to_watch", "entertainment_biz", "business", "trend"].includes(classification.subbeat)) {
+    fail(`Forbidden entertainment subbeat produced: ${classification.subbeat}`);
+  }
+});
+
+const normalized = normalizeEntertainmentStory({ category: "Top", title: "Singer releases new song" });
+if (!normalized.entertainmentClassification || normalized.entertainmentSubbeat !== "music") {
+  fail("normalizeEntertainmentStory should attach shared entertainment classification fields.");
+}
+if (getEntertainmentSubbeatLabel("entertainment_biz") === "Entertainment Biz") {
+  fail("Entertainment biz should not be an allowed public label.");
+}
+if (!serverJs.includes('require("./lib/entertainment-classifier")')) {
+  fail("Server should use the shared entertainment classifier module.");
+}
+if (!serverJs.includes("isEntertainmentStory(item)") || !serverJs.includes('normalizedCategory === "Entertainment"')) {
+  fail("/category/entertainment should use the shared entertainment classifier.");
+}
+if (!appJs.includes("entertainmentClassification") || appJs.includes("ENTERTAINMENT_STORY_PATTERN")) {
+  fail("Homepage should use server-provided shared classification instead of local regex matching.");
+}
+if (/box_office|what_to_watch|entertainment_biz/.test(fs.readFileSync(path.join(__dirname, "..", "lib", "entertainment-classifier.js"), "utf8"))) {
+  fail("Shared entertainment classifier must not define forbidden subbeats.");
+}
+if (/Google Trends|Search Console|Semrush|Ahrefs|Glimpse|Exploding Topics/.test(fs.readFileSync(path.join(__dirname, "..", "lib", "entertainment-classifier.js"), "utf8"))) {
+  fail("Entertainment classifier should not require trend intelligence.");
 }
 
 if (failures.length) {

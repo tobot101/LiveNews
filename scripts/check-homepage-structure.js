@@ -41,14 +41,17 @@ if (!appJs.includes("ENTERTAINMENT_FILTERS") || !appJs.includes("matchesEntertai
 if (!appJs.includes("entertainmentSearch") || !appJs.includes("matchesEntertainmentSearch")) {
   fail("Entertainment panel should include a dedicated search filter.");
 }
-if (!appJs.includes("isEntertainmentStory") || !appJs.includes("ENTERTAINMENT_STORY_PATTERN")) {
-  fail("Entertainment renderer must include smart celebrity/pop-culture matching.");
+if (!appJs.includes("isEntertainmentStory") || !appJs.includes("entertainmentClassification")) {
+  fail("Entertainment renderer must use the shared server entertainment classification.");
 }
-if (!appJs.includes('return "Celebrity"')) {
-  fail("Entertainment cards should be able to label celebrity stories.");
+if (!appJs.includes("Celebrity & culture")) {
+  fail("Entertainment cards should be able to label celebrity and culture stories.");
 }
 if (appJs.includes('"people",')) {
   fail("Entertainment matching should not treat every mention of people as celebrity coverage.");
+}
+if (appJs.includes("Entertainment biz") || serverJs.includes("Entertainment biz")) {
+  fail("Entertainment should not expose an Entertainment biz public label.");
 }
 if (!stylesCss.includes(".entertainment-panel") || !stylesCss.includes(".entertainment-grid")) {
   fail("Entertainment section styles are missing.");

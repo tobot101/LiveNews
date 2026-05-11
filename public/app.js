@@ -1831,33 +1831,17 @@ function renderTopStories(items, options = {}) {
 const ENTERTAINMENT_SECTION_LIMIT = 9;
 const ENTERTAINMENT_FILTERS = [
   { id: "all", label: "All" },
-  { id: "celebrities", label: "Celebrities" },
+  { id: "celebrity_culture", label: "Celebrity & culture" },
   { id: "movies", label: "Movies" },
-  { id: "tv", label: "TV" },
+  { id: "tv_streaming", label: "TV & streaming" },
   { id: "music", label: "Music" },
   { id: "awards", label: "Awards" },
-  { id: "pop-culture", label: "Pop Culture" },
+  { id: "books_publishing", label: "Books" },
+  { id: "theater_arts", label: "Theater & arts" },
+  { id: "gaming_creator", label: "Gaming & creators" },
+  { id: "trailers_releases", label: "Trailers & releases" },
+  { id: "stars_we_lost", label: "Stars we lost" },
 ];
-const ENTERTAINMENT_SOURCE_TERMS = [
-  "e!",
-  "entertainment tonight",
-  "people.com",
-  "people magazine",
-  "variety",
-  "hollywood reporter",
-  "billboard",
-  "rolling stone",
-  "deadline",
-  "thewrap",
-  "vulture",
-  "pitchfork",
-  "tmz",
-  "access hollywood",
-  "page six",
-  "us weekly",
-  "vanity fair",
-];
-const ENTERTAINMENT_STORY_PATTERN = /\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|movie|film|box office|hollywood|trailer|cinema|streaming|netflix|hulu|disney\+?|prime video|tv show|tv series|television series|television awards|bafta tv|episode premiere|season premiere|album|song|single|concert|grammy|oscars|emmys|bafta|cannes|sundance|award show|red carpet|pop culture|reality tv|late-night|broadway|theater|festival|eurovision|song contest|saturday night live|snl)\b/;
 
 function getEntertainmentText(item) {
   return [
@@ -1876,38 +1860,9 @@ function getEntertainmentText(item) {
     .toLowerCase();
 }
 
-function getEntertainmentSourceText(item) {
-  return [
-    item.sourceName,
-    item.attribution,
-    item.sourceUrl,
-    item.domain,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function hasEntertainmentAudienceSignal(item) {
-  const audience = item?.summaryAgent?.audience;
-  const primaryText = [
-    audience?.primaryPattern?.id,
-    audience?.primaryPattern?.label,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return primaryText.includes("entertainment");
-}
-
 function isEntertainmentStory(item) {
   if (!item) return false;
-  if (item.category === "Entertainment") return true;
-  const sourceText = getEntertainmentSourceText(item);
-  const text = getEntertainmentText(item);
-  if (ENTERTAINMENT_SOURCE_TERMS.some((term) => sourceText.includes(term))) return true;
-  if (hasEntertainmentAudienceSignal(item)) return true;
-  return ENTERTAINMENT_STORY_PATTERN.test(text);
+  return item.entertainmentClassification?.isEntertainment === true || item.category === "Entertainment";
 }
 
 function getEntertainmentItems() {
@@ -1918,26 +1873,7 @@ function getEntertainmentItems() {
 }
 
 function getEntertainmentLabel(item) {
-  const text = getEntertainmentText(item);
-  if (/\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|red carpet|reality tv)\b/.test(text)) {
-    return "Celebrity";
-  }
-  if (/\b(album|song|single|music|singer|artist|tour|concert|billboard|grammy|festival)\b/.test(text)) {
-    return "Music";
-  }
-  if (/\b(movie|film|box office|actor|actress|director|trailer|cinema)\b/.test(text)) {
-    return "Movies";
-  }
-  if (/\b(tv|television|streaming|netflix|hulu|disney|series|show|episode|season)\b/.test(text)) {
-    return "TV & streaming";
-  }
-  if (/\b(award|oscars|emmys|grammys|red carpet|nomination|winner)\b/.test(text)) {
-    return "Awards";
-  }
-  if (/\b(studio|deal|contract|rights|media company|industry|ratings)\b/.test(text)) {
-    return "Entertainment biz";
-  }
-  return "Culture";
+  return item.entertainmentLabel || "General entertainment";
 }
 
 function getEntertainmentFilterLabel() {
@@ -1946,26 +1882,7 @@ function getEntertainmentFilterLabel() {
 
 function matchesEntertainmentFilter(item, filterId) {
   if (!filterId || filterId === "all") return true;
-  const text = getEntertainmentText(item);
-  if (filterId === "celebrities") {
-    return /\b(celebrity|celebrities|actor|actress|singer|rapper|musician|comedian|performer|public figure|red carpet|reality tv)\b/.test(text);
-  }
-  if (filterId === "movies") {
-    return /\b(movie|film|box office|hollywood|trailer|cinema|director|cannes|sundance)\b/.test(text);
-  }
-  if (filterId === "tv") {
-    return /\b(tv show|tv series|television|streaming|netflix|hulu|disney|prime video|episode|season|saturday night live|snl)\b/.test(text);
-  }
-  if (filterId === "music") {
-    return /\b(album|song|single|music|singer|artist|rapper|tour|concert|billboard|grammy|festival)\b/.test(text);
-  }
-  if (filterId === "awards") {
-    return /\b(award|oscars|emmys|grammys|bafta|red carpet|nomination|winner|gala)\b/.test(text);
-  }
-  if (filterId === "pop-culture") {
-    return /\b(pop culture|celebrity|viral|fashion|style|met gala|reality tv|social media|late-night|broadway)\b/.test(text);
-  }
-  return true;
+  return item.entertainmentSubbeat === filterId;
 }
 
 function matchesEntertainmentSearch(item, query) {
