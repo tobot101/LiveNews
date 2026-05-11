@@ -45,6 +45,15 @@ const {
   getCopyDistanceScore,
   suggestCopyRiskRewriteStrategy,
 } = require("../lib/article-agents/copy-distance");
+const {
+  buildRewritePlan,
+  diagnoseWritingFailure,
+  generateRewriteCandidates,
+  getRewriteStrategiesForFailure,
+  rewriteUntilPass,
+  selectBestRewriteCandidate,
+  storeRewriteAttemptSummary,
+} = require("../lib/article-agents/writing-rewriter");
 
 const failures = [];
 
@@ -484,6 +493,79 @@ expect(
     suggestCopyRiskRewriteStrategy(copyRiskExplanation).toLowerCase().includes("sentence"),
   "Copy-risk rewrite strategy should be available."
 );
+const copyFailureDiagnosis = diagnoseWritingFailure(
+  "After public review, city leaders approve overnight transit safety plan.",
+  factMap,
+  "description"
+);
+expect(
+  copyFailureDiagnosis.strategies.includes("fact_map_rewrite"),
+  "CopyRiskTeacher failure should trigger fact_map_rewrite."
+);
+const storyFocusDiagnosis = diagnoseWritingFailure(
+  "A celebrity tour is bringing new music to fans this summer.",
+  factMap,
+  "description"
+);
+expect(
+  storyFocusDiagnosis.strategies.includes("story_focus_rewrite"),
+  "StoryFocusTeacher failure should trigger story_focus_rewrite."
+);
+const fallbackDiagnosis = diagnoseWritingFailure(
+  "This article discusses the latest update on this topic.",
+  factMap,
+  "description"
+);
+expect(
+  fallbackDiagnosis.strategies.includes("no_fallback_rewrite"),
+  "Fallback text should trigger no_fallback_rewrite."
+);
+const rewritePlan = buildRewritePlan(
+  "After public review, city leaders approve overnight transit safety plan.",
+  factMap,
+  "description",
+  copyFailureDiagnosis
+);
+expect(rewritePlan.strategies.includes("fact_map_rewrite"), "Rewrite plan should preserve diagnosis strategies.");
+const rewriteCandidates = generateRewriteCandidates(factMap, "description", rewritePlan);
+expect(rewriteCandidates.candidates.length > 0, "Rewrite loop should generate rewrite candidates.");
+const selectedRewrite = selectBestRewriteCandidate(rewriteCandidates, factMap, "description");
+expect(selectedRewrite.selected, "Rewrite loop should select the best rewrite candidate.");
+const rewriteSession = rewriteUntilPass(
+  "After public review, city leaders approve overnight transit safety plan.",
+  factMap,
+  "description",
+  { createdAt: "2026-05-11T00:00:00.000Z" }
+);
+expect(rewriteSession.status === "passed", "Bad source-like description should rewrite into a passing description.");
+expect(rewriteSession.finalCandidate, "Rewrite session should include a final passing rewrite.");
+expect(rewriteSession.finalWritingExam.factFaithfulness >= 90, "Rewriter should not invent unsupported facts.");
+expect(rewriteSession.copyRiskAfter.risk === "low" || rewriteSession.copyRiskAfter.risk === "medium", "Rewriter should lower copy risk after rewriting.");
+expect(
+  !rewriteSession.finalCandidate.toLowerCase().includes("city leaders approve overnight transit safety plan"),
+  "Rewriter should change source sentence structure."
+);
+expect(rewriteSession.roundsUsed <= 3, "Rewriter should stay within maximum rewrite rounds.");
+expect(rewriteSession.attempts.length > 0, "RewriteSession should record attempts.");
+expect(rewriteSession.copyRiskBefore.risk !== "low", "RewriteSession should record before copy risk.");
+expect(rewriteSession.copyRiskAfter.risk, "RewriteSession should record after copy risk.");
+const rewriteSummary = storeRewriteAttemptSummary(rewriteSession);
+expect(rewriteSummary.attemptCount === rewriteSession.attempts.length, "Rewrite summary should safely record attempt count.");
+expect(rewriteSummary.finalTeacherScores.length > 0, "Rewrite summary should safely record teacher scores.");
+const limitedRewriteSession = rewriteUntilPass(
+  "After public review, city leaders approve overnight transit safety plan.",
+  factMap,
+  "description",
+  { maxRounds: 1, maxCandidatesPerRound: 0 }
+);
+expect(limitedRewriteSession.roundsUsed <= 1, "Rewriter should stop after the configured max rounds.");
+expect(limitedRewriteSession.status === "needs_more_context", "Rewriter should return needs_more_context when no candidate passes within limits.");
+const weakRewriteSession = rewriteUntilPass(
+  "This article discusses the update.",
+  weakFactMapForOriginalWriter,
+  "description"
+);
+expect(weakRewriteSession.status === "needs_more_context", "Rewriter should return needs_more_context for a weak fact map.");
 
 const generated = generateDescriptionCandidates(context);
 expect(generated.status === "ready", "Strong context should generate description candidates.");
