@@ -36,6 +36,9 @@ const {
   selectOriginalWritingCandidate,
 } = require("../lib/article-agents/original-writer");
 const {
+  buildOriginalStoryWritingPackage,
+} = require("../lib/article-agents/original-writing-package");
+const {
   calculateLexicalOverlap,
   calculateNgramOverlap,
   calculatePhraseOverlap,
@@ -682,6 +685,50 @@ expect(sensitiveWriterRoom.status === "passed", "WriterRoom should handle sensit
 expect(
   !/shocking|you won't believe|fans are reacting/i.test(sensitiveWriterRoom.selectedCandidate?.text || ""),
   "WriterRoom sensitive story output should avoid hype."
+);
+
+const originalWritingPackage = buildOriginalStoryWritingPackage(factMapStory);
+expect(originalWritingPackage.writingQualityStatus === "ready", "Original Writer package should be ready for a strong approved story.");
+expect(originalWritingPackage.factMap?.confirmedFacts?.length >= 4, "Original Writer package should include a SourceFactMap.");
+expect(originalWritingPackage.writerRoom?.descriptionRoom?.selectedCandidate, "Original Writer package should include WriterRoom description results.");
+expect(
+  originalWritingPackage.title.toLowerCase() !== factMapStory.originalPublisherTitle.toLowerCase(),
+  "Draft title should not copy the publisher title through the Original Writer package."
+);
+expect(
+  originalWritingPackage.description.toLowerCase() !== factMapStory.sourceSummary.toLowerCase(),
+  "Draft description should not copy the publisher summary through the Original Writer package."
+);
+expect(
+  originalWritingPackage.teacherChecks.some((teacher) => teacher.fieldName === "description" && teacher.name === "StoryFocusTeacher" && teacher.passed),
+  "Approved story description should pass StoryFocusTeacher through the Original Writer package."
+);
+expect(
+  originalWritingPackage.teacherChecks.some((teacher) => teacher.fieldName === "description" && teacher.name === "CopyRiskTeacher" && teacher.passed),
+  "Approved story description should pass CopyRiskTeacher through the Original Writer package."
+);
+expect(
+  originalWritingPackage.copyRisk.risk !== "high" && originalWritingPackage.copyRisk.risk !== "blocked",
+  "Approved story description should pass copy-distance checks through the Original Writer package."
+);
+expect(
+  !/may affect daily life|public services|traffic|schools|could matter because/i.test(originalWritingPackage.whyItMatters),
+  "Why-it-matters should be specific instead of broad template filler."
+);
+expect(
+  originalWritingPackage.metaDescription && originalWritingPackage.metaDescription !== factMapStory.sourceSummary,
+  "SEO meta description should be original and story-focused."
+);
+expect(!detectFallbackRisk(originalWritingPackage.description).risky, "Original Writer package should block public fallback text.");
+const weakOriginalWritingPackage = buildOriginalStoryWritingPackage({
+  storyId: "weak-original-package",
+  liveNewsUrl: "/stories/weak-original-package-abc123",
+  primarySourceName: "Metro Daily",
+  originalSourceUrl: "https://example.com/weak-original-package",
+});
+expect(
+  weakOriginalWritingPackage.writingQualityStatus === "needs_more_context",
+  "Weak story should return needs_more_context from the Original Writer package."
 );
 
 const generated = generateDescriptionCandidates(context);

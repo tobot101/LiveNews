@@ -68,6 +68,26 @@ if (draft.writingQualityStatus !== "ready") {
   failures.push("Draft description should be evaluated by the writing-quality module before approval.");
 }
 
+if (!draft.factMap?.confirmedFacts?.length) {
+  failures.push("Draft should include the Original Writer SourceFactMap before approval.");
+}
+
+if (!draft.writerRoom?.descriptionRoom?.selectedCandidate) {
+  failures.push("Draft should include WriterRoom description output before approval.");
+}
+
+if (draft.headline?.toLowerCase() === draft.originalPublisherTitle?.toLowerCase()) {
+  failures.push("Draft title should not copy the publisher title.");
+}
+
+if (draft.sourceSummary && draft.description?.toLowerCase() === draft.sourceSummary.toLowerCase()) {
+  failures.push("Draft description should not copy the publisher summary.");
+}
+
+if (!draft.copyRisk || !draft.rewriteSession) {
+  failures.push("Draft should include copy-distance and rewrite-session metadata.");
+}
+
 if (!draft.writingExam?.fields?.description?.passed) {
   failures.push("Draft description should pass the shared writing-quality description gate.");
 }
@@ -93,12 +113,43 @@ if (!approvedStory.writingExam?.fields?.description?.passed) {
   failures.push("Approved story description should pass the writing exam.");
 }
 
+if (!approvedStory.factMap?.confirmedFacts?.length) {
+  failures.push("Approved story should include the Original Writer SourceFactMap.");
+}
+
+if (!approvedStory.writerRoom?.descriptionRoom?.selectedCandidate) {
+  failures.push("Approved story should include WriterRoom description output.");
+}
+
+if (!approvedStory.teacherChecks?.some((teacher) => teacher.fieldName === "description" && teacher.name === "StoryFocusTeacher" && teacher.passed)) {
+  failures.push("Approved story description should pass StoryFocusTeacher.");
+}
+
+if (!approvedStory.teacherChecks?.some((teacher) => teacher.fieldName === "description" && teacher.name === "CopyRiskTeacher" && teacher.passed)) {
+  failures.push("Approved story description should pass CopyRiskTeacher.");
+}
+
+if (!approvedStory.copyRisk || !approvedStory.rewriteSession) {
+  failures.push("Approved story should preserve copy-risk and rewrite-session metadata.");
+}
+
 if (!approvedStory.description || /source-linked coverage|read the original source/i.test(approvedStory.description)) {
   failures.push("Approved story should have a story-focused description, not generic fallback wording.");
 }
 
 const weakDraft = {
   ...draft,
+  originalPublisherTitle: "",
+  primarySourceName: "",
+  sourceAttribution: "",
+  sourceBlock: {
+    attribution: "",
+    originalSourceUrl: "",
+    supportingSourceUrls: [],
+  },
+  canonicalLiveNewsUrl: "",
+  liveNewsUrl: "",
+  canonicalUrl: "",
   headline: "",
   title: "",
   description: "",
@@ -110,7 +161,7 @@ const weakDraft = {
   whyItMatters: "",
 };
 const weakCheck = validateDraftForApproval(weakDraft);
-if (weakCheck.ok || !["needs_review", "blocked"].includes(weakCheck.writingPackage?.writingQualityStatus)) {
+if (weakCheck.ok || !["needs_review", "needs_more_context", "blocked"].includes(weakCheck.writingPackage?.writingQualityStatus)) {
   failures.push("Weak approved-story context should be marked needs_review or blocked.");
 }
 
