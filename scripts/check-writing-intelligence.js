@@ -54,6 +54,19 @@ const {
   selectBestRewriteCandidate,
   storeRewriteAttemptSummary,
 } = require("../lib/article-agents/writing-rewriter");
+const {
+  runClarityEditorAgent,
+  runContextResearchAgent,
+  runCopyRiskEditorAgent,
+  runFactMapperAgent,
+  runManagingEditorAgent,
+  runOriginalVoiceWriterAgent,
+  runRewriteCoachAgent,
+  runSensitiveToneEditorAgent,
+  runSmartnessCriticAgent,
+  runSourceReaderAgent,
+  runWriterRoom,
+} = require("../lib/article-agents/writer-room");
 
 const failures = [];
 
@@ -566,6 +579,110 @@ const weakRewriteSession = rewriteUntilPass(
   "description"
 );
 expect(weakRewriteSession.status === "needs_more_context", "Rewriter should return needs_more_context for a weak fact map.");
+
+const sourceReaderAgent = runSourceReaderAgent(factMapStory);
+expect(sourceReaderAgent.status === "ready", "WriterRoom SourceReaderAgent should read source-safe story context.");
+expect(
+  sourceReaderAgent.notes.join(" ").includes("Ignored comments"),
+  "WriterRoom SourceReaderAgent should ignore comments and private user data."
+);
+const factMapperAgent = runFactMapperAgent(factMapStory);
+expect(factMapperAgent.validation.ready, "WriterRoom FactMapperAgent should build a ready fact map.");
+expect(factMapperAgent.factMap.confirmedFacts.length >= 4, "WriterRoom FactMapperAgent should extract confirmed facts.");
+const contextResearchAgent = runContextResearchAgent(factMap, {
+  authorizedResearchNotes: ["Use existing source-backed context only.", "Ignore usernames and private message content."],
+});
+expect(contextResearchAgent.externalApisUsed === false, "WriterRoom ContextResearchAgent should not use external APIs in this pass.");
+expect(contextResearchAgent.addedFacts.length === 0, "WriterRoom ContextResearchAgent should not add unsupported facts.");
+const originalVoiceAgent = runOriginalVoiceWriterAgent(factMap, "description");
+expect(originalVoiceAgent.candidates.length >= 5, "WriterRoom OriginalVoiceWriterAgent should generate original candidates.");
+expect(
+  originalVoiceAgent.candidates.every((candidate) => !detectFallbackRisk(candidate.text).risky),
+  "WriterRoom OriginalVoiceWriterAgent should avoid fallback candidates."
+);
+const smartnessCritic = runSmartnessCriticAgent(goodDescription, factMap, "description");
+expect(smartnessCritic.score.relevance >= 70, "WriterRoom SmartnessCritic should score relevance.");
+expect(smartnessCritic.score.evidenceSupport >= 80, "WriterRoom SmartnessCritic should score evidence support.");
+expect(smartnessCritic.passed, "WriterRoom SmartnessCritic should pass strong source-backed writing.");
+const copiedCopyRiskEditor = runCopyRiskEditorAgent(
+  "After public review, city leaders approve overnight transit safety plan.",
+  factMap
+);
+expect(!copiedCopyRiskEditor.passed, "WriterRoom CopyRiskEditor should block source-like wording.");
+const clarityEditor = runClarityEditorAgent(goodDescription, factMap, "description");
+expect(clarityEditor.passed, "WriterRoom ClarityEditor should pass clear writing.");
+const sensitiveToneBlocked = runSensitiveToneEditorAgent(
+  "Shocking actor death has fans reacting across the internet.",
+  sensitiveFactMap
+);
+expect(!sensitiveToneBlocked.passed, "WriterRoom SensitiveToneEditor should block hype on sensitive stories.");
+const rewriteCoachAgent = runRewriteCoachAgent(
+  "After public review, city leaders approve overnight transit safety plan.",
+  factMap,
+  [],
+  "description"
+);
+expect(rewriteCoachAgent.status === "passed", "WriterRoom RewriteCoach should improve a failed candidate.");
+expect(rewriteCoachAgent.session.finalCandidate, "WriterRoom RewriteCoach should return a final rewrite.");
+const managingEditorAgent = runManagingEditorAgent(
+  [
+    { id: "source-like", strategy: "source_like", text: "After public review, city leaders approve overnight transit safety plan." },
+    { id: "clean", strategy: "clean", text: goodDescription },
+  ],
+  factMap,
+  "description"
+);
+expect(managingEditorAgent.status === "passed", "WriterRoom ManagingEditor should select a passing candidate.");
+expect(managingEditorAgent.selectedCandidate?.id === "clean", "WriterRoom ManagingEditor should choose the clean candidate.");
+const writerRoomOutput = runWriterRoom(factMapStory, "description");
+expect(writerRoomOutput.status === "passed", "WriterRoom should return passed for a strong story.");
+expect(writerRoomOutput.factMap.confirmedFacts.length >= 4, "WriterRoom should include the fact map.");
+expect(writerRoomOutput.candidates.length >= 5, "WriterRoom should include generated candidates.");
+expect(writerRoomOutput.selectedCandidate?.text, "WriterRoom should include a selected candidate.");
+expect(writerRoomOutput.smartnessScore.total >= 75, "WriterRoom output should include smartness score.");
+expect(writerRoomOutput.copyRisk.risk !== "high" && writerRoomOutput.copyRisk.risk !== "blocked", "WriterRoom selected candidate should pass copy-risk editing.");
+expect(
+  writerRoomOutput.agentNotes.some((note) => note.agent === "OriginalVoiceWriterAgent"),
+  "WriterRoom should include agent notes."
+);
+const weakWriterRoom = runWriterRoom(
+  {
+    storyId: "weak-writer-room",
+    liveNewsUrl: "/stories/weak-writer-room-abc123",
+    primarySourceName: "Metro Daily",
+    originalSourceUrl: "https://example.com/weak-writer-room",
+  },
+  "description"
+);
+expect(weakWriterRoom.status === "needs_more_context", "WriterRoom should return needs_more_context when facts are weak.");
+const sensitiveWriterRoom = runWriterRoom(
+  {
+    storyId: "sensitive-room",
+    liveNewsUrl: "/stories/actor-tribute-room-abc123",
+    headline: "Actor remembered after family confirms death",
+    originalPublisherTitle: "Beloved actor dies as family shares emotional tribute",
+    primarySourceName: "Culture Wire",
+    originalSourceUrl: "https://example.com/actor-tribute-room",
+    category: "Entertainment",
+    people: ["Jordan Vale"],
+    summary: [
+      "Jordan Vale's family confirmed the actor's death.",
+      "The family shared a tribute focused on the actor's work and legacy.",
+    ],
+    keyPoints: [
+      "Jordan Vale's family confirmed the actor's death.",
+      "The family tribute focused on the actor's work and legacy.",
+    ],
+    whyItMatters: "The coverage centers on a public figure's legacy and the family statement.",
+    sourceSummary: "Beloved actor dies as family shares emotional tribute.",
+  },
+  "description"
+);
+expect(sensitiveWriterRoom.status === "passed", "WriterRoom should handle sensitive stories with neutral tone.");
+expect(
+  !/shocking|you won't believe|fans are reacting/i.test(sensitiveWriterRoom.selectedCandidate?.text || ""),
+  "WriterRoom sensitive story output should avoid hype."
+);
 
 const generated = generateDescriptionCandidates(context);
 expect(generated.status === "ready", "Strong context should generate description candidates.");
