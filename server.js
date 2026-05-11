@@ -16,6 +16,7 @@ const {
 const { runArticleAgents } = require("./lib/article-agents/pipeline");
 const {
   FALLBACK_SUMMARY,
+  SUMMARY_AGENT_VERSION,
   applyLiveNewsSummariesToItems,
   applyLiveNewsSummariesToPayload,
   applyLiveNewsSummary,
@@ -32,8 +33,8 @@ const {
   renderPublicStoryPage,
   renderStoryNotFoundPage,
 } = require("./lib/article-agents/story-renderer");
-const { STORE_PATHS, readJson, saveAgentRun } = require("./lib/article-agents/store");
-const { cleanText } = require("./lib/article-agents/text-utils");
+const { STORE_PATHS, readJson, saveAgentRun, writeJson } = require("./lib/article-agents/store");
+const { cleanText, stableHash } = require("./lib/article-agents/text-utils");
 const {
   buildSocialPublisherRun,
   readSocialDraftStore,
@@ -1857,31 +1858,140 @@ function getUniqueCurrentNewsItems(payload = buildCurrentNewsPayload()) {
   });
 }
 
-function getSummaryReviewQueue(payload = buildCurrentNewsPayload()) {
-  return getUniqueCurrentNewsItems(payload)
-    .filter(
-      (item) =>
-        item.liveNewsSummary === FALLBACK_SUMMARY ||
-        item.summaryAgent?.supervisor?.status === "needs_editor_review"
-    )
-    .map((item) => ({
+const SUMMARY_REVIEW_DECISION_SCHEMA_VERSION = "live-news-summary-review-decisions-v1";
+const SUMMARY_REVIEW_VIEWS = new Set(["checked", "public", "rescued", "needs-review"]);
+
+function getSummaryDecisionKey(item = {}) {
+  return stableHash(
+    [
+      item.id,
+      item.link,
+      item.title,
+      item.sourceName,
+      item.publishedAt,
+    ]
+      .map(cleanText)
+      .join("|"),
+    18
+  );
+}
+
+function readSummaryReviewDecisionStore() {
+  const store = readJson(STORE_PATHS.summaryReviewDecisions, {
+    schemaVersion: SUMMARY_REVIEW_DECISION_SCHEMA_VERSION,
+    updatedAt: null,
+    decisions: [],
+  });
+  return {
+    schemaVersion: SUMMARY_REVIEW_DECISION_SCHEMA_VERSION,
+    updatedAt: store.updatedAt || null,
+    decisions: Array.isArray(store.decisions) ? store.decisions : [],
+  };
+}
+
+function saveSummaryReviewDecisionStore(store) {
+  writeJson(STORE_PATHS.summaryReviewDecisions, {
+    schemaVersion: SUMMARY_REVIEW_DECISION_SCHEMA_VERSION,
+    updatedAt: new Date().toISOString(),
+    decisions: Array.isArray(store.decisions) ? store.decisions : [],
+  });
+}
+
+function getSummaryDecisionMap(store = readSummaryReviewDecisionStore()) {
+  return new Map((store.decisions || []).map((decision) => [decision.key, decision]));
+}
+
+function describeSummaryFailure(code) {
+  const label = cleanText(code);
+  const descriptions = {
+    empty_summary: "Summary is empty.",
+    too_short: "Summary is shorter than the Live News 18-word minimum.",
+    too_long: "Summary is longer than the Live News 35-word maximum.",
+    robotic_opener: "Summary starts with robotic wording.",
+    vague_filler: "Summary uses vague filler instead of article-specific detail.",
+    database_language: "Summary sounds like metadata or database copy.",
+    grammar_guard: "Summary has grammar or clarity risk.",
+    fragmented_source_sentence: "Summary appears cut off or copied as a sentence fragment.",
+    dangling_punctuation: "Summary ends with dangling punctuation.",
+    too_close_to_rss: "Summary is too close to the RSS/source wording.",
+    repeats_title_exactly: "Summary repeats the headline instead of adding useful context.",
+    missing_feed_detail: "Summary does not include enough source-backed detail.",
+    same_first_3_to_5_words: "Nearby cards start the same way, creating repetition.",
+    same_sentence_pattern: "Nearby cards use the same sentence rhythm.",
+    repeated_phrase_nearby: "Nearby cards repeat the same phrase.",
+    style_memory_avoid_phrase: "Summary uses a phrase the editor asked the system to avoid.",
+  };
+  return descriptions[label] || label.replace(/_/g, " ");
+}
+
+function buildSummaryReviewReasons(item) {
+  const reasons = [];
+  const failures = [
+    ...(item.summaryAgent?.supervisor?.failures || []),
+    ...(item.summaryAgent?.failures || []),
+  ].map(cleanText).filter(Boolean);
+  if (item.liveNewsSummary === FALLBACK_SUMMARY) {
+    reasons.push("The public summary is the neutral fallback, so it needs editor attention before approval.");
+  }
+  if (item.summaryAgent?.supervisor?.status === "needs_editor_review") {
+    reasons.push("The summary supervisor marked this item for editor review.");
+  }
+  if (item.summaryAgent?.supervisor?.status === "rescued") {
+    reasons.push("The teacher layer rescued a weak draft and produced a safer summary.");
+  }
+  for (const failure of failures) reasons.push(describeSummaryFailure(failure));
+  if (!item.summaryResearch?.facts?.length) {
+    reasons.push("No extra source-page research facts are attached yet.");
+  }
+  return [...new Set(reasons)].filter(Boolean);
+}
+
+function getSummaryReviewItems(payload = buildCurrentNewsPayload()) {
+  const decisionMap = getSummaryDecisionMap();
+  return getUniqueCurrentNewsItems(payload).map((item) => {
+    const key = getSummaryDecisionKey(item);
+    const decision = decisionMap.get(key) || null;
+    const currentSummary = cleanText(item.liveNewsSummary || "");
+    const supervisorStatus = cleanText(item.summaryAgent?.supervisor?.status || "");
+    const isFallback = currentSummary === FALLBACK_SUMMARY;
+    const hasPublicSummary = Boolean(currentSummary && !isFallback);
+    const needsReviewRaw = isFallback || supervisorStatus === "needs_editor_review";
+    const decisionAction = cleanText(decision?.action || "");
+    const removedFromReview = decisionAction === "deleted";
+    const editorPublished = decisionAction === "published" && hasPublicSummary;
+    const needsReview = needsReviewRaw && !removedFromReview && !editorPublished;
+    return {
+      key,
       id: item.id,
       title: item.title,
       sourceName: item.sourceName,
       category: item.category,
       publishedAt: item.publishedAt,
       link: item.link,
-      currentSummary: item.liveNewsSummary,
+      currentSummary,
       rawSummary: item.summary || "",
       failures: item.summaryAgent?.supervisor?.failures || item.summaryAgent?.failures || [],
       supervisor: item.summaryAgent?.supervisor || {},
+      summaryAgentVersion: item.summaryAgent?.version || "",
+      checked: item.summaryAgent?.version === SUMMARY_AGENT_VERSION,
+      hasPublicSummary,
+      rescued: supervisorStatus === "rescued",
+      needsReview,
+      needsReviewRaw,
+      decision,
+      reasons: buildSummaryReviewReasons(item),
       research: {
         status: item.summaryResearch?.status || "missing",
         facts: item.summaryResearch?.facts || [],
         stages: item.summaryResearch?.stages || [],
         sourceUrl: item.summaryResearch?.sourceUrl || "",
       },
-    }));
+    };
+  });
+}
+
+function getSummaryReviewQueue(payload = buildCurrentNewsPayload()) {
+  return getSummaryReviewItems(payload).filter((item) => item.needsReview);
 }
 
 function requireSummaryAdmin(req, res, next) {
@@ -1894,25 +2004,138 @@ function requireSummaryAdmin(req, res, next) {
   return next();
 }
 
-function renderSummaryReviewPage(payload = buildCurrentNewsPayload()) {
+function buildSummaryReviewUrl(req, params = {}) {
+  const query = new URLSearchParams();
+  const key = cleanText(req?.query?.key || "");
+  if (key) query.set("key", key);
+  for (const [name, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") query.set(name, value);
+  }
+  const text = query.toString();
+  return `/admin/summaries${text ? `?${text}` : ""}`;
+}
+
+function filterSummaryReviewItems(items, view) {
+  if (view === "checked") return items.filter((item) => item.checked);
+  if (view === "public") return items.filter((item) => item.hasPublicSummary);
+  if (view === "rescued") return items.filter((item) => item.rescued);
+  return items.filter((item) => item.needsReview);
+}
+
+function summaryViewReason(item, view) {
+  if (view === "checked") {
+    return item.checked
+      ? `Checked by ${item.summaryAgentVersion || "the Live News summary agent"}.`
+      : "This item has not been checked by the current summary agent.";
+  }
+  if (view === "public") {
+    return item.hasPublicSummary
+      ? "This item has a non-fallback Live News summary available for public display."
+      : "This item does not have a public-ready summary yet.";
+  }
+  if (view === "rescued") {
+    return item.rescued
+      ? "The teacher layer rescued this summary after a weak draft was detected."
+      : "This item was not rescued by the teacher layer.";
+  }
+  return item.reasons.join(" ") || "This summary needs editor review.";
+}
+
+function recordSummaryReviewDecision({ key, action, item }) {
+  const normalizedAction = cleanText(action);
+  if (!["published", "deleted"].includes(normalizedAction)) {
+    const error = new Error("Summary decision action must be publish or delete.");
+    error.status = 400;
+    throw error;
+  }
+  if (normalizedAction === "published" && item.currentSummary === FALLBACK_SUMMARY) {
+    const error = new Error("Fallback summaries cannot be published. Delete/remove it from review or wait for a stronger summary.");
+    error.status = 422;
+    throw error;
+  }
+  const store = readSummaryReviewDecisionStore();
+  const decision = {
+    key,
+    action: normalizedAction,
+    decidedAt: new Date().toISOString(),
+    title: cleanText(item.title),
+    sourceName: cleanText(item.sourceName),
+    category: cleanText(item.category),
+    currentSummary: cleanText(item.currentSummary),
+    reasons: item.reasons || [],
+    storesPrivateData: false,
+    note: normalizedAction === "published"
+      ? "Editor approved the current non-fallback summary for public use."
+      : "Editor removed this item from the private summary review queue.",
+  };
+  const decisions = [
+    decision,
+    ...(store.decisions || []).filter((existing) => existing.key !== key),
+  ].slice(0, 500);
+  saveSummaryReviewDecisionStore({ ...store, decisions });
+  return decision;
+}
+
+function renderSummaryReviewPage(payload = buildCurrentNewsPayload(), req = null) {
+  const items = getSummaryReviewItems(payload);
+  const view = SUMMARY_REVIEW_VIEWS.has(cleanText(req?.query?.view)) ? cleanText(req.query.view) : "needs-review";
+  const selectedItems = filterSummaryReviewItems(items, view);
   const queue = getSummaryReviewQueue(payload);
   const health = payload.summaryHealth || {};
-  const rows = queue
+  const notice = cleanText(req?.query?.saved || req?.query?.error || "");
+  const noticeClass = req?.query?.error ? "fail" : "ok";
+  const viewLabels = {
+    checked: "Checked summaries",
+    public: "Public summaries",
+    rescued: "Teacher rescues",
+    "needs-review": "Needs review",
+  };
+  const metricLink = (targetView, count, label) => `
+    <a class="metric ${view === targetView ? "active" : ""}" href="${escapeHtml(buildSummaryReviewUrl(req, { view: targetView }))}">
+      <strong>${Number(count || 0)}</strong>
+      <span>${escapeHtml(label)}</span>
+    </a>`;
+  const rows = selectedItems
     .slice(0, 120)
     .map((item) => {
       const facts = (item.research.facts || [])
         .slice(0, 3)
         .map((fact) => `<li>${escapeHtml(fact)}</li>`)
         .join("");
-      const failures = (item.failures || []).map((failure) => escapeHtml(failure)).join(", ") || "Needs review";
+      const reasons = (item.reasons || [])
+        .map((reason) => `<li>${escapeHtml(reason)}</li>`)
+        .join("");
+      const viewReason = summaryViewReason(item, view);
+      const decisionNote = item.decision
+        ? `<p><strong>Editor decision:</strong> ${escapeHtml(item.decision.action)} • ${escapeHtml(item.decision.decidedAt || "")}</p>`
+        : "";
+      const actionForms = view === "needs-review"
+        ? `
+          <div class="summary-actions">
+            <form method="post" action="${escapeHtml(buildSummaryReviewUrl(req, {}).replace("/admin/summaries", "/admin/summaries/decision"))}">
+              <input type="hidden" name="key" value="${escapeHtml(item.key)}" />
+              <input type="hidden" name="action" value="published" />
+              <button type="submit" ${item.currentSummary === FALLBACK_SUMMARY ? "disabled" : ""}>Publish current summary</button>
+              ${item.currentSummary === FALLBACK_SUMMARY ? "<small>Fallback summaries stay blocked from publishing.</small>" : ""}
+            </form>
+            <form method="post" action="${escapeHtml(buildSummaryReviewUrl(req, {}).replace("/admin/summaries", "/admin/summaries/decision"))}">
+              <input type="hidden" name="key" value="${escapeHtml(item.key)}" />
+              <input type="hidden" name="action" value="deleted" />
+              <button class="danger" type="submit">Delete from review</button>
+            </form>
+          </div>`
+        : "";
       return `
         <article class="admin-review-card">
           <p class="eyebrow">${escapeHtml(item.category || "Story")} • ${escapeHtml(item.sourceName || "Source")}</p>
           <h2><a href="${escapeHtml(item.link || "#")}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || "Untitled story")}</a></h2>
           <p><strong>Current public summary:</strong> ${escapeHtml(item.currentSummary || "")}</p>
-          <p><strong>Why flagged:</strong> ${failures}</p>
+          <p><strong>Why this is in ${escapeHtml(viewLabels[view])}:</strong> ${escapeHtml(viewReason)}</p>
+          ${reasons ? `<div class="reason-box"><strong>Specific reasons</strong><ul>${reasons}</ul></div>` : ""}
           <p><strong>Research status:</strong> ${escapeHtml(item.research.status)}</p>
           ${facts ? `<ul>${facts}</ul>` : `<p>No usable research facts captured yet.</p>`}
+          ${decisionNote}
+          ${actionForms}
         </article>
       `;
     })
@@ -1930,12 +2153,25 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload()) {
     main { max-width: 1120px; margin: 0 auto; padding: 32px 18px; }
     .panel, .admin-review-card { background: #fff; border: 1px solid #c8d6e6; border-radius: 18px; padding: 18px; margin: 0 0 16px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-    .metric { background: #f6f8fb; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; }
+    .metric { display: block; color: inherit; text-decoration: none; background: #f6f8fb; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; transition: transform .15s ease, border-color .15s ease, background .15s ease; }
+    .metric:hover, .metric.active { transform: translateY(-1px); border-color: #8fb0cf; background: #eef6fd; }
     .metric strong { display: block; font-size: 1.65rem; }
     h1, h2, p { margin-top: 0; }
     h2 { font-size: 1.15rem; }
     a { color: #0b5f8f; }
     .eyebrow { color: #5b708b; font-size: 0.78rem; letter-spacing: .08em; text-transform: uppercase; }
+    .notice.ok { background: #e8f5ee; border: 1px solid #bad8c6; color: #24573d; }
+    .notice.fail { background: #fff1f1; border: 1px solid #f2c2c2; color: #782828; }
+    .notice { border-radius: 14px; padding: 12px; margin: 12px 0; }
+    .view-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; margin: 16px 0; }
+    .view-heading h2 { margin: 0; font-size: 1.45rem; }
+    .reason-box { background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; margin: 12px 0; }
+    .summary-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-top: 1px solid #e1e9f2; padding-top: 12px; margin-top: 12px; }
+    .summary-actions form { display: flex; gap: 8px; align-items: center; margin: 0; }
+    button { border: 1px solid #9eb6d0; background: #0f4d75; color: #fff; border-radius: 999px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    button.danger { background: #fff1f1; color: #782828; border-color: #e6b7b7; }
+    small { color: #5b708b; }
   </style>
 </head>
 <body>
@@ -1944,14 +2180,19 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload()) {
       <p class="eyebrow">Private editor dashboard</p>
       <h1>Live News Summary Review</h1>
       <p>This page is private, noindex, and only available with the editor key. It is not linked from public navigation or the sitemap.</p>
+      ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
       <div class="grid">
-        <div class="metric"><strong>${Number(health.checkedCount || 0)}</strong> checked</div>
-        <div class="metric"><strong>${Number(health.humanSummaryCount || 0)}</strong> public summaries</div>
-        <div class="metric"><strong>${Number(health.supervisedCount || 0)}</strong> teacher rescues</div>
-        <div class="metric"><strong>${queue.length}</strong> needs review</div>
+        ${metricLink("checked", health.checkedCount, "checked")}
+        ${metricLink("public", health.humanSummaryCount, "public summaries")}
+        ${metricLink("rescued", health.supervisedCount, "teacher rescues")}
+        ${metricLink("needs-review", queue.length, "needs review")}
       </div>
     </section>
-    ${rows || '<section class="panel"><h2>No summary review items right now.</h2></section>'}
+    <div class="view-heading">
+      <h2>${escapeHtml(viewLabels[view])}</h2>
+      <p>${Number(selectedItems.length)} item${selectedItems.length === 1 ? "" : "s"}</p>
+    </div>
+    ${rows || `<section class="panel"><h2>No ${escapeHtml(viewLabels[view].toLowerCase())} items right now.</h2></section>`}
   </main>
 </body>
 </html>`;
@@ -4029,7 +4270,45 @@ app.get(["/about", "/editorial-policy", "/privacy", "/terms", "/data-deletion", 
 });
 
 app.get("/admin/summaries", requireSummaryAdmin, (req, res) => {
-  res.type("html").send(renderSummaryReviewPage());
+  res.type("html").send(renderSummaryReviewPage(buildCurrentNewsPayload(), req));
+});
+
+app.post("/admin/summaries/decision", requireSummaryAdmin, (req, res) => {
+  const payload = buildCurrentNewsPayload();
+  const key = cleanText(req.body?.key || "");
+  const action = cleanText(req.body?.action || "");
+  const view = action === "deleted" || action === "published" ? "needs-review" : cleanText(req.query.view || "needs-review");
+  try {
+    const item = getSummaryReviewItems(payload).find((entry) => entry.key === key);
+    if (!item) {
+      return res.redirect(
+        303,
+        buildSummaryReviewUrl(req, {
+          view,
+          error: "Summary item was not found in the current review queue.",
+        })
+      );
+    }
+    const decision = recordSummaryReviewDecision({ key, action, item });
+    return res.redirect(
+      303,
+      buildSummaryReviewUrl(req, {
+        view,
+        saved:
+          decision.action === "published"
+            ? "Summary approved for public use."
+            : "Summary removed from the private review list.",
+      })
+    );
+  } catch (error) {
+    return res.redirect(
+      303,
+      buildSummaryReviewUrl(req, {
+        view,
+        error: error.message || "Summary decision could not be saved.",
+      })
+    );
+  }
 });
 
 app.get("/api/internal/summary-review", requireSummaryAdmin, (req, res) => {

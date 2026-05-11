@@ -449,6 +449,12 @@ expect(serverJs.includes("feedCandidates") && serverJs.includes("topStoryKeys"),
 expect(serverJs.includes("requireSummaryAdmin"), "Summary review routes should require private editor authentication.");
 expect(serverJs.includes("X-Robots-Tag"), "Private summary review pages should send noindex headers.");
 expect(!serverJs.includes('SITEMAP_STABLE_PAGES.push("/admin/summaries")'), "Private summary review pages should not be added to the sitemap.");
+expect(serverJs.includes("buildSummaryReviewUrl"), "Summary review metric cards should link to filtered private review pages.");
+expect(serverJs.includes('app.post("/admin/summaries/decision"'), "Summary review page should support private publish/delete decisions.");
+expect(serverJs.includes("recordSummaryReviewDecision"), "Summary review decisions should be saved in a private store.");
+expect(serverJs.includes("Fallback summaries cannot be published"), "Summary review should block publishing neutral fallback summaries.");
+expect(serverJs.includes("Why this is in"), "Filtered summary pages should explain why each item appears in its selected view.");
+expect(serverJs.includes("Delete from review"), "Needs-review summaries should include a delete/remove option.");
 
 const payload = {
   topStories: [samples[0]],
