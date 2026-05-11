@@ -24,6 +24,17 @@ const {
   summarizeFactMapForWriter,
   validateFactMap,
 } = require("../lib/article-agents/source-fact-map");
+const {
+  explainOriginalWritingChoice,
+  generateOriginalDekCandidates,
+  generateOriginalDescriptionCandidates,
+  generateOriginalSeoDescriptionCandidates,
+  generateOriginalSocialContextCandidates,
+  generateOriginalSummaryCandidates,
+  generateOriginalTitleCandidates,
+  generateOriginalWhyItMattersCandidates,
+  selectOriginalWritingCandidate,
+} = require("../lib/article-agents/original-writer");
 
 const failures = [];
 
@@ -165,6 +176,90 @@ const originalFactComparison = compareCandidateToFactMap(
 );
 expect(originalFactComparison.storyFocusScore >= 70, "Original fact-map writing should remain story-focused.");
 expect(!originalFactComparison.copyRisk.risk, "Original fact-map writing should avoid copy-risk flags.");
+
+const originalDescriptions = generateOriginalDescriptionCandidates(factMap);
+expect(originalDescriptions.status === "ready", "Original Writer should generate ready description candidates from a strong fact map.");
+expect(originalDescriptions.candidates.length >= 5, "Original Writer should generate at least 5 description candidates from a strong fact map.");
+expect(
+  originalDescriptions.candidates.every((candidate) => candidate.factsUsed.length > 0),
+  "Original Writer candidates should use confirmed facts."
+);
+expect(
+  originalDescriptions.candidates.every((candidate) => candidate.text !== factMap.originalPublisherTitle),
+  "Original Writer should not copy the publisher title exactly."
+);
+expect(
+  originalDescriptions.candidates.some((candidate) => candidate.text !== factMap.sourceSummary && !candidate.text.includes(factMap.sourceSummary)),
+  "Original Writer should change sentence structure from the source summary."
+);
+expect(
+  originalDescriptions.candidates.every((candidate) => !detectFallbackRisk(candidate.text).risky),
+  "Original Writer candidates should avoid generic fallback text."
+);
+const selectedOriginalDescription = selectOriginalWritingCandidate(originalDescriptions, factMap, "description");
+expect(selectedOriginalDescription.status === "selected", "Original Writer should select a passing description candidate.");
+expect(selectedOriginalDescription.selected?.status === "passed", "Best Original Writer candidate should pass.");
+expect(
+  selectedOriginalDescription.selected?.teacherChecks.some((teacher) => teacher.name === "StoryFocusTeacher" && teacher.passed),
+  "Original Writer candidate should pass StoryFocusTeacher when context is strong."
+);
+expect(
+  selectedOriginalDescription.selected?.teacherChecks.some((teacher) => teacher.name === "CopyRiskTeacher" && teacher.passed),
+  "Original Writer candidate should pass CopyRiskTeacher when sufficiently original."
+);
+expect(
+  explainOriginalWritingChoice(selectedOriginalDescription.selected, factMap, "description").includes("Writing score"),
+  "Original Writer should explain why a candidate was selected."
+);
+expect(generateOriginalTitleCandidates(factMap).candidates.length >= 5, "Original Writer should generate title candidates.");
+expect(generateOriginalDekCandidates(factMap).candidates.length >= 5, "Original Writer should generate dek candidates.");
+expect(generateOriginalSummaryCandidates(factMap).candidates.length >= 5, "Original Writer should generate summary candidates.");
+expect(generateOriginalWhyItMattersCandidates(factMap).candidates.length >= 5, "Original Writer should generate why-it-matters candidates.");
+expect(generateOriginalSeoDescriptionCandidates(factMap).candidates.length >= 5, "Original Writer should generate SEO description candidates.");
+expect(generateOriginalSocialContextCandidates(factMap).candidates.length >= 5, "Original Writer should generate social-ready context candidates.");
+const unsupportedOriginalSelection = selectOriginalWritingCandidate(
+  [{ id: "unsupported", strategy: "unsupported", text: "The transit plan will cut taxes for every family and end city delays." }],
+  factMap,
+  "description"
+);
+expect(
+  unsupportedOriginalSelection.candidates[0]?.status === "blocked",
+  "Original Writer should block unsupported facts."
+);
+const sensitiveFactMap = buildSourceFactMap({
+  storyId: "sensitive-original-writer",
+  liveNewsUrl: "/stories/actor-tribute-family-statement-abc123",
+  headline: "Actor remembered after family confirms death",
+  originalPublisherTitle: "Beloved actor dies as family shares emotional tribute",
+  primarySourceName: "Culture Wire",
+  originalSourceUrl: "https://example.com/actor-tribute",
+  category: "Entertainment",
+  people: ["Jordan Vale"],
+  summary: [
+    "Jordan Vale's family confirmed the actor's death.",
+    "The family shared a tribute focused on the actor's work and legacy.",
+  ],
+  keyPoints: [
+    "Jordan Vale's family confirmed the actor's death.",
+    "The family tribute focused on the actor's work and legacy.",
+  ],
+  whyItMatters: "The coverage centers on a public figure's legacy and the family statement.",
+  sourceSummary: "Beloved actor dies as family shares emotional tribute.",
+});
+const sensitiveCandidates = generateOriginalDescriptionCandidates(sensitiveFactMap);
+const neutralSensitive = sensitiveCandidates.candidates.find((candidate) => candidate.strategy === "neutral_sensitive");
+expect(neutralSensitive, "Original Writer should create a neutral_sensitive candidate for sensitive stories.");
+expect(!/shocking|you won't believe|fans are reacting/i.test(neutralSensitive.text), "Sensitive Original Writer candidate should stay neutral.");
+
+const weakFactMapForOriginalWriter = buildSourceFactMap({
+  storyId: "weak-original-writer",
+  liveNewsUrl: "/stories/weak-original-writer-abc123",
+  primarySourceName: "Metro Daily",
+  originalSourceUrl: "https://example.com/weak-original-writer",
+});
+const weakOriginalDescriptions = generateOriginalDescriptionCandidates(weakFactMapForOriginalWriter);
+expect(weakOriginalDescriptions.status === "needs_more_context", "Original Writer should return needs_more_context when fact map is weak.");
+expect(weakOriginalDescriptions.candidates.length === 0, "Original Writer should not create filler candidates from weak context.");
 
 const missingMainEvent = buildArticleWritingContext({
   storyId: "missing-main",
