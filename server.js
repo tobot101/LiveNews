@@ -57,6 +57,7 @@ const {
   buildDraftWithEditorWritingEdits,
   renderStoryWritingQualityPanel,
 } = require("./lib/article-agents/story-approval-dashboard");
+const { readWritingMemoryStore } = require("./lib/article-agents/writing-memory");
 const {
   readSocialPerformanceMemory,
   recordManualPostPerformance,
@@ -2627,6 +2628,7 @@ function buildManualPerformanceInput(req) {
     category: req.body?.category,
     captionShape: req.body?.captionShape,
     mediaShape: req.body?.mediaShape,
+    writingShape: req.body?.writingShape,
     postType: req.body?.postType,
     editorNotes: req.body?.editorNotes,
     metrics: {
@@ -2664,6 +2666,7 @@ function buildPublicSignalInput(req) {
 
 function renderPerformanceMemoryPage(req) {
   const store = readSocialPerformanceMemory();
+  const writingMemory = readWritingMemoryStore();
   const summary = summarizePerformanceMemory(store);
   const trendSelections = buildCurrentNewsPayload().trendSelections || cache.trendSelections || {};
   const notice = cleanText(req.query.saved || req.query.error || req.query.refreshed || "");
@@ -2698,6 +2701,20 @@ function renderPerformanceMemoryPage(req) {
         </article>`
     )
     .join("");
+  const writingLessons = (writingMemory.records || [])
+    .slice(0, 8)
+    .map(
+      (record) => `
+        <article class="memory-card">
+          <div class="memory-card-top">
+            <span class="pill">${escapeHtml(record.fieldName || "writing")}</span>
+            <span class="status ready">${escapeHtml(record.category || "Live News")}</span>
+          </div>
+          <h2>${escapeHtml(record.writingShape || "approved writing lesson")}</h2>
+          <p>${escapeHtml(record.lesson || "")}</p>
+        </article>`
+    )
+    .join("");
   const posts = (store.manualPosts || [])
     .slice(0, 8)
     .map(
@@ -2705,7 +2722,7 @@ function renderPerformanceMemoryPage(req) {
         <li>
           <strong>${escapeHtml(post.platform)} • ${escapeHtml(post.category)}</strong>
           <span>${escapeHtml(post.exactArticleUrl)}</span>
-          <small>${escapeHtml(post.selectedVariant || "variant unknown")} • ${escapeHtml(post.metrics?.linkClicks || 0)} exact clicks • ${escapeHtml(post.metrics?.saves || 0)} saves • score ${escapeHtml(post.scores?.score || 0)}</small>
+          <small>${escapeHtml(post.selectedVariant || "variant unknown")} • ${escapeHtml(post.writingShape || "writing shape unknown")} • ${escapeHtml(post.metrics?.linkClicks || 0)} exact clicks • ${escapeHtml(post.metrics?.saves || 0)} saves • score ${escapeHtml(post.scores?.score || 0)}</small>
         </li>`
     )
     .join("");
@@ -2759,12 +2776,14 @@ function renderPerformanceMemoryPage(req) {
       <p class="pill">Private learning layer</p>
       <h1>Live News Performance Memory</h1>
       <p>This page records manual Instagram/Facebook results and trusted public-interest signals. It learns from aggregate patterns only: no usernames, private messages, comment text, tokens, cookies, or personal data.</p>
+      <p><strong>Blocked data:</strong> usernames, copied comments, private messages, personal profiles, individual identities, exact public comment text, real tokens, and private admin URLs are rejected or stripped before storage.</p>
       ${notice ? `<div class="notice ${noticeClass}">${escapeHtml(notice)}</div>` : ""}
       <div class="grid">
         <div class="metric"><strong>${summary.postCount}</strong> manual posts</div>
         <div class="metric"><strong>${summary.publicSignalCount}</strong> public signals</div>
         <div class="metric"><strong>${summary.totals.linkClicks}</strong> exact clicks</div>
-        <div class="metric"><strong>${summary.lessonCount}</strong> lessons</div>
+        <div class="metric"><strong>${summary.lessonCount}</strong> performance lessons</div>
+        <div class="metric"><strong>${writingMemory.records?.length || 0}</strong> writing lessons</div>
       </div>
       <p><a href="${escapeHtml(buildAdminUrl(req, "/admin/social"))}">Social Publisher</a> • <a href="${escapeHtml(buildAdminUrl(req, "/admin/meta"))}">Meta readiness</a></p>
     </section>
@@ -2789,6 +2808,7 @@ function renderPerformanceMemoryPage(req) {
 	          <label>Category<input name="category" placeholder="local, national, sports..." /></label>
 	          <label>Caption shape<input name="captionShape" placeholder="title_first, context_first..." /></label>
 	          <label>Media shape<input name="mediaShape" placeholder="square_card, reel, carousel..." /></label>
+	          <label>Writing shape<input name="writingShape" placeholder="specific_event_plus_context..." /></label>
           ${metricInput("reach", "Reach")}
           ${metricInput("views", "Views")}
           ${metricInput("likes", "Likes")}
@@ -2828,6 +2848,12 @@ function renderPerformanceMemoryPage(req) {
         <p><button type="submit">Refresh lessons into Social Style Memory</button></p>
       </form>
       <section class="memory-grid">${lessons || '<article class="memory-card"><h2>No lessons yet.</h2><p>Record a manual post or public signal to begin learning.</p></article>'}</section>
+    </section>
+
+    <section class="panel">
+      <h2>Approved writing lessons</h2>
+      <p>These come only from editor-approved writing corrections. They can guide future drafts, but the system must not copy the lesson text into public captions.</p>
+      <section class="memory-grid">${writingLessons || '<article class="memory-card"><h2>No approved writing lessons yet.</h2><p>Approve edited story wording to build this memory safely.</p></article>'}</section>
     </section>
 
     <section class="memory-grid">

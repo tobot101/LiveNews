@@ -21,6 +21,7 @@ const manualResult = addManualPostPerformance(store, {
   category: "local",
   captionShape: "context_first",
   mediaShape: "square_card",
+  writingShape: "specific_event_plus_context",
   editorNotes: "Good aggregate exact-click result. Do not store @privatehandle or quoted comment text.",
   metrics: {
     reach: 1000,
@@ -49,15 +50,46 @@ if (manualResult.record.scores.clickThroughRate <= 0) {
 if (
   manualResult.record.articleId !== "city-council-transit-safety-test" ||
   manualResult.record.selectedVariant !== "readerImpact" ||
+  manualResult.record.writingShape !== "specific_event_plus_context" ||
   manualResult.record.commentsCount !== 8 ||
   manualResult.record.metrics.commentsCount !== 8
 ) {
-  failures.push("Manual performance should store article ID, selected variant, and aggregate metrics.");
+  failures.push("Manual performance should store article ID, selected variant, writing shape, and aggregate metrics.");
 }
 
 if (/@privatehandle|quoted comment text/i.test(manualResult.record.editorNotes)) {
   failures.push("Editor notes should strip usernames and exact comment-style text.");
 }
+
+if (!manualResult.record.blockedData?.removed?.includes("username_or_handle")) {
+  failures.push("Manual performance should record only the safe category of removed username data.");
+}
+
+const localFallback = addManualPostPerformance(store, {
+  platform: "instagram",
+  exactArticleUrl: "https://newsmorenow.com/stories/local-fallback-summary-test",
+  articleId: "local-fallback-summary-test",
+  postingTime: "2026-05-08T18:30:00.000Z",
+  selectedVariant: "sourceFirst",
+  category: "local",
+  captionShape: "generic_title_based",
+  mediaShape: "square_card",
+  writingShape: "fallback_style_summary",
+  metrics: {
+    reach: 950,
+    views: 960,
+    likes: 12,
+    commentsCount: 1,
+    shares: 1,
+    saves: 2,
+    linkClicks: 4,
+    profileVisits: 0,
+    follows: 0,
+    hides: 2,
+    reports: 0,
+  },
+});
+store = localFallback.store;
 
 const sportsMatchup = addManualPostPerformance(store, {
   platform: "facebook",
@@ -68,6 +100,7 @@ const sportsMatchup = addManualPostPerformance(store, {
   category: "sports",
   captionShape: "clear_player_matchup_first_sentence",
   mediaShape: "link_preview",
+  writingShape: "matchup_or_event_significance",
   metrics: {
     reach: 2200,
     views: 2300,
@@ -93,6 +126,7 @@ const sportsGeneric = addManualPostPerformance(store, {
   category: "sports",
   captionShape: "generic_title_based",
   mediaShape: "link_preview",
+  writingShape: "generic_fallback",
   metrics: {
     reach: 2100,
     views: 2150,
@@ -126,7 +160,7 @@ if (!signalResult.signal.privacy.aggregatePublicSignal || signalResult.signal.pr
 }
 
 const summary = summarizePerformanceMemory(store);
-if (summary.postCount !== 3 || summary.publicSignalCount !== 1) {
+if (summary.postCount !== 4 || summary.publicSignalCount !== 1) {
   failures.push("Performance summary should include manual posts and public-interest signals.");
 }
 
@@ -145,6 +179,10 @@ if (!summary.strongestLessons.some((lesson) => /exact Live News article|public i
   failures.push("Performance memory should produce useful teacher lessons.");
 }
 
+if (!summary.strongestLessons.some((lesson) => /specific event plus context|writing performed better/i.test(lesson.lesson))) {
+  failures.push("Performance memory should produce safe writing-shape lessons from aggregate metrics.");
+}
+
 const styleMemory = syncSocialStyleMemoryWithPerformance(store, DEFAULT_SOCIAL_STYLE_MEMORY);
 if (!styleMemory.performanceLessons?.length) {
   failures.push("Performance lessons should sync into Social Style Memory.");
@@ -153,6 +191,10 @@ if (!styleMemory.performanceLessons?.length) {
 const futureHooks = buildSocialLearningHooks({ category: "sports" }, styleMemory);
 if (!futureHooks.safePerformanceLessons?.length) {
   failures.push("Future caption context should be able to read safe performance lessons.");
+}
+
+if (!futureHooks.safePerformanceLessons.some((lesson) => lesson.writingShape)) {
+  failures.push("Future caption context should be able to read safe writing-shape lessons.");
 }
 
 if (/username|private message|copied comment|@\w/i.test(JSON.stringify(styleMemory.performanceLessons))) {
@@ -194,6 +236,15 @@ const unsafeExactComment = validateManualPerformanceInput({
 });
 if (unsafeExactComment.ok) {
   failures.push("Manual performance must reject exact public comment text.");
+}
+
+const unsafeAdminUrl = validateManualPerformanceInput({
+  platform: "facebook",
+  exactArticleUrl: "https://newsmorenow.com/stories/test",
+  manualPostUrl: "https://newsmorenow.com/admin/social?token=SHOULD_NOT_SAVE",
+});
+if (unsafeAdminUrl.ok) {
+  failures.push("Manual performance must reject private admin URLs or tokenized URLs.");
 }
 
 const unsafeSignal = validatePublicInterestSignal({
