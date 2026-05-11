@@ -15,6 +15,48 @@
     /\bshocking\b/i,
     /^top story:\s*/i,
   ];
+  const GOSSIP_BAIT_PATTERNS = [
+    /\bdrama alert\b/i,
+    /\bbombshell\b/i,
+    /\bspills? tea\b/i,
+    /\bclaps back\b/i,
+    /\bfans are saying\b/i,
+    /\binternet reacts\b/i,
+    /\bmeltdown\b/i,
+    /\bscandal\b/i,
+    /\bfeud\b/i,
+    /\bshades?\b/i,
+  ];
+  const RELATIONSHIP_CLAIM_PATTERNS = [
+    /\bsecret romance\b/i,
+    /\bromance rumors?\b/i,
+    /\blove triangle\b/i,
+    /\bcaught cheating\b/i,
+    /\bdating drama\b/i,
+    /\baffair\b/i,
+    /\bhookup\b/i,
+  ];
+  const SENSITIVE_ENTERTAINMENT_PATTERNS = [
+    /\balleged\b/i,
+    /\ballegation\b/i,
+    /\blawsuit\b/i,
+    /\blegal\b/i,
+    /\bcharged\b/i,
+    /\barrest\b/i,
+    /\bdied\b/i,
+    /\bdies\b/i,
+    /\bdead\b/i,
+    /\bobituary\b/i,
+    /\bmemorial\b/i,
+    /\btribute\b/i,
+  ];
+  const SENSATIONAL_SENSITIVE_PATTERNS = [
+    /\bshocking\b/i,
+    /\bbombshell\b/i,
+    /\bexplosive\b/i,
+    /\bscandalous\b/i,
+    /\bchaos\b/i,
+  ];
   const PUBLIC_SAFETY_TERMS = [
     "evacuation order",
     "shelter in place",
@@ -88,11 +130,32 @@
     return PUBLIC_SAFETY_TERMS.some((term) => text.includes(term));
   }
 
-  function detectPublicWritingRisk(text, item = {}) {
+  function isEntertainmentItem(item = {}) {
+    return (
+      item.category === "Entertainment" ||
+      item.entertainmentClassification?.isEntertainment === true ||
+      Boolean(item.entertainmentSubbeat) ||
+      Number(item.entertainmentConfidence || 0) >= 45
+    );
+  }
+
+  function detectPublicWritingRisk(text, item = {}, options = {}) {
     const value = cleanText(text);
     const risks = [];
     if (!value) risks.push("missing");
     if (GENERIC_FALLBACK_PATTERNS.some((pattern) => pattern.test(value))) risks.push("generic_fallback_or_robotic_phrase");
+    if (isEntertainmentItem(item)) {
+      if (GOSSIP_BAIT_PATTERNS.some((pattern) => pattern.test(value))) risks.push("gossip_bait");
+      if (RELATIONSHIP_CLAIM_PATTERNS.some((pattern) => pattern.test(value)) && !options.approved) {
+        risks.push("unsupported_relationship_claim");
+      }
+      if (
+        SENSITIVE_ENTERTAINMENT_PATTERNS.some((pattern) => pattern.test(value)) &&
+        SENSATIONAL_SENSITIVE_PATTERNS.some((pattern) => pattern.test(value))
+      ) {
+        risks.push("sensitive_entertainment_tone");
+      }
+    }
     if (/\bstay safe\b/i.test(value) && !isPublicSafetyRelevant(item)) risks.push("unsupported_public_safety_language");
     return { safe: risks.length === 0, risks };
   }
@@ -101,7 +164,7 @@
     for (const candidate of candidates) {
       const text = cleanText(candidate.value);
       if (!text) continue;
-      if (!detectPublicWritingRisk(text, item).safe) continue;
+      if (!detectPublicWritingRisk(text, item, { approved: Boolean(candidate.approved), source: candidate.source }).safe) continue;
       return { source: candidate.source, text, approved: Boolean(candidate.approved) };
     }
     return null;
@@ -146,11 +209,53 @@
     };
   }
 
+  function getSafeEntertainmentDisplayTitle(item = {}) {
+    return getSafeDisplayTitle(item);
+  }
+
+  function getSafeEntertainmentDisplaySummary(item = {}, maxLength = 210) {
+    return getSafeDisplaySummary(item, maxLength);
+  }
+
+  function getSafeEntertainmentCard(item = {}, maxLength = 210) {
+    const title = getSafeEntertainmentDisplayTitle(item);
+    const summary = getSafeEntertainmentDisplaySummary(item, maxLength);
+    const rawText = [
+      item.description,
+      item.summary,
+      item.liveNewsSummary,
+      item.sourceSummary,
+      item.rawSummary,
+    ].filter(Boolean).join(" ");
+    const rawRisk = rawText ? detectPublicWritingRisk(rawText, item) : { risks: [] };
+    const titleRisk = detectPublicWritingRisk(title, item, { approved: true });
+    const reasons = [];
+    if (!summary) reasons.push("safe_summary_missing");
+    if (rawRisk.risks.length) reasons.push(...rawRisk.risks.map((risk) => `blocked_${risk}`));
+    if (titleRisk.risks.length) reasons.push(...titleRisk.risks.map((risk) => `title_${risk}`));
+    const needsReview = reasons.length > 0 || !summary;
+    return {
+      title,
+      summary,
+      status: needsReview ? "needs_review" : "ready",
+      displayMode: summary ? "full" : "minimal",
+      isEntertainment: isEntertainmentItem(item),
+      subbeat: item.entertainmentSubbeat || item.entertainmentClassification?.subbeat || "general_entertainment",
+      label: item.entertainmentLabel || item.entertainmentClassification?.label || "General entertainment",
+      publicSafetyRelevant: isPublicSafetyRelevant(item),
+      reasons: Array.from(new Set(reasons)),
+    };
+  }
+
   window.LiveNewsPublicWriting = {
     detectPublicWritingRisk,
     getPublicCardWritingStatus,
+    getSafeEntertainmentCard,
+    getSafeEntertainmentDisplaySummary,
+    getSafeEntertainmentDisplayTitle,
     getSafeDisplaySummary,
     getSafeDisplayTitle,
+    isEntertainmentItem,
     isPublicSafetyRelevant,
   };
 })();

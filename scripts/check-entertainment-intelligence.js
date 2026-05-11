@@ -14,6 +14,10 @@ const {
   normalizeEntertainmentStory,
 } = require("../lib/entertainment-classifier");
 const {
+  detectPublicWritingRisk,
+  getSafeEntertainmentCard,
+  getSafeEntertainmentDisplaySummary,
+  getSafeEntertainmentDisplayTitle,
   getSafeDisplaySummary,
   getSafeDisplayTitle,
 } = require("../lib/public-card-writing");
@@ -135,6 +139,23 @@ if (!topCategoryEntertainmentStory.entertainmentClassification?.isEntertainment 
 }
 if (getSafeDisplayTitle(topCategoryEntertainmentStory) !== "Singer adds arena tour dates after album release") {
   fail("Entertainment cards should prefer the approved Live News headline over the raw publisher title.");
+}
+if (getSafeEntertainmentDisplayTitle(topCategoryEntertainmentStory) !== "Singer adds arena tour dates after album release") {
+  fail("Entertainment-safe display title should prefer liveNewsHeadline.");
+}
+const approvedDescriptionStory = normalizeEntertainmentStory({
+  category: "Top",
+  title: "Publisher title should not be the card focus",
+  liveNewsHeadline: "Actor joins a new streaming series",
+  approvedDescription: "The actor joined a streaming series, with the report focusing on the confirmed casting update.",
+  summary: "Read the original source for the full report.",
+});
+const approvedDescriptionCard = getSafeEntertainmentCard(approvedDescriptionStory, 180);
+if (approvedDescriptionCard.summary !== "The actor joined a streaming series, with the report focusing on the confirmed casting update.") {
+  fail("Entertainment card should prefer approved description over raw fallback summary.");
+}
+if (approvedDescriptionCard.displayMode !== "full") {
+  fail("Entertainment card with approved description should render as a full safe card.");
 }
 const approvedEntertainmentStory = normalizeEntertainmentStory({
   category: "Top",
@@ -261,6 +282,10 @@ const weakSummaryStory = normalizeEntertainmentStory({
 if (getSafeDisplaySummary(weakSummaryStory, 118)) {
   fail("Homepage Entertainment cards should block generic fallback summaries.");
 }
+const weakEntertainmentCard = getSafeEntertainmentCard(weakSummaryStory, 118);
+if (weakEntertainmentCard.status !== "needs_review" || weakEntertainmentCard.displayMode !== "minimal") {
+  fail("Weak Entertainment writing should be marked needs_review and reduced to a minimal card.");
+}
 [
   "This article discusses a film premiere.",
   "In a recent development, a singer released a song.",
@@ -268,6 +293,43 @@ if (getSafeDisplaySummary(weakSummaryStory, 118)) {
 ].forEach((weakText) => {
   if (getSafeDisplaySummary({ ...weakSummaryStory, liveNewsSummary: weakText }, 118)) {
     fail(`Entertainment public summary should block weak phrase: ${weakText}`);
+  }
+});
+[
+  "Drama alert: Actor spills tea on secret romance.",
+  "Bombshell feud rocks the cast after the finale.",
+].forEach((bait) => {
+  if (detectPublicWritingRisk(bait, weakSummaryStory).safe) {
+    fail(`Entertainment public writing should block gossip bait: ${bait}`);
+  }
+});
+if (detectPublicWritingRisk("Actor is in a secret romance with co-star.", weakSummaryStory).safe) {
+  fail("Entertainment writing should block unsupported relationship claims.");
+}
+const obituaryCard = getSafeEntertainmentCard(normalizeEntertainmentStory({
+  category: "Entertainment",
+  title: "Actor dies at 84",
+  liveNewsHeadline: "Actor dies at 84",
+  approvedDescription: "The actor died at 84, and the report looks back at the work audiences knew across film and television.",
+}), 180);
+if (obituaryCard.status !== "ready" || /shocking|bombshell/i.test(obituaryCard.summary)) {
+  fail("Entertainment obituary card should use neutral, respectful wording.");
+}
+const legalCard = getSafeEntertainmentCard(normalizeEntertainmentStory({
+  category: "Entertainment",
+  title: "Actor faces lawsuit over production dispute",
+  liveNewsHeadline: "Actor faces lawsuit over production dispute",
+  approvedDescription: "The lawsuit centers on a production dispute, with the report outlining the confirmed legal filing.",
+}), 180);
+if (legalCard.status !== "ready" || /drama alert|bombshell|scandal/i.test(legalCard.summary)) {
+  fail("Entertainment legal or allegation stories should use neutral wording.");
+}
+if (detectPublicWritingRisk("Stay safe while following the celebrity update.", weakSummaryStory).safe) {
+  fail("Entertainment cards should not force public safety language.");
+}
+["getSafeEntertainmentCard", "getSafeEntertainmentDisplayTitle", "getSafeEntertainmentDisplaySummary"].forEach((helper) => {
+  if (!appJs.includes(helper) || !categoryJs.includes(helper) || !serverJs.includes(helper)) {
+    fail(`Entertainment public surfaces should use shared helper: ${helper}`);
   }
 });
 if (/box_office|what_to_watch|entertainment_biz/.test(fs.readFileSync(path.join(__dirname, "..", "lib", "entertainment-classifier.js"), "utf8"))) {

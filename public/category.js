@@ -205,11 +205,13 @@ function renderResultCard(item) {
   const target = item.liveNewsUrl ? "" : ` target="_blank" rel="noopener noreferrer"`;
   const time = item.publishedAt ? formatTime(item.publishedAt) : "";
   const summary = getResultSummary(item);
+  const entertainmentCard = isEntertainmentCategoryItem(item) ? getEntertainmentCategoryCard(item) : null;
+  const statusAttr = entertainmentCard ? ` data-card-status="${escapeHtml(entertainmentCard.status)}"` : "";
   const liveAction = item.liveNewsUrl
     ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(item.liveNewsUrl)}">Open Live News page</a></div>`
     : "";
   return `
-    <article class="search-result-card">
+    <article class="search-result-card"${statusAttr}>
       ${buildCategoryVisual(item)}
       <div class="search-result-copy">
         <div class="story-eyebrow">
@@ -225,14 +227,30 @@ function renderResultCard(item) {
 }
 
 function getResultTitle(item) {
+  if (isEntertainmentCategoryItem(item)) {
+    return getEntertainmentCategoryCard(item).title;
+  }
   return window.LiveNewsPublicWriting?.getSafeDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story";
 }
 
 function getResultSummary(item) {
+  if (isEntertainmentCategoryItem(item)) {
+    return getEntertainmentCategoryCard(item).summary;
+  }
   if (window.LiveNewsPublicWriting?.getSafeDisplaySummary) {
     return window.LiveNewsPublicWriting.getSafeDisplaySummary(item, 210);
   }
   return item.liveNewsSummary || "";
+}
+
+function getEntertainmentCategoryCard(item) {
+  return window.LiveNewsPublicWriting?.getSafeEntertainmentCard?.(item, 210) || {
+    title: window.LiveNewsPublicWriting?.getSafeEntertainmentDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story",
+    summary: window.LiveNewsPublicWriting?.getSafeEntertainmentDisplaySummary?.(item, 210) || "",
+    status: "needs_review",
+    displayMode: "minimal",
+    reasons: ["safe_entertainment_card_helper_missing"],
+  };
 }
 
 function getResultCategoryLabel(item) {

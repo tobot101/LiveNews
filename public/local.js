@@ -528,6 +528,9 @@ function getPublishedDateBadge(item) {
 }
 
 function getDisplaySummary(item) {
+  if (isEntertainmentLocalItem(item)) {
+    return getEntertainmentLocalCard(item).summary;
+  }
   if (window.LiveNewsPublicWriting?.getSafeDisplaySummary) {
     return window.LiveNewsPublicWriting.getSafeDisplaySummary(item, 210);
   }
@@ -535,7 +538,29 @@ function getDisplaySummary(item) {
 }
 
 function getDisplayTitle(item) {
+  if (isEntertainmentLocalItem(item)) {
+    return getEntertainmentLocalCard(item).title;
+  }
   return window.LiveNewsPublicWriting?.getSafeDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story";
+}
+
+function getEntertainmentLocalCard(item) {
+  return window.LiveNewsPublicWriting?.getSafeEntertainmentCard?.(item, 210) || {
+    title: window.LiveNewsPublicWriting?.getSafeEntertainmentDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story",
+    summary: window.LiveNewsPublicWriting?.getSafeEntertainmentDisplaySummary?.(item, 210) || "",
+    status: "needs_review",
+    displayMode: "minimal",
+    reasons: ["safe_entertainment_card_helper_missing"],
+  };
+}
+
+function isEntertainmentLocalItem(item) {
+  return (
+    item?.category === "Entertainment" ||
+    item?.entertainmentClassification?.isEntertainment === true ||
+    Boolean(item?.entertainmentSubbeat) ||
+    Number(item?.entertainmentConfidence || 0) >= 45
+  );
 }
 
 function buildTitleLink(item, className = "") {

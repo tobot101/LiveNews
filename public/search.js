@@ -246,11 +246,13 @@ function renderResultCard(item) {
   const target = item.liveNewsUrl ? "" : ` target="_blank" rel="noopener noreferrer"`;
   const time = item.publishedAt ? formatTime(item.publishedAt) : "";
   const summary = getResultSummary(item);
+  const entertainmentCard = isEntertainmentResult(item) ? getEntertainmentSearchCard(item) : null;
+  const statusAttr = entertainmentCard ? ` data-card-status="${escapeHtml(entertainmentCard.status)}"` : "";
   const liveAction = item.liveNewsUrl
     ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(item.liveNewsUrl)}">Open Live News page</a></div>`
     : "";
   return `
-    <article class="search-result-card">
+    <article class="search-result-card"${statusAttr}>
       ${buildSearchVisual(item)}
       <div class="search-result-copy">
         <div class="story-eyebrow">
@@ -266,14 +268,39 @@ function renderResultCard(item) {
 }
 
 function getResultTitle(item) {
+  if (isEntertainmentResult(item)) {
+    return getEntertainmentSearchCard(item).title;
+  }
   return window.LiveNewsPublicWriting?.getSafeDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story";
 }
 
 function getResultSummary(item) {
+  if (isEntertainmentResult(item)) {
+    return getEntertainmentSearchCard(item).summary;
+  }
   if (window.LiveNewsPublicWriting?.getSafeDisplaySummary) {
     return window.LiveNewsPublicWriting.getSafeDisplaySummary(item, 210);
   }
   return item.liveNewsSummary || "";
+}
+
+function getEntertainmentSearchCard(item) {
+  return window.LiveNewsPublicWriting?.getSafeEntertainmentCard?.(item, 210) || {
+    title: window.LiveNewsPublicWriting?.getSafeEntertainmentDisplayTitle?.(item) || item.liveNewsHeadline || item.title || "Untitled story",
+    summary: window.LiveNewsPublicWriting?.getSafeEntertainmentDisplaySummary?.(item, 210) || "",
+    status: "needs_review",
+    displayMode: "minimal",
+    reasons: ["safe_entertainment_card_helper_missing"],
+  };
+}
+
+function isEntertainmentResult(item) {
+  return (
+    item?.category === "Entertainment" ||
+    item?.entertainmentClassification?.isEntertainment === true ||
+    Boolean(item?.entertainmentSubbeat) ||
+    Number(item?.entertainmentConfidence || 0) >= 45
+  );
 }
 
 function buildOriginalSourceLink(item) {

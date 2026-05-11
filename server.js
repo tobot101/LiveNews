@@ -49,6 +49,9 @@ const {
 } = require("./lib/social-variant-selections");
 const {
   getPublicCardWritingStatus,
+  getSafeEntertainmentCard,
+  getSafeEntertainmentDisplaySummary,
+  getSafeEntertainmentDisplayTitle,
   getSafeDisplaySummary,
   getSafeDisplayTitle,
 } = require("./lib/public-card-writing");
@@ -3496,22 +3499,15 @@ function getCrawlerEntertainmentLabel(item) {
 }
 
 function getSafeEntertainmentTitle(item) {
-  return getCrawlerTitle(item);
+  return getSafeEntertainmentDisplayTitle(item);
 }
 
 function getSafeEntertainmentSummary(item) {
-  return getCrawlerSummary(item);
+  return getSafeEntertainmentDisplaySummary(item, 260);
 }
 
 function getEntertainmentCardStatus(item) {
-  const title = getSafeEntertainmentTitle(item);
-  const summary = getSafeEntertainmentSummary(item);
-  return {
-    status: summary ? "ready" : title ? "title_only" : "needs_review",
-    isEntertainment: isEntertainmentStory(item),
-    subbeat: normalizeEntertainmentStory(item).entertainmentSubbeat || "",
-    label: getCrawlerEntertainmentLabel(item),
-  };
+  return getSafeEntertainmentCard(item, 260);
 }
 
 function renderCrawlerEntertainmentTitleLink(item, className = "") {
@@ -3980,6 +3976,7 @@ function serializeNewsResultItem(item, extra = {}) {
   const entertainmentItem = normalizeEntertainmentStory(item);
   const summary = summarizeSearchResult(item);
   const publicCardWritingStatus = getPublicCardWritingStatus(item);
+  const entertainmentCard = getSafeEntertainmentCard(entertainmentItem, 180);
   const title = getSafeDisplayTitle(item);
   return {
     id: item.id,
@@ -3988,6 +3985,8 @@ function serializeNewsResultItem(item, extra = {}) {
     summary,
     liveNewsSummary: summary,
     publicCardWritingStatus,
+    entertainmentCard,
+    entertainmentWritingStatus: entertainmentCard.status,
     category: item.category || "Top",
     sourceName: item.sourceName || item.source || "Source",
     sourceDomain: item.sourceDomain || getDomain(item.link || ""),
@@ -4037,6 +4036,9 @@ function getSearchText(item) {
 }
 
 function summarizeSearchResult(item) {
+  if (isEntertainmentStory(item)) {
+    return getSafeEntertainmentDisplaySummary(item, 180);
+  }
   return getSafeDisplaySummary(item, 180);
 }
 

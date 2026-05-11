@@ -1877,21 +1877,22 @@ function getEntertainmentLabel(item) {
 }
 
 function getSafeEntertainmentTitle(item) {
-  return getDisplayTitle(item);
+  return window.LiveNewsPublicWriting?.getSafeEntertainmentDisplayTitle?.(item) || getDisplayTitle(item);
 }
 
 function getSafeEntertainmentSummary(item, maxLength = 118) {
-  return getDisplaySummary(item, maxLength);
+  return window.LiveNewsPublicWriting?.getSafeEntertainmentDisplaySummary?.(item, maxLength) || getDisplaySummary(item, maxLength);
 }
 
 function getEntertainmentCardStatus(item) {
-  const title = getSafeEntertainmentTitle(item);
-  const summary = getSafeEntertainmentSummary(item);
-  return {
-    status: summary ? "ready" : title ? "title_only" : "needs_review",
+  return window.LiveNewsPublicWriting?.getSafeEntertainmentCard?.(item, 118) || {
+    title: getSafeEntertainmentTitle(item),
+    summary: getSafeEntertainmentSummary(item),
+    status: getSafeEntertainmentSummary(item) ? "ready" : "needs_review",
     isEntertainment: isEntertainmentStory(item),
     subbeat: item.entertainmentSubbeat || "",
     label: getEntertainmentLabel(item),
+    reasons: getSafeEntertainmentSummary(item) ? [] : ["safe_summary_missing"],
   };
 }
 
