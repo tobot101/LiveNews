@@ -5,6 +5,7 @@ const {
   applyLiveNewsSummariesToItems,
   applyLiveNewsSummariesToPayload,
   buildLiveNewsSummary,
+  buildSummarySuggestions,
   evaluateLiveNewsSummary,
   getSummaryHealth,
 } = require("../lib/article-agents/summary-agent");
@@ -453,6 +454,10 @@ expect(serverJs.includes("buildSummaryReviewUrl"), "Summary review metric cards 
 expect(serverJs.includes('app.post("/admin/summaries/decision"'), "Summary review page should support private publish/delete decisions.");
 expect(serverJs.includes("recordSummaryReviewDecision"), "Summary review decisions should be saved in a private store.");
 expect(serverJs.includes("Fallback summaries cannot be published"), "Summary review should block publishing neutral fallback summaries.");
+expect(serverJs.includes("buildSummarySuggestions"), "Needs-review summaries should show suggested summaries before publishing.");
+expect(serverJs.includes("Publish selected summary"), "Summary review should publish the editor-selected suggested summary.");
+expect(serverJs.includes("Choose a suggested summary that passed quality checks"), "Summary review should block unselected or failed suggestions.");
+expect(serverJs.includes("needs_more_source_context"), "Needs-review summaries should explain when no safe suggestion can be generated yet.");
 expect(serverJs.includes("Why this is in"), "Filtered summary pages should explain why each item appears in its selected view.");
 expect(serverJs.includes("Delete from review"), "Needs-review summaries should include a delete/remove option.");
 
@@ -559,6 +564,17 @@ const styleMemoryChecked = buildLiveNewsSummary(samples[0], {
 expect(
   styleMemoryChecked.evaluation.passed,
   "Summary generation should honor editable style-memory avoid phrases without failing safe candidates."
+);
+
+const suggestedSummaries = buildSummarySuggestions(samples[1], { limit: 4 });
+expect(suggestedSummaries.length >= 1, "Needs-review workflow should be able to generate suggested summaries.");
+expect(
+  suggestedSummaries.every((suggestion) => suggestion.text !== FALLBACK_SUMMARY),
+  "Suggested summaries should not include the neutral fallback option."
+);
+expect(
+  suggestedSummaries.some((suggestion) => typeof suggestion.passed === "boolean" && Array.isArray(suggestion.failures)),
+  "Suggested summaries should include pass/fail quality details."
 );
 
 if (failures.length) {

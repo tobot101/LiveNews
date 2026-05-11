@@ -21,6 +21,7 @@ const {
   applyLiveNewsSummariesToPayload,
   applyLiveNewsSummary,
   buildLiveNewsSummary,
+  buildSummarySuggestions,
   getSummaryHealth,
 } = require("./lib/article-agents/summary-agent");
 const {
@@ -1920,6 +1921,7 @@ function describeSummaryFailure(code) {
     same_sentence_pattern: "Nearby cards use the same sentence rhythm.",
     repeated_phrase_nearby: "Nearby cards repeat the same phrase.",
     style_memory_avoid_phrase: "Summary uses a phrase the editor asked the system to avoid.",
+    needs_more_source_context: "The feed did not include enough source-backed detail to create a publishable summary.",
   };
   return descriptions[label] || label.replace(/_/g, " ");
 }
@@ -1946,6 +1948,31 @@ function buildSummaryReviewReasons(item) {
   return [...new Set(reasons)].filter(Boolean);
 }
 
+function getSummarySuggestionKey(text) {
+  return stableHash(cleanText(text), 16);
+}
+
+function getSummaryReviewSuggestions(item) {
+  const suggestions = buildSummarySuggestions(item, { limit: 5 })
+    .map((suggestion) => ({
+      ...suggestion,
+      key: getSummarySuggestionKey(suggestion.text),
+      reason: suggestion.passed
+        ? "Passed Live News summary checks and is available for editor approval."
+        : `Needs caution: ${(suggestion.failures || []).map(describeSummaryFailure).join(", ") || "quality checks did not fully pass"}.`,
+    }));
+  if (suggestions.length) return suggestions;
+  return [{
+    key: `needs-more-context-${stableHash(getSummaryDecisionKey(item), 12)}`,
+    text: "No source-safe suggested summary is available yet. This story needs more feed detail or source research before publishing.",
+    passed: false,
+    failures: ["needs_more_source_context"],
+    audienceScore: 0,
+    metrics: {},
+    reason: describeSummaryFailure("needs_more_source_context"),
+  }];
+}
+
 function getSummaryReviewItems(payload = buildCurrentNewsPayload()) {
   const decisionMap = getSummaryDecisionMap();
   return getUniqueCurrentNewsItems(payload).map((item) => {
@@ -1956,6 +1983,7 @@ function getSummaryReviewItems(payload = buildCurrentNewsPayload()) {
     const isFallback = currentSummary === FALLBACK_SUMMARY;
     const hasPublicSummary = Boolean(currentSummary && !isFallback);
     const needsReviewRaw = isFallback || supervisorStatus === "needs_editor_review";
+    const suggestions = needsReviewRaw ? getSummaryReviewSuggestions(item) : [];
     const decisionAction = cleanText(decision?.action || "");
     const removedFromReview = decisionAction === "deleted";
     const editorPublished = decisionAction === "published" && hasPublicSummary;
@@ -1980,6 +2008,7 @@ function getSummaryReviewItems(payload = buildCurrentNewsPayload()) {
       needsReviewRaw,
       decision,
       reasons: buildSummaryReviewReasons(item),
+      suggestions,
       research: {
         status: item.summaryResearch?.status || "missing",
         facts: item.summaryResearch?.facts || [],
@@ -2041,14 +2070,21 @@ function summaryViewReason(item, view) {
   return item.reasons.join(" ") || "This summary needs editor review.";
 }
 
-function recordSummaryReviewDecision({ key, action, item }) {
+function recordSummaryReviewDecision({ key, action, item, selectedSummaryKey }) {
   const normalizedAction = cleanText(action);
   if (!["published", "deleted"].includes(normalizedAction)) {
     const error = new Error("Summary decision action must be publish or delete.");
     error.status = 400;
     throw error;
   }
-  if (normalizedAction === "published" && item.currentSummary === FALLBACK_SUMMARY) {
+  const selectedSuggestion = item.suggestions?.find((suggestion) => suggestion.key === selectedSummaryKey) || null;
+  const summaryToPublish = cleanText(selectedSuggestion?.text || item.currentSummary);
+  if (normalizedAction === "published" && (!selectedSuggestion || !selectedSuggestion.passed)) {
+    const error = new Error("Choose a suggested summary that passed quality checks before publishing.");
+    error.status = 422;
+    throw error;
+  }
+  if (normalizedAction === "published" && summaryToPublish === FALLBACK_SUMMARY) {
     const error = new Error("Fallback summaries cannot be published. Delete/remove it from review or wait for a stronger summary.");
     error.status = 422;
     throw error;
@@ -2061,11 +2097,12 @@ function recordSummaryReviewDecision({ key, action, item }) {
     title: cleanText(item.title),
     sourceName: cleanText(item.sourceName),
     category: cleanText(item.category),
-    currentSummary: cleanText(item.currentSummary),
+    currentSummary: summaryToPublish,
+    selectedSummaryKey: cleanText(selectedSummaryKey),
     reasons: item.reasons || [],
     storesPrivateData: false,
     note: normalizedAction === "published"
-      ? "Editor approved the current non-fallback summary for public use."
+      ? "Editor approved a suggested non-fallback summary for public use."
       : "Editor removed this item from the private summary review queue.",
   };
   const decisions = [
@@ -2115,8 +2152,28 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload(), req = null
             <form method="post" action="${escapeHtml(buildSummaryReviewUrl(req, {}).replace("/admin/summaries", "/admin/summaries/decision"))}">
               <input type="hidden" name="key" value="${escapeHtml(item.key)}" />
               <input type="hidden" name="action" value="published" />
-              <button type="submit" ${item.currentSummary === FALLBACK_SUMMARY ? "disabled" : ""}>Publish current summary</button>
-              ${item.currentSummary === FALLBACK_SUMMARY ? "<small>Fallback summaries stay blocked from publishing.</small>" : ""}
+              <div class="suggestion-list">
+                <strong>Suggested summaries</strong>
+                ${
+                  item.suggestions?.length
+                    ? item.suggestions
+                        .map(
+                          (suggestion, index) => `
+                            <label class="summary-suggestion ${suggestion.passed ? "passed" : "blocked"}">
+                              <input type="radio" name="selectedSummaryKey" value="${escapeHtml(suggestion.key)}" ${suggestion.passed && index === item.suggestions.findIndex((entry) => entry.passed) ? "checked" : ""} ${suggestion.passed ? "" : "disabled"} />
+                              <span>
+                                <b>${suggestion.passed ? "Ready suggestion" : "Blocked suggestion"}</b>
+                                ${escapeHtml(suggestion.text)}
+                                <small>${escapeHtml(suggestion.reason)}</small>
+                              </span>
+                            </label>`
+                        )
+                        .join("")
+                    : '<p>No safe suggested summaries are available yet.</p>'
+                }
+              </div>
+              <button type="submit" ${item.suggestions?.some((suggestion) => suggestion.passed) ? "" : "disabled"}>Publish selected summary</button>
+              ${item.suggestions?.some((suggestion) => suggestion.passed) ? "" : "<small>No suggestion passed quality checks yet.</small>"}
             </form>
             <form method="post" action="${escapeHtml(buildSummaryReviewUrl(req, {}).replace("/admin/summaries", "/admin/summaries/decision"))}">
               <input type="hidden" name="key" value="${escapeHtml(item.key)}" />
@@ -2167,7 +2224,14 @@ function renderSummaryReviewPage(payload = buildCurrentNewsPayload(), req = null
     .view-heading h2 { margin: 0; font-size: 1.45rem; }
     .reason-box { background: #f7fafc; border: 1px solid #dbe6f0; border-radius: 14px; padding: 12px; margin: 12px 0; }
     .summary-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-top: 1px solid #e1e9f2; padding-top: 12px; margin-top: 12px; }
-    .summary-actions form { display: flex; gap: 8px; align-items: center; margin: 0; }
+    .summary-actions form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }
+    .summary-actions form:first-child { flex: 1 1 640px; align-items: stretch; }
+    .suggestion-list { display: grid; gap: 10px; width: 100%; }
+    .summary-suggestion { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; border: 1px solid #d8e3ef; border-radius: 14px; padding: 12px; background: #f8fbfd; }
+    .summary-suggestion.passed { border-color: #b9d9c9; background: #eef8f3; }
+    .summary-suggestion.blocked { border-color: #ead4a2; background: #fff9ea; opacity: .82; }
+    .summary-suggestion input { margin-top: 4px; }
+    .summary-suggestion span { display: grid; gap: 5px; }
     button { border: 1px solid #9eb6d0; background: #0f4d75; color: #fff; border-radius: 999px; padding: 10px 14px; font-weight: 700; cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: .5; }
     button.danger { background: #fff1f1; color: #782828; border-color: #e6b7b7; }
@@ -4277,6 +4341,7 @@ app.post("/admin/summaries/decision", requireSummaryAdmin, (req, res) => {
   const payload = buildCurrentNewsPayload();
   const key = cleanText(req.body?.key || "");
   const action = cleanText(req.body?.action || "");
+  const selectedSummaryKey = cleanText(req.body?.selectedSummaryKey || "");
   const view = action === "deleted" || action === "published" ? "needs-review" : cleanText(req.query.view || "needs-review");
   try {
     const item = getSummaryReviewItems(payload).find((entry) => entry.key === key);
@@ -4289,7 +4354,7 @@ app.post("/admin/summaries/decision", requireSummaryAdmin, (req, res) => {
         })
       );
     }
-    const decision = recordSummaryReviewDecision({ key, action, item });
+    const decision = recordSummaryReviewDecision({ key, action, item, selectedSummaryKey });
     return res.redirect(
       303,
       buildSummaryReviewUrl(req, {
