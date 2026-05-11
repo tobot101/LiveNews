@@ -166,6 +166,27 @@ const approvedEntertainmentStory = normalizeEntertainmentStory({
 if (!approvedEntertainmentStory.entertainmentClassification?.isEntertainment || approvedEntertainmentStory.entertainmentSubbeat !== "celebrity_culture") {
   fail("Approved entertainmentSubbeat and entertainmentConfidence should keep a Top-category story in Entertainment.");
 }
+const hubHeroStory = normalizeEntertainmentStory({
+  category: "Top",
+  title: "Publisher wording should not lead the Entertainment hub",
+  liveNewsHeadline: "Actor joins a new streaming series",
+  approvedDescription: "The actor joined a streaming series, with the report focusing on the confirmed casting update.",
+  liveNewsUrl: "/stories/actor-joins-streaming-series",
+  entertainmentSubbeat: "tv_streaming",
+  entertainmentConfidence: 88,
+});
+const hubHeroCard = getSafeEntertainmentCard(hubHeroStory, 180);
+if (hubHeroCard.title !== "Actor joins a new streaming series" || !hubHeroCard.summary.includes("confirmed casting update")) {
+  fail("Entertainment hub hero should use approved Live News title and description.");
+}
+const hubFallbackStory = normalizeEntertainmentStory({
+  category: "Entertainment",
+  title: "Singer appears at public music event",
+  summary: "Read the original source for the full report.",
+});
+if (getSafeEntertainmentCard(hubFallbackStory, 180).displayMode !== "minimal") {
+  fail("Entertainment hub should block generic fallback summaries instead of rendering them publicly.");
+}
 
 const actorInterview = classifyEntertainmentStory({
   category: "Top",
@@ -223,6 +244,47 @@ if (!serverJs.includes("renderEntertainmentCategoryRoutePage") || !serverJs.incl
 }
 if (!serverJs.includes("ENTERTAINMENT_CATEGORY_SUBBEATS") || !serverJs.includes("getCrawlerEntertainmentSubbeat")) {
   fail("/category/entertainment route should expose allowed Entertainment subbeat grouping.");
+}
+if (!serverJs.includes("renderCrawlerEntertainmentHub") || !serverJs.includes("Entertainment Hero")) {
+  fail("/category/entertainment should render as a public Entertainment hub with a hero area.");
+}
+if (!categoryJs.includes("renderEntertainmentHubResults") || !categoryJs.includes("Entertainment Hero")) {
+  fail("Browser /category/entertainment should render the Entertainment hub layout.");
+}
+[
+  "Latest Entertainment",
+  "Movies & Film",
+  "TV & Streaming",
+  "Music",
+  "Celebrity & Culture",
+  "Awards Season",
+  "Books & Publishing",
+  "Theater & Arts",
+  "Gaming & Creator Culture",
+].forEach((sectionTitle) => {
+  if (!serverJs.includes(sectionTitle) || !categoryJs.includes(sectionTitle)) {
+    fail(`Entertainment hub is missing public section: ${sectionTitle}`);
+  }
+});
+if (!serverJs.includes("chooseEntertainmentHero") || !serverJs.includes("hasEntertainmentHighGossipRisk")) {
+  fail("Entertainment hub hero should choose a safe entertainment-classified story and downgrade high-gossip-risk stories.");
+}
+if (!serverJs.includes("getEntertainmentExactStoryUrl") || !categoryJs.includes("getEntertainmentExactStoryUrl")) {
+  fail("Entertainment hub should preserve exact /stories/... URLs with a shared exact-story URL helper.");
+}
+const entertainmentTitleLinkSnippet = serverJs.slice(
+  serverJs.indexOf("function renderCrawlerEntertainmentTitleLink"),
+  serverJs.indexOf("function renderCrawlerEntertainmentMeta")
+);
+if (entertainmentTitleLinkSnippet.includes("item.link")) {
+  fail("Crawlable Entertainment title links should not fall back to external publisher links or homepage links.");
+}
+const browserEntertainmentResultSnippet = categoryJs.slice(
+  categoryJs.indexOf("function renderResultCard"),
+  categoryJs.indexOf("function getResultTitle")
+);
+if (!browserEntertainmentResultSnippet.includes("getEntertainmentExactStoryUrl(item)")) {
+  fail("Browser Entertainment result cards should use exact /stories/... URLs instead of homepage or publisher fallbacks.");
 }
 if (!categoryJs.includes("ENTERTAINMENT_SUBBEAT_FILTERS") || !categoryJs.includes("isEntertainmentCategoryItem")) {
   fail("Browser category page should include Entertainment subbeat filters and classifier-aware item checks.");

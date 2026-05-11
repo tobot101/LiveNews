@@ -1688,6 +1688,115 @@ html[data-theme="night"] .entertainment-filter {
   min-width: 0;
 }
 
+.entertainment-hub {
+  display: grid;
+  gap: 16px;
+}
+
+.entertainment-hub-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.34fr);
+  gap: 16px;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid #d5c09b;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 234, 209, 0.84), rgba(255, 255, 255, 0.92) 48%, rgba(232, 240, 248, 0.92)),
+    var(--surface-muted);
+}
+
+html[data-theme="night"] .entertainment-hub-hero {
+  background:
+    linear-gradient(135deg, rgba(75, 55, 32, 0.74), rgba(18, 27, 38, 0.92) 48%, rgba(22, 38, 55, 0.9)),
+    var(--surface-muted);
+  border-color: #6b5638;
+}
+
+.entertainment-hub-hero-copy {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+}
+
+.entertainment-hub-hero h2 {
+  margin: 0;
+  font-family: "Newsreader", serif;
+  font-size: clamp(30px, 4vw, 52px);
+  line-height: 0.96;
+  max-width: 880px;
+}
+
+.entertainment-hub-title:hover {
+  color: var(--accent-cyan);
+}
+
+.entertainment-hub-hero p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--text-muted);
+  font-size: clamp(15px, 1.8vw, 19px);
+  line-height: 1.5;
+}
+
+.entertainment-hub-hero-visual {
+  min-height: 240px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #d5c09b;
+  border-radius: 18px;
+  background: var(--surface-soft);
+}
+
+.entertainment-hub-hero-visual img {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  object-fit: cover;
+  display: block;
+}
+
+.entertainment-hub-section {
+  display: grid;
+  gap: 10px;
+}
+
+.entertainment-hub-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.entertainment-hub-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+  min-height: 188px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html[data-theme="night"] .entertainment-hub-card {
+  background: rgba(16, 23, 33, 0.74);
+}
+
+.entertainment-hub-card h3 {
+  margin: 0;
+  font-family: "Newsreader", serif;
+  font-size: 20px;
+  line-height: 1.14;
+}
+
+.entertainment-hub-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.42;
+}
+
 .entertainment-results-head {
   display: flex;
   align-items: center;
@@ -2369,6 +2478,14 @@ html[data-theme="night"] .category-entertainment-controls {
     grid-template-columns: 1fr;
   }
 
+  .entertainment-hub-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .entertainment-hub-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .search-result-card {
     grid-template-columns: 140px minmax(0, 1fr);
   }
@@ -2490,6 +2607,23 @@ html[data-theme="night"] .category-entertainment-controls {
   }
 
   .entertainment-list {
+    grid-template-columns: 1fr;
+  }
+
+  .entertainment-hub-hero {
+    padding: 14px;
+  }
+
+  .entertainment-hub-hero h2 {
+    font-size: 32px;
+  }
+
+  .entertainment-hub-hero-visual,
+  .entertainment-hub-hero-visual img {
+    min-height: 210px;
+  }
+
+  .entertainment-hub-list {
     grid-template-columns: 1fr;
   }
 }

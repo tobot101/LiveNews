@@ -3484,6 +3484,81 @@ const ENTERTAINMENT_CATEGORY_SUBBEATS = [
   "stars_we_lost",
   "general_entertainment",
 ];
+const ENTERTAINMENT_HUB_SECTION_LIMIT = 6;
+
+function isExactStoryPath(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  if (/^\/stories\/[^/?#]+/i.test(text)) return true;
+  try {
+    const url = new URL(text);
+    return /^\/stories\/[^/?#]+/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function getEntertainmentExactStoryUrl(item) {
+  return [
+    item?.approvedStoryUrl,
+    item?.liveNewsUrl,
+    item?.exactArticleUrl,
+    item?.canonicalUrl,
+  ].find(isExactStoryPath) || "";
+}
+
+function getEntertainmentImageUrl(item) {
+  return pickAuthenticArticleImageUrl([item?.imageUrl, item?.thumbnailUrl]);
+}
+
+function getEntertainmentSortTime(item) {
+  const time = new Date(item?.publishedAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function getEntertainmentStrength(item) {
+  const card = getEntertainmentCardStatus(item);
+  const exactStoryBoost = getEntertainmentExactStoryUrl(item) ? 60 : 0;
+  const imageBoost = getEntertainmentImageUrl(item) ? 12 : 0;
+  const safeWritingBoost = card.displayMode === "full" ? 18 : -18;
+  const confidence = Number(item.entertainmentConfidence || item.entertainmentClassification?.confidence || 0);
+  const sourceBoost = Math.min(12, Number(item.sourceCount || 1) * 3);
+  const scoreBoost = Math.min(20, Number(item.score || 0) / 6);
+  return exactStoryBoost + imageBoost + safeWritingBoost + confidence + sourceBoost + scoreBoost;
+}
+
+function hasEntertainmentHighGossipRisk(item, card = getEntertainmentCardStatus(item)) {
+  const reasons = card?.reasons || [];
+  const flags = item?.entertainmentSensitivityFlags || [];
+  return reasons.some((reason) => /gossip|relationship|sensitive_entertainment_tone/i.test(reason)) ||
+    flags.some((flag) => /gossip|relationship|rumor/i.test(String(flag)));
+}
+
+function isFilmRelatedTrailer(item) {
+  if (getCrawlerEntertainmentSubbeat(item) !== "trailers_releases") return false;
+  const text = [
+    item?.liveNewsHeadline,
+    item?.title,
+    item?.summary,
+    item?.description,
+    item?.sourceName,
+  ].map(cleanText).join(" ").toLowerCase();
+  return /\b(film|movie|cinema|actor|actress|director|cast|premiere|franchise)\b/.test(text);
+}
+
+function getEntertainmentStoryKey(item) {
+  return getStoryIdentityKey(item) || item?.id || item?.liveNewsUrl || item?.link || item?.title || "";
+}
+
+function uniqueEntertainmentItems(items) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = getEntertainmentStoryKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 function isCrawlerEntertainmentStory(item) {
   return isEntertainmentStory(item);
@@ -3512,11 +3587,22 @@ function getEntertainmentCardStatus(item) {
 
 function renderCrawlerEntertainmentTitleLink(item, className = "") {
   const title = escapeHtml(getSafeEntertainmentTitle(item));
-  const href = item.approvedStoryUrl || item.liveNewsUrl || item.link || "";
+  const href = getEntertainmentExactStoryUrl(item);
   if (!href) return `<span class="${className}">${title}</span>`;
-  const isSource = href === item.link;
-  const target = isSource ? ` target="_blank" rel="noopener noreferrer"` : "";
-  return `<a class="${className}" href="${escapeHtml(href)}"${target}>${title}</a>`;
+  return `<a class="${className}" href="${escapeHtml(href)}">${title}</a>`;
+}
+
+function renderCrawlerEntertainmentMeta(item) {
+  const label = getCrawlerEntertainmentLabel(item);
+  const time = formatCrawlerTime(item.publishedAt);
+  const timeHtml = time
+    ? `<time datetime="${escapeHtml(item.publishedAt)}">${escapeHtml(time)}</time>`
+    : `<span>Time unavailable</span>`;
+  return `
+    <div class="story-meta">
+      ${renderCrawlerSourceLink(item)} • ${escapeHtml(label)} • ${timeHtml}
+    </div>
+  `;
 }
 
 function renderCrawlerEntertainmentControls(totalCount, visibleCount) {
@@ -3664,6 +3750,168 @@ function renderCrawlerEntertainmentCategoryGroups(items) {
     .join("");
 }
 
+function chooseEntertainmentHero(items) {
+  return uniqueEntertainmentItems(items)
+    .filter((item) => getEntertainmentCardStatus(item).title)
+    .filter((item) => !hasEntertainmentHighGossipRisk(item))
+    .sort(
+      (a, b) =>
+        getEntertainmentStrength(b) - getEntertainmentStrength(a) ||
+        getEntertainmentSortTime(b) - getEntertainmentSortTime(a)
+    )[0] || null;
+}
+
+function renderEntertainmentExactStoryAction(item) {
+  const href = getEntertainmentExactStoryUrl(item);
+  if (!href) return "";
+  return `
+    <div class="story-actions">
+      <a class="story-action" href="${escapeHtml(href)}">Read Live News page</a>
+    </div>
+  `;
+}
+
+function renderCrawlerEntertainmentHubHero(items) {
+  const hero = chooseEntertainmentHero(items);
+  if (!hero) return "";
+  const card = getEntertainmentCardStatus(hero);
+  const imageUrl = getEntertainmentImageUrl(hero);
+  const imageAlt = hero.imageAlt || card.title || "Entertainment story image";
+  const visual = imageUrl
+    ? `
+      <figure class="entertainment-hub-hero-visual">
+        <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageAlt)}" loading="lazy" referrerpolicy="no-referrer" />
+      </figure>
+    `
+    : "";
+  return `
+    <article class="entertainment-hub-hero" data-article-id="${escapeHtml(hero.id || "")}" data-card-status="${escapeHtml(card.status)}">
+      <div class="entertainment-hub-hero-copy">
+        <div class="story-eyebrow">
+          <span>Entertainment Hero</span>
+          <span>${escapeHtml(getCrawlerEntertainmentLabel(hero))}</span>
+        </div>
+        <h2>${renderCrawlerEntertainmentTitleLink(hero, "entertainment-hub-title")}</h2>
+        ${card.summary ? `<p>${escapeHtml(card.summary)}</p>` : ""}
+        ${renderCrawlerEntertainmentMeta(hero)}
+        ${renderEntertainmentExactStoryAction(hero)}
+      </div>
+      ${visual}
+    </article>
+  `;
+}
+
+function renderCrawlerEntertainmentHubCard(item) {
+  const card = getEntertainmentCardStatus(item);
+  const exactStoryUrl = getEntertainmentExactStoryUrl(item);
+  return `
+    <article class="entertainment-hub-card" data-article-id="${escapeHtml(item.id || "")}" data-subbeat="${escapeHtml(getCrawlerEntertainmentSubbeat(item))}" data-card-status="${escapeHtml(card.status)}">
+      <div class="story-eyebrow">
+        <span>${escapeHtml(getCrawlerEntertainmentLabel(item))}</span>
+        <span>${escapeHtml(formatCrawlerDateBadge(item.publishedAt))}</span>
+      </div>
+      <h3>${renderCrawlerEntertainmentTitleLink(item, "entertainment-title")}</h3>
+      ${card.summary ? `<p>${escapeHtml(card.summary)}</p>` : ""}
+      ${renderCrawlerEntertainmentMeta(item)}
+      ${exactStoryUrl ? renderEntertainmentExactStoryAction(item) : ""}
+    </article>
+  `;
+}
+
+function renderCrawlerEntertainmentHubSection({ id, title, description, items, limit = ENTERTAINMENT_HUB_SECTION_LIMIT }) {
+  const sectionItems = uniqueEntertainmentItems(items).slice(0, limit);
+  if (!sectionItems.length) return "";
+  return `
+    <section class="entertainment-hub-section" id="${escapeHtml(id)}">
+      <div class="entertainment-results-head">
+        <span>${escapeHtml(title)}</span>
+        <small>${escapeHtml(description)}</small>
+      </div>
+      <div class="entertainment-hub-list">
+        ${sectionItems.map(renderCrawlerEntertainmentHubCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function getEntertainmentHubSections(items) {
+  const sorted = uniqueEntertainmentItems(items)
+    .filter((item) => isCrawlerEntertainmentStory(item))
+    .sort((a, b) => getEntertainmentSortTime(b) - getEntertainmentSortTime(a));
+  const bySubbeat = (subbeats) => sorted.filter((item) => subbeats.includes(getCrawlerEntertainmentSubbeat(item)));
+  return [
+    {
+      id: "latest-entertainment",
+      title: "Latest Entertainment",
+      description: "Newest source-linked stories",
+      items: sorted,
+      limit: 10,
+    },
+    {
+      id: "movies-film",
+      title: "Movies & Film",
+      description: "Films, premieres, and film-related releases",
+      items: sorted.filter((item) => getCrawlerEntertainmentSubbeat(item) === "movies" || isFilmRelatedTrailer(item)),
+    },
+    {
+      id: "tv-streaming",
+      title: "TV & Streaming",
+      description: "Series, platforms, episodes, and renewals",
+      items: bySubbeat(["tv_streaming"]),
+    },
+    {
+      id: "music",
+      title: "Music",
+      description: "Artists, songs, albums, tours, and festivals",
+      items: bySubbeat(["music"]),
+    },
+    {
+      id: "celebrity-culture",
+      title: "Celebrity & Culture",
+      description: "Verified appearances, interviews, and culture stories",
+      items: bySubbeat(["celebrity_culture"]).filter((item) => !hasEntertainmentHighGossipRisk(item)),
+    },
+    {
+      id: "awards-season",
+      title: "Awards Season",
+      description: "Nominations, winners, and ceremonies",
+      items: bySubbeat(["awards"]),
+    },
+    {
+      id: "books-publishing",
+      title: "Books & Publishing",
+      description: "Authors, books, publishing news, and adaptations",
+      items: bySubbeat(["books_publishing"]),
+    },
+    {
+      id: "theater-arts",
+      title: "Theater & Arts",
+      description: "Stage, Broadway, performing arts, and arts coverage",
+      items: bySubbeat(["theater_arts"]),
+    },
+    {
+      id: "gaming-creator-culture",
+      title: "Gaming & Creator Culture",
+      description: "Games, creators, streamers, and online entertainment",
+      items: bySubbeat(["gaming_creator"]),
+    },
+  ];
+}
+
+function renderCrawlerEntertainmentHub(items) {
+  const entertainmentItems = uniqueEntertainmentItems(items).filter((item) => isCrawlerEntertainmentStory(item));
+  const sections = getEntertainmentHubSections(entertainmentItems)
+    .map(renderCrawlerEntertainmentHubSection)
+    .join("");
+  return `
+    <div class="entertainment-hub">
+      ${renderCrawlerEntertainmentHubHero(entertainmentItems)}
+      ${renderCrawlerEntertainmentCategoryFilters(entertainmentItems)}
+      ${sections || '<div class="entertainment-empty">More entertainment coverage will appear as fresh source-linked stories arrive.</div>'}
+    </div>
+  `;
+}
+
 function renderEntertainmentCategoryRoutePage(config, items) {
   return renderPageShell({
     canonicalPath: `/category/${config.slug}`,
@@ -3679,8 +3927,7 @@ function renderEntertainmentCategoryRoutePage(config, items) {
           <h2>${escapeHtml(config.label)} stories</h2>
           <span class="tag">${escapeHtml(String(items.length))} visible</span>
         </div>
-        ${renderCrawlerEntertainmentCategoryFilters(items)}
-        ${renderCrawlerEntertainmentCategoryGroups(items)}
+        ${renderCrawlerEntertainmentHub(items)}
       </section>
     `,
   });

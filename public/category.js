@@ -31,6 +31,7 @@ const ENTERTAINMENT_SUBBEAT_FILTERS = [
   { id: "stars_we_lost", label: "Stars we lost" },
   { id: "general_entertainment", label: "General entertainment" },
 ];
+const ENTERTAINMENT_HUB_SECTION_LIMIT = 6;
 
 const state = {
   mode: "auto",
@@ -197,18 +198,25 @@ function renderCategoryResults(items, category, total) {
     `;
     return;
   }
+  if (isEntertainment && state.entertainmentSubbeat === "all") {
+    elements.categoryResults.innerHTML = `${controls}${renderEntertainmentHubResults(categoryItems)}`;
+    return;
+  }
   elements.categoryResults.innerHTML = `${controls}${visibleItems.map(renderResultCard).join("")}`;
 }
 
 function renderResultCard(item) {
-  const href = item.liveNewsUrl || item.link || "#";
-  const target = item.liveNewsUrl ? "" : ` target="_blank" rel="noopener noreferrer"`;
+  const isEntertainment = isEntertainmentCategoryItem(item);
+  const entertainmentCard = isEntertainment ? getEntertainmentCategoryCard(item) : null;
+  const href = isEntertainment ? getEntertainmentExactStoryUrl(item) : item.liveNewsUrl || item.link || "";
+  const target = !isEntertainment && href && href === item.link ? ` target="_blank" rel="noopener noreferrer"` : "";
   const time = item.publishedAt ? formatTime(item.publishedAt) : "";
   const summary = getResultSummary(item);
-  const entertainmentCard = isEntertainmentCategoryItem(item) ? getEntertainmentCategoryCard(item) : null;
   const statusAttr = entertainmentCard ? ` data-card-status="${escapeHtml(entertainmentCard.status)}"` : "";
-  const liveAction = item.liveNewsUrl
-    ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(item.liveNewsUrl)}">Open Live News page</a></div>`
+  const title = escapeHtml(getResultTitle(item));
+  const titleHtml = href ? `<a href="${escapeHtml(href)}"${target}>${title}</a>` : `<span>${title}</span>`;
+  const liveAction = href && (isEntertainment || item.liveNewsUrl)
+    ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(href)}">Open Live News page</a></div>`
     : "";
   return `
     <article class="search-result-card"${statusAttr}>
@@ -217,7 +225,7 @@ function renderResultCard(item) {
         <div class="story-eyebrow">
           <span>${escapeHtml(getResultCategoryLabel(item))}</span>
         </div>
-        <h2><a href="${escapeHtml(href)}"${target}>${escapeHtml(getResultTitle(item))}</a></h2>
+        <h2>${titleHtml}</h2>
         ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
         ${buildResultMeta(item, time)}
         ${liveAction}
@@ -327,6 +335,238 @@ function renderEntertainmentCategoryFilters(items, visibleCount, totalCount) {
       </div>
     </aside>
   `;
+}
+
+function isExactStoryUrl(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  if (/^\/stories\/[^/?#]+/i.test(text)) return true;
+  try {
+    const url = new URL(text, window.location.origin);
+    return /^\/stories\/[^/?#]+/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function getEntertainmentExactStoryUrl(item) {
+  return [
+    item?.approvedStoryUrl,
+    item?.liveNewsUrl,
+    item?.exactArticleUrl,
+    item?.canonicalUrl,
+  ].find(isExactStoryUrl) || "";
+}
+
+function getEntertainmentStoryKey(item) {
+  return item?.id || item?.liveNewsUrl || item?.link || item?.title || "";
+}
+
+function uniqueEntertainmentItems(items) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = getEntertainmentStoryKey(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getEntertainmentSortTime(item) {
+  const time = new Date(item?.publishedAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function getEntertainmentStrength(item) {
+  const card = getEntertainmentCategoryCard(item);
+  const exactStoryBoost = getEntertainmentExactStoryUrl(item) ? 60 : 0;
+  const imageBoost = item.imageUrl ? 12 : 0;
+  const safeWritingBoost = card.displayMode === "full" ? 18 : -18;
+  const confidence = Number(item.entertainmentConfidence || item.entertainmentClassification?.confidence || 0);
+  const sourceBoost = Math.min(12, Number(item.sourceCount || 1) * 3);
+  const scoreBoost = Math.min(20, Number(item.score || 0) / 6);
+  return exactStoryBoost + imageBoost + safeWritingBoost + confidence + sourceBoost + scoreBoost;
+}
+
+function hasEntertainmentHighGossipRisk(item, card = getEntertainmentCategoryCard(item)) {
+  const reasons = card?.reasons || [];
+  const flags = item?.entertainmentSensitivityFlags || [];
+  return reasons.some((reason) => /gossip|relationship|sensitive_entertainment_tone/i.test(reason)) ||
+    flags.some((flag) => /gossip|relationship|rumor/i.test(String(flag)));
+}
+
+function isFilmRelatedTrailer(item) {
+  if (getEntertainmentSubbeat(item) !== "trailers_releases") return false;
+  const text = [
+    item?.liveNewsHeadline,
+    item?.title,
+    item?.summary,
+    item?.description,
+    item?.sourceName,
+  ].filter(Boolean).join(" ").toLowerCase();
+  return /\b(film|movie|cinema|actor|actress|director|cast|premiere|franchise)\b/.test(text);
+}
+
+function chooseEntertainmentHero(items) {
+  return uniqueEntertainmentItems(items)
+    .filter((item) => getEntertainmentCategoryCard(item).title)
+    .filter((item) => !hasEntertainmentHighGossipRisk(item))
+    .sort(
+      (a, b) =>
+        getEntertainmentStrength(b) - getEntertainmentStrength(a) ||
+        getEntertainmentSortTime(b) - getEntertainmentSortTime(a)
+    )[0] || null;
+}
+
+function renderEntertainmentHubResults(items) {
+  const hubItems = uniqueEntertainmentItems(items)
+    .filter(isEntertainmentCategoryItem)
+    .sort((a, b) => getEntertainmentSortTime(b) - getEntertainmentSortTime(a));
+  const sections = getEntertainmentHubSections(hubItems)
+    .map(renderEntertainmentHubSection)
+    .join("");
+  return `
+    <div class="entertainment-hub">
+      ${renderEntertainmentHubHero(hubItems)}
+      ${sections || '<div class="entertainment-empty">More entertainment coverage will appear as fresh source-linked stories arrive.</div>'}
+    </div>
+  `;
+}
+
+function renderEntertainmentHubHero(items) {
+  const hero = chooseEntertainmentHero(items);
+  if (!hero) return "";
+  const card = getEntertainmentCategoryCard(hero);
+  const exactStoryUrl = getEntertainmentExactStoryUrl(hero);
+  const image = hero.imageUrl
+    ? `
+      <figure class="entertainment-hub-hero-visual">
+        <img src="${escapeHtml(hero.imageUrl)}" alt="${escapeHtml(hero.imageAlt || card.title || "Entertainment story image")}" loading="lazy" referrerpolicy="no-referrer" onload="validateCategoryImage(this)" onerror="rejectCategoryImage(this)" />
+      </figure>
+    `
+    : "";
+  const titleHtml = exactStoryUrl
+    ? `<a class="entertainment-hub-title" href="${escapeHtml(exactStoryUrl)}">${escapeHtml(card.title)}</a>`
+    : `<span class="entertainment-hub-title">${escapeHtml(card.title)}</span>`;
+  const action = exactStoryUrl
+    ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(exactStoryUrl)}">Read Live News page</a></div>`
+    : "";
+  return `
+    <article class="entertainment-hub-hero" data-article-id="${escapeHtml(hero.id || "")}" data-card-status="${escapeHtml(card.status)}">
+      <div class="entertainment-hub-hero-copy">
+        <div class="story-eyebrow">
+          <span>Entertainment Hero</span>
+          <span>${escapeHtml(getEntertainmentSubbeatLabel(getEntertainmentSubbeat(hero)))}</span>
+        </div>
+        <h2>${titleHtml}</h2>
+        ${card.summary ? `<p>${escapeHtml(card.summary)}</p>` : ""}
+        ${buildResultMeta(hero, hero.publishedAt ? formatTime(hero.publishedAt) : "")}
+        ${action}
+      </div>
+      ${image}
+    </article>
+  `;
+}
+
+function renderEntertainmentHubCard(item) {
+  const card = getEntertainmentCategoryCard(item);
+  const exactStoryUrl = getEntertainmentExactStoryUrl(item);
+  const titleHtml = exactStoryUrl
+    ? `<a class="entertainment-title" href="${escapeHtml(exactStoryUrl)}">${escapeHtml(card.title)}</a>`
+    : `<span class="entertainment-title">${escapeHtml(card.title)}</span>`;
+  const action = exactStoryUrl
+    ? `<div class="story-actions"><a class="story-action" href="${escapeHtml(exactStoryUrl)}">Open Live News page</a></div>`
+    : "";
+  return `
+    <article class="entertainment-hub-card" data-article-id="${escapeHtml(item.id || "")}" data-subbeat="${escapeHtml(getEntertainmentSubbeat(item))}" data-card-status="${escapeHtml(card.status)}">
+      <div class="story-eyebrow">
+        <span>${escapeHtml(getEntertainmentSubbeatLabel(getEntertainmentSubbeat(item)))}</span>
+        <span>${escapeHtml(item.publishedAt ? formatTime(item.publishedAt) : "Time unavailable")}</span>
+      </div>
+      <h3>${titleHtml}</h3>
+      ${card.summary ? `<p>${escapeHtml(card.summary)}</p>` : ""}
+      ${buildResultMeta(item, item.publishedAt ? formatTime(item.publishedAt) : "")}
+      ${action}
+    </article>
+  `;
+}
+
+function renderEntertainmentHubSection(section) {
+  const sectionItems = uniqueEntertainmentItems(section.items).slice(0, section.limit || ENTERTAINMENT_HUB_SECTION_LIMIT);
+  if (!sectionItems.length) return "";
+  return `
+    <section class="entertainment-hub-section" id="${escapeHtml(section.id)}">
+      <div class="entertainment-results-head">
+        <span>${escapeHtml(section.title)}</span>
+        <small>${escapeHtml(section.description)}</small>
+      </div>
+      <div class="entertainment-hub-list">
+        ${sectionItems.map(renderEntertainmentHubCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function getEntertainmentHubSections(items) {
+  const sorted = uniqueEntertainmentItems(items).sort((a, b) => getEntertainmentSortTime(b) - getEntertainmentSortTime(a));
+  const bySubbeat = (subbeats) => sorted.filter((item) => subbeats.includes(getEntertainmentSubbeat(item)));
+  return [
+    {
+      id: "latest-entertainment",
+      title: "Latest Entertainment",
+      description: "Newest source-linked stories",
+      items: sorted,
+      limit: 10,
+    },
+    {
+      id: "movies-film",
+      title: "Movies & Film",
+      description: "Films, premieres, and film-related releases",
+      items: sorted.filter((item) => getEntertainmentSubbeat(item) === "movies" || isFilmRelatedTrailer(item)),
+    },
+    {
+      id: "tv-streaming",
+      title: "TV & Streaming",
+      description: "Series, platforms, episodes, and renewals",
+      items: bySubbeat(["tv_streaming"]),
+    },
+    {
+      id: "music",
+      title: "Music",
+      description: "Artists, songs, albums, tours, and festivals",
+      items: bySubbeat(["music"]),
+    },
+    {
+      id: "celebrity-culture",
+      title: "Celebrity & Culture",
+      description: "Verified appearances, interviews, and culture stories",
+      items: bySubbeat(["celebrity_culture"]).filter((item) => !hasEntertainmentHighGossipRisk(item)),
+    },
+    {
+      id: "awards-season",
+      title: "Awards Season",
+      description: "Nominations, winners, and ceremonies",
+      items: bySubbeat(["awards"]),
+    },
+    {
+      id: "books-publishing",
+      title: "Books & Publishing",
+      description: "Authors, books, publishing news, and adaptations",
+      items: bySubbeat(["books_publishing"]),
+    },
+    {
+      id: "theater-arts",
+      title: "Theater & Arts",
+      description: "Stage, Broadway, performing arts, and arts coverage",
+      items: bySubbeat(["theater_arts"]),
+    },
+    {
+      id: "gaming-creator-culture",
+      title: "Gaming & Creator Culture",
+      description: "Games, creators, streamers, and online entertainment",
+      items: bySubbeat(["gaming_creator"]),
+    },
+  ];
 }
 
 function buildOriginalSourceLink(item) {
