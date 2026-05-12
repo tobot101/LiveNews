@@ -129,7 +129,7 @@ async function fetchSearchPreview(query) {
   }
   state.previewController = new AbortController();
   try {
-    const params = new URLSearchParams({ q: query, limit: "5" });
+    const params = new URLSearchParams({ q: query, limit: "8" });
     const response = await fetch(`/api/search?${params.toString()}`, {
       signal: state.previewController.signal,
     });
@@ -157,30 +157,49 @@ function renderSearchDropdown(items, query, message = "", total = items.length) 
   }
   if (!items.length) {
     elements.searchDropdown.innerHTML = `
-      <div class="search-empty">
-        No results for “${escapeHtml(cleanQuery)}”. Try a source, category, city, or shorter phrase.
-      </div>
+      <div class="search-empty">No matching stories found.</div>
+      ${renderSearchMoreLink(cleanQuery)}
     `;
     return;
   }
   const resultHtml = items.map((item) => renderPreviewItem(item, cleanQuery)).join("");
-  const more =
-    total > items.length
-      ? `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">and more</a>`
-      : `<a class="search-preview-more" href="/search.html?q=${encodeURIComponent(cleanQuery)}">and more</a>`;
-  elements.searchDropdown.innerHTML = `${resultHtml}${more}`;
+  elements.searchDropdown.innerHTML = `${resultHtml}${renderSearchMoreLink(cleanQuery)}`;
 }
 
 function renderPreviewItem(item, query) {
-  const href = item.liveNewsUrl || item.link || `/search.html?q=${encodeURIComponent(query)}`;
-  const target = item.liveNewsUrl ? "" : ` target="_blank" rel="noopener noreferrer"`;
+  const { href, target } = getPreviewHref(item, query);
   const time = item.publishedAt ? formatTime(item.publishedAt) : "";
+  const summary = getResultSummary(item);
   return `
     <a class="search-preview-item" href="${escapeHtml(href)}"${target} role="option">
-      <span class="search-preview-title">${escapeHtml(item.title || "Untitled story")}</span>
+      <span class="search-preview-title">${escapeHtml(getResultTitle(item))}</span>
       <span class="search-preview-meta">${escapeHtml(item.sourceName || "Source")} • ${escapeHtml(item.category || "Top")} • ${escapeHtml(time)}</span>
+      ${summary ? `<span class="search-preview-summary">${escapeHtml(truncateText(summary, 105))}</span>` : ""}
     </a>
   `;
+}
+
+function renderSearchMoreLink(query) {
+  return `
+    <div class="search-preview-footer">
+      <a class="search-preview-more" href="/search.html?q=${encodeURIComponent(query)}">See more</a>
+    </div>
+  `;
+}
+
+function getPreviewHref(item, query) {
+  const liveUrl = item.approvedStoryUrl || item.liveNewsUrl || "";
+  if (isLiveNewsStoryUrl(liveUrl)) {
+    return { href: liveUrl, target: "" };
+  }
+  const href = item.link || `/search.html?q=${encodeURIComponent(query)}`;
+  const target = item.link ? ` target="_blank" rel="noopener noreferrer"` : "";
+  return { href, target };
+}
+
+function isLiveNewsStoryUrl(url) {
+  const value = String(url || "");
+  return /^\/stories\//.test(value) || /^https?:\/\/(www\.)?newsmorenow\.com\/stories\//i.test(value);
 }
 
 function hideSearchDropdown() {
@@ -387,6 +406,12 @@ function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString();
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text || text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
 function escapeHtml(value) {

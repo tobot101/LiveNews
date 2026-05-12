@@ -26,8 +26,29 @@ if (!indexHtml.includes("home-search-column") || !indexHtml.includes("home-local
 if (indexHtml.includes("Search stories, sources, categories, and topics from current Live News coverage.")) {
   fail("Homepage Search helper text should be removed from the compact top module.");
 }
+if (indexHtml.includes('<label class="control-label" for="siteSearch">Search Live News</label>')) {
+  fail("Homepage Search Live News label should not be visibly rendered above the input.");
+}
 if (!indexHtml.includes('id="siteSearch"')) fail("Homepage Search input should still render.");
 if (!indexHtml.includes('type="submit">Search</button>')) fail("Homepage Search button should still render.");
+if (!indexHtml.includes('aria-label="Search Live News"') || !indexHtml.includes('class="sr-only" for="siteSearch"')) {
+  fail("Homepage Search input should keep an accessible label while hiding the visible label.");
+}
+if (!indexHtml.includes('aria-controls="searchDropdown"') || !indexHtml.includes('aria-expanded="false"')) {
+  fail("Homepage Search input should expose dropdown accessibility attributes.");
+}
+if (!appJs.includes("renderSearchDropdown") || !appJs.includes("No matching stories found.")) {
+  fail("Homepage Search should render a compact dropdown empty state.");
+}
+if (!appJs.includes("getDisplayTitle(item)") || !appJs.includes("getDisplaySummary(item, 105)")) {
+  fail("Homepage Search dropdown should use approved Live News title and summary helpers.");
+}
+if (!appJs.includes("renderSearchMoreLink") || !appJs.includes(">See more</a>") || !appJs.includes("/search.html?q=")) {
+  fail("Homepage Search dropdown should include a See more link to the full search route.");
+}
+if (!appJs.includes("isLiveNewsStoryUrl") || !appJs.includes("newsmorenow") || !appJs.includes("stories")) {
+  fail("Homepage Search dropdown should prefer exact Live News story URLs when available.");
+}
 if (!indexHtml.includes('id="topCityGrid"') || !indexHtml.includes("home-local-city-chips")) {
   fail("Compact Local News city chips should render in the top module.");
 }
@@ -81,6 +102,18 @@ if (!appJs.includes("if (elements.localFeed && elements.localStatus)")) {
 }
 if (!stylesCss.includes(".home-search-local-panel") || !stylesCss.includes(".home-search-local-grid")) {
   fail("Homepage Search + Local split layout styles are missing.");
+}
+if (!stylesCss.includes(".sr-only") || !stylesCss.includes("clip: rect(0, 0, 0, 0)")) {
+  fail("Hidden Search label should use an accessible screen-reader-only utility.");
+}
+if (!stylesCss.includes(".search-dropdown") || !stylesCss.includes("max-height: min(360px, calc(100vh - 220px))") || !stylesCss.includes("overflow-y: auto")) {
+  fail("Search dropdown should be vertically bounded inside the search card.");
+}
+if (!stylesCss.includes("max-width: 100%") || !stylesCss.includes("overflow-x: hidden")) {
+  fail("Search dropdown should not overflow horizontally past the search card.");
+}
+if (!stylesCss.includes(".search-preview-summary") || !stylesCss.includes(".search-preview-footer")) {
+  fail("Search dropdown should show compact safe snippets and a bottom-right footer action.");
 }
 if (!stylesCss.includes(".home-local-city-chips") || !stylesCss.includes("grid-template-columns: repeat(4")) {
   fail("Homepage Local News city chips should be compact on desktop.");
