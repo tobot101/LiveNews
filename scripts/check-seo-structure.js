@@ -60,7 +60,8 @@ expect(
   "Internal story pages should include breadcrumb structured data."
 );
 
-expect(indexHtml.includes('class="panel seo-discovery-panel"'), "Homepage should include the SEO discovery panel.");
+expect(!indexHtml.includes('class="panel seo-discovery-panel"'), "Homepage should not render the removed Browse Live News box.");
+expect(!indexHtml.includes("Browse Live News"), "Homepage should not render the removed Browse Live News heading.");
 [
   "/top-stories",
   "/latest",
@@ -74,23 +75,25 @@ expect(indexHtml.includes('class="panel seo-discovery-panel"'), "Homepage should
   "/sources",
   "/editorial-policy",
 ].forEach((href) => {
-  expect(indexHtml.includes(`href="${href}"`), `Homepage discovery links should include ${href}.`);
+  expect(
+    serverJs.includes(href) || publicSitemap.includes(`https://newsmorenow.com${href}`),
+    `Stable discovery route should remain available without the homepage Browse Live News box: ${href}.`
+  );
 });
 
 expect(
-  indexHtml.includes("Browse Live News") && indexHtml.includes("National News") && indexHtml.includes("World News"),
-  "Homepage should use clear, crawl-visible labels for news discovery."
+  serverJs.includes("renderCrawlableCategoryLaneOptions") && serverJs.includes("/category/national") && serverJs.includes("/category/world"),
+  "Crawlable category lane links should preserve clear news discovery without the Browse Live News box."
 );
 expect(
   indexHtml.includes('<a href="/about">About</a>') &&
     indexHtml.includes('<a href="/privacy">Privacy</a>') &&
-    indexHtml.includes('<a href="/contact">Contact</a>'),
-  "Homepage footer should expose stable trust and policy links."
+    indexHtml.includes('<a href="/contact">Contact</a>') &&
+    indexHtml.includes('<a href="/sources">Sources</a>') &&
+    indexHtml.includes('<a href="/editorial-policy">Editorial Policy</a>'),
+  "Homepage footer should expose stable trust and policy links after removing Browse Live News."
 );
-expect(
-  stylesCss.includes(".seo-discovery-panel") && stylesCss.includes(".seo-discovery-grid"),
-  "SEO discovery panel styles are missing."
-);
+expect(!stylesCss.includes(".seo-discovery-panel") && !stylesCss.includes(".seo-discovery-grid"), "Removed Browse Live News styles should not remain active.");
 
 expect(!robotsTxt.includes("Disallow: /favicon"), "robots.txt should not block the favicon.");
 expect(robotsTxt.includes("Sitemap: https://newsmorenow.com/sitemap.xml"), "robots.txt should point Google to sitemap.xml.");
