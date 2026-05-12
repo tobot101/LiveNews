@@ -775,7 +775,7 @@ html[data-theme="night"] .category-lanes-panel .category-option {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(190px, 0.48fr);
   gap: 18px;
-  align-items: stretch;
+  align-items: center;
   padding: 22px;
   overflow: hidden;
   border: 1px solid var(--lead-border);
@@ -1119,15 +1119,30 @@ html[data-theme="night"] .category-lanes-panel .category-option {
 }
 
 .story-visual-lead {
-  min-height: 260px;
+  align-self: center;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
   background:
     radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.08), transparent 42%),
     linear-gradient(135deg, rgba(15, 23, 42, 0.84), rgba(37, 52, 72, 0.72));
 }
 
 .story-visual-lead .story-photo {
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
+}
+
+.story-visual-lead.media-shape-portrait {
+  aspect-ratio: 4 / 5;
+}
+
+.story-visual-lead.media-shape-square {
+  aspect-ratio: 1 / 1;
+}
+
+.story-visual-lead.media-shape-standard {
+  aspect-ratio: 4 / 3;
 }
 
 .story-visual-card {
@@ -2503,7 +2518,8 @@ html[data-theme="night"] .category-entertainment-controls {
   }
 
   .story-visual-lead {
-    min-height: 220px;
+    max-width: 380px;
+    justify-self: center;
   }
 
   .story-list {
@@ -2612,7 +2628,7 @@ html[data-theme="night"] .category-entertainment-controls {
   }
 
   .story-visual-lead {
-    min-height: 210px;
+    max-width: min(360px, 100%);
   }
 
   .story-page {

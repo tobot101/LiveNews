@@ -1795,6 +1795,7 @@ function buildStoryVisual(item, variant = "lead") {
   const imageUrl = item.imageUrl || item.thumbnailUrl || "";
   const source = item.sourceName || item.sourceDomain || "Source";
   const category = item.category || "Top";
+  const mediaShapeClass = getInitialStoryMediaShape(item, variant);
   const usesPublicResearch = item.imageSource === "public_media_research";
   const fallbackLabel = escapeHtml(
     usesPublicResearch ? "Related public media" : `${source} • ${category}`
@@ -1810,7 +1811,7 @@ function buildStoryVisual(item, variant = "lead") {
     ? `<img class="story-photo" src="${escapeHtml(imageUrl)}" alt="${imageAlt}" loading="lazy" referrerpolicy="no-referrer" onload="validateStoryImage(this)" onerror="rejectStoryImage(this)" />`
     : "";
   return `
-    <figure class="story-visual story-visual-${variant} ${imageUrl ? "has-photo" : "image-failed"}">
+    <figure class="story-visual story-visual-${variant} ${mediaShapeClass} ${imageUrl ? "has-photo" : "image-failed"}">
       ${photoTag}
       <figcaption>
         <span>${initial}</span>
@@ -1819,6 +1820,21 @@ function buildStoryVisual(item, variant = "lead") {
       </figcaption>
     </figure>
   `;
+}
+
+function getInitialStoryMediaShape(item, variant = "lead") {
+  if (variant !== "lead") return "";
+  const width = Number(item.imageWidth || item.image_width || item.width || item.mediaWidth || 0);
+  const height = Number(item.imageHeight || item.image_height || item.height || item.mediaHeight || 0);
+  return `media-shape-${getAdaptiveLeadMediaShape(width, height)}`;
+}
+
+function getAdaptiveLeadMediaShape(width, height) {
+  if (!width || !height) return "square";
+  const ratio = width / height;
+  if (ratio < 0.82) return "portrait";
+  if (ratio > 1.28) return "standard";
+  return "square";
 }
 
 function isWeakLoadedArticleImage(image) {
@@ -1834,14 +1850,25 @@ function rejectStoryImage(image) {
   const visual = image.closest(".story-visual");
   if (!visual) return;
   visual.classList.remove("has-photo");
+  visual.classList.remove("media-shape-portrait", "media-shape-square", "media-shape-standard");
   visual.classList.add("image-failed");
   image.remove();
+}
+
+function adaptLeadMediaShape(image) {
+  const visual = image.closest(".story-visual-lead");
+  if (!visual) return;
+  const shape = getAdaptiveLeadMediaShape(Number(image.naturalWidth || 0), Number(image.naturalHeight || 0));
+  visual.classList.remove("media-shape-portrait", "media-shape-square", "media-shape-standard");
+  visual.classList.add(`media-shape-${shape}`);
 }
 
 function validateStoryImage(image) {
   if (isWeakLoadedArticleImage(image)) {
     rejectStoryImage(image);
+    return;
   }
+  adaptLeadMediaShape(image);
 }
 
 function buildStoryTitleLink(item, className = "") {

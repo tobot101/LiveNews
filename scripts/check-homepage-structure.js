@@ -121,11 +121,23 @@ if (!stylesCss.includes("grid-template-columns: minmax(0, 0.96fr) minmax(320px, 
 if (!stylesCss.includes("font-size: clamp(26px, 2.55vw, 40px)") || !stylesCss.includes("font-size: clamp(28px, 3.4vw, 48px)")) {
   fail("Top Story headline font sizes should be modestly reduced, not removed.");
 }
-if (!stylesCss.includes(".story-visual-lead .story-photo") || !stylesCss.includes("object-fit: contain")) {
-  fail("Top Story lead images should use a more forgiving fit so users can identify more of the image.");
+if (!appJs.includes("getAdaptiveLeadMediaShape") || !appJs.includes("adaptLeadMediaShape")) {
+  fail("Top Story media should adapt its shape after image dimensions are known.");
 }
-if (!stylesCss.includes(".story-visual-lead") || !stylesCss.includes("min-height: 260px")) {
-  fail("Top Story media should have a taller desktop visual area.");
+if (!appJs.includes('return "portrait"') || !appJs.includes('return "standard"') || !appJs.includes('return "square"')) {
+  fail("Top Story media should be able to choose portrait, standard, or square shapes.");
+}
+if (!stylesCss.includes(".story-visual-lead .story-photo") || !stylesCss.includes("object-fit: cover")) {
+  fail("Top Story lead images should fill the adaptive frame without distortion or blank filler space.");
+}
+if (!stylesCss.includes(".story-visual-lead.media-shape-portrait") || !stylesCss.includes("aspect-ratio: 4 / 5")) {
+  fail("Top Story media should support a portrait shape for portrait-friendly images.");
+}
+if (!stylesCss.includes(".story-visual-lead.media-shape-square") || !stylesCss.includes("aspect-ratio: 1 / 1")) {
+  fail("Top Story media should support a square fallback shape.");
+}
+if (!stylesCss.includes(".story-visual-lead.media-shape-standard") || !stylesCss.includes("aspect-ratio: 4 / 3")) {
+  fail("Top Story media should support a standard non-tall shape for wide images.");
 }
 if (!stylesCss.includes(".sr-only") || !stylesCss.includes("clip: rect(0, 0, 0, 0)")) {
   fail("Hidden Search label should use an accessible screen-reader-only utility.");
@@ -145,7 +157,7 @@ if (!stylesCss.includes(".home-local-city-chips") || !stylesCss.includes("grid-t
 if (!stylesCss.includes("@media (max-width: 720px)") || !stylesCss.includes(".home-search-local-grid")) {
   fail("Homepage Search + Local module needs mobile stacking styles.");
 }
-if (!stylesCss.includes(".lead-spotlights[data-count=\"1\"] .lead-card") || !stylesCss.includes("min-height: 210px")) {
+if (!stylesCss.includes(".lead-spotlights[data-count=\"1\"] .lead-card") || !stylesCss.includes("max-width: min(360px, 100%)")) {
   fail("Top Story cards should stack cleanly with a bounded mobile media height.");
 }
 if (appJs.includes("class=\"lane-story") || appJs.includes("lane-story-title")) {
