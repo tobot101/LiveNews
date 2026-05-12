@@ -338,45 +338,55 @@ function bindControls() {
     });
   }
 
-  elements.useLocation.addEventListener("click", () => {
-    if (!state.consent.personalization) return;
-    if (!navigator.geolocation) {
-      elements.localDisplay.textContent = "Selected city: geolocation unavailable";
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        findNearestPlace(latitude, longitude);
-      },
-      () => {
-        elements.localDisplay.textContent = "Selected city: location denied";
+  if (elements.useLocation) {
+    elements.useLocation.addEventListener("click", () => {
+      if (!state.consent.personalization) return;
+      if (!navigator.geolocation) {
+        if (elements.localDisplay) {
+          elements.localDisplay.textContent = "Selected city: geolocation unavailable";
+        }
+        return;
       }
-    );
-  });
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          findNearestPlace(latitude, longitude);
+        },
+        () => {
+          if (elements.localDisplay) {
+            elements.localDisplay.textContent = "Selected city: location denied";
+          }
+        }
+      );
+    });
+  }
 
-  elements.manualLocation.addEventListener("input", (event) => {
-    const value = event.target.value.trim();
-    schedulePlaceSearch(value);
-  });
+  if (elements.manualLocation) {
+    elements.manualLocation.addEventListener("input", (event) => {
+      const value = event.target.value.trim();
+      schedulePlaceSearch(value);
+    });
 
-  elements.manualLocation.addEventListener("blur", () => {
-    setTimeout(() => clearLocalSuggestions(), 150);
-  });
+    elements.manualLocation.addEventListener("blur", () => {
+      setTimeout(() => clearLocalSuggestions(), 150);
+    });
 
-  elements.setLocation.addEventListener("click", () => {
-    const value = elements.manualLocation.value.trim();
-    if (!value) return;
-    setLocalPlace(buildManualPlace(value));
-  });
+    elements.manualLocation.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const value = elements.manualLocation.value.trim();
+      if (!value) return;
+      setLocalPlace(buildManualPlace(value));
+    });
+  }
 
-  elements.manualLocation.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    const value = elements.manualLocation.value.trim();
-    if (!value) return;
-    setLocalPlace(buildManualPlace(value));
-  });
+  if (elements.setLocation && elements.manualLocation) {
+    elements.setLocation.addEventListener("click", () => {
+      const value = elements.manualLocation.value.trim();
+      if (!value) return;
+      setLocalPlace(buildManualPlace(value));
+    });
+  }
 
   if (elements.loginBtn) {
     elements.loginBtn.addEventListener("click", () => {
@@ -427,14 +437,17 @@ function updateLoginState() {
 }
 
 function updateLocalControls() {
-  if (state.consent.personalization) {
-    elements.useLocation.disabled = false;
-    elements.localNote.textContent =
-      "Pick one of the top cities, use my location, or search another city to preview local coverage before opening the full page.";
-  } else {
-    elements.useLocation.disabled = true;
-    elements.localNote.textContent =
-      "Pick one of the top cities or search another city to preview local coverage. Enable personalization only if you want automatic location.";
+  if (elements.useLocation) {
+    elements.useLocation.disabled = !state.consent.personalization;
+  }
+  if (elements.localNote) {
+    if (state.consent.personalization) {
+      elements.localNote.textContent =
+        "Pick one of the top cities, use my location, or search another city to preview local coverage before opening the full page.";
+    } else {
+      elements.localNote.textContent =
+        "Pick one of the top cities or search another city to preview local coverage. Enable personalization only if you want automatic location.";
+    }
   }
 }
 
@@ -445,7 +458,7 @@ function updateLocalDeepLink() {
     elements.localDeepDive.classList.remove("disabled");
   } else {
     elements.localDeepDive.href = "/local";
-    elements.localDeepDive.classList.add("disabled");
+    elements.localDeepDive.classList.remove("disabled");
   }
 }
 
@@ -695,7 +708,9 @@ function isSamePlace(a, b) {
 function renderTopCities() {
   if (!elements.topCityGrid) return;
   elements.topCityGrid.innerHTML = "";
-  TOP_US_CITIES.forEach((place) => {
+  const compactLimit = Number(elements.topCityGrid.dataset.compactLimit || 0);
+  const places = compactLimit > 0 ? TOP_US_CITIES.slice(0, compactLimit) : TOP_US_CITIES;
+  places.forEach((place) => {
     const link = document.createElement("button");
     link.type = "button";
     link.className = "local-city-link";
@@ -726,7 +741,9 @@ function setLocalPlace(place) {
   state.localLastFetched = 0;
   updateLocalDeepLink();
   renderTopCities();
-  loadLocalNews({ force: true });
+  if (elements.localFeed && elements.localStatus) {
+    loadLocalNews({ force: true });
+  }
 }
 
 async function findNearestPlace(lat, lon) {

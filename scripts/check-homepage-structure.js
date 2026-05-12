@@ -16,10 +16,42 @@ function fail(message) {
 const topStoriesPosition = indexHtml.indexOf('id="topStories"');
 const entertainmentPosition = indexHtml.indexOf('id="entertainmentPanel"');
 const categoryPosition = indexHtml.indexOf('id="categoryLanesPanel"');
+const searchLocalPosition = indexHtml.indexOf("home-search-local-panel");
 
+if (searchLocalPosition === -1) fail("Homepage must render a shared Search + Local News top module.");
+if (!indexHtml.includes("home-search-local-grid")) fail("Search + Local module should use a two-column grid wrapper.");
+if (!indexHtml.includes("home-search-column") || !indexHtml.includes("home-local-compact")) {
+  fail("Search and Local News should render as two columns inside the same top module.");
+}
+if (indexHtml.includes("Search stories, sources, categories, and topics from current Live News coverage.")) {
+  fail("Homepage Search helper text should be removed from the compact top module.");
+}
+if (!indexHtml.includes('id="siteSearch"')) fail("Homepage Search input should still render.");
+if (!indexHtml.includes('type="submit">Search</button>')) fail("Homepage Search button should still render.");
+if (!indexHtml.includes('id="topCityGrid"') || !indexHtml.includes("home-local-city-chips")) {
+  fail("Compact Local News city chips should render in the top module.");
+}
+if (!indexHtml.includes('data-compact-limit="8"')) {
+  fail("Compact Local News city chips should stay intentionally limited on the homepage.");
+}
+if (!indexHtml.includes(">Share my location</button>")) {
+  fail("Compact Local News should keep the Share my location action.");
+}
+if (!indexHtml.includes('id="localDeepDive" href="/local"') || !indexHtml.includes(">See more</a>")) {
+  fail("Compact Local News should keep a See more link to the full local page.");
+}
+if (indexHtml.includes("home-local-panel")) {
+  fail("Old standalone homepage Local News panel should not render separately.");
+}
+if (indexHtml.includes('id="localFeed"') || indexHtml.includes("local-preview-card")) {
+  fail("Compact homepage Local News should not render local story cards or preview feeds.");
+}
 if (entertainmentPosition === -1) fail("Homepage must include the Entertainment panel.");
 if (topStoriesPosition === -1) fail("Homepage must include Top Stories.");
 if (categoryPosition === -1) fail("Homepage must include Category Lanes.");
+if (!(searchLocalPosition < topStoriesPosition)) {
+  fail("Search + Local module should stay near the top before Top Stories.");
+}
 if (!(topStoriesPosition < entertainmentPosition && entertainmentPosition < categoryPosition)) {
   fail("Entertainment panel should sit below Top Stories and above Category Lanes.");
 }
@@ -40,6 +72,21 @@ if (!appJs.includes("renderEntertainmentSection")) {
 }
 if (!appJs.includes("renderCategoryLaneOption") || !appJs.includes("category-option")) {
   fail("Homepage Category Lanes should render compact category option links.");
+}
+if (!appJs.includes("const compactLimit = Number(elements.topCityGrid.dataset.compactLimit || 0)")) {
+  fail("Homepage city chips should support a compact city limit.");
+}
+if (!appJs.includes("if (elements.localFeed && elements.localStatus)")) {
+  fail("Homepage city chip selection should not fetch/render local story cards when the compact module has no preview feed.");
+}
+if (!stylesCss.includes(".home-search-local-panel") || !stylesCss.includes(".home-search-local-grid")) {
+  fail("Homepage Search + Local split layout styles are missing.");
+}
+if (!stylesCss.includes(".home-local-city-chips") || !stylesCss.includes("grid-template-columns: repeat(4")) {
+  fail("Homepage Local News city chips should be compact on desktop.");
+}
+if (!stylesCss.includes("@media (max-width: 720px)") || !stylesCss.includes(".home-search-local-grid")) {
+  fail("Homepage Search + Local module needs mobile stacking styles.");
 }
 if (appJs.includes("class=\"lane-story") || appJs.includes("lane-story-title")) {
   fail("Homepage Category Lanes should not render inline article cards anymore.");

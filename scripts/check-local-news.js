@@ -57,6 +57,7 @@ expect(!variants.some((variant) => variant.includes("San Diego, CA CA")), "Local
 
 const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
 const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
+const indexHtml = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const localJs = fs.readFileSync(path.join(root, "public", "local.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(root, "public", "styles.css"), "utf8");
 
@@ -68,8 +69,13 @@ expect(serverJs.includes("lastAudienceIntelligence"), "Server health should expo
 expect(serverJs.includes("hasLocalRelevance(item, place)"), "Local feeds should filter weak city matches before summary agents run.");
 expect(serverJs.includes("LOCAL_CITY_ALIASES"), "Local feeds should keep city-specific aliases for teams and neighborhoods.");
 expect(serverJs.includes("live & on demand"), "Local feeds should block event listings that cannot produce useful news summaries.");
-expect(appJs.includes("syncResolvedLocalPlace(data.place)"), "Homepage local preview should accept canonical server place data.");
-expect(appJs.includes("getDisplaySummary(item, 130)"), "Homepage local preview should render Live News local summaries.");
+expect(indexHtml.includes("home-search-local-panel"), "Homepage should expose Local News inside the compact Search + Local module.");
+expect(indexHtml.includes('id="topCityGrid"'), "Homepage compact Local News should render city chips.");
+expect(indexHtml.includes('id="localDeepDive" href="/local"'), "Homepage compact Local News should link to the full local page.");
+expect(!indexHtml.includes('id="localFeed"'), "Homepage compact Local News should not render local story cards inline.");
+expect(!indexHtml.includes("local-preview-card"), "Homepage compact Local News should not render the old preview card.");
+expect(appJs.includes("buildLocalPageHref(place)"), "Homepage compact Local News should build city-specific /local links.");
+expect(appJs.includes("if (elements.localFeed && elements.localStatus)"), "Homepage compact city selection should not fetch preview stories without preview elements.");
 expect(localJs.includes("syncResolvedPlace(data.place)"), "Dedicated local page should accept canonical server place data.");
 expect(localJs.includes("buildManualPlace(value)"), "Dedicated local page should parse manual city input before fetching.");
 expect(localJs.includes("getDisplaySummary(item)"), "Dedicated local page should render shared Live News local summaries.");

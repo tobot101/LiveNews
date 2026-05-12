@@ -122,92 +122,46 @@
 
     <main class="layout layout-single">
       <section class="main-col">
-        <section class="panel home-search-panel" aria-label="Search Live News">
-          <form class="site-search home-search-form" id="siteSearchForm" role="search">
-            <label class="control-label" for="siteSearch">Search Live News</label>
-            <div class="site-search-row">
-              <div class="site-search-box">
-                <input
-                  id="siteSearch"
-                  type="search"
-                  placeholder="Search stories, sources, or categories"
-                  autocomplete="off"
-                  aria-autocomplete="list"
-                  aria-controls="searchDropdown"
-                  aria-expanded="false"
-                />
-                <div class="search-dropdown" id="searchDropdown" role="listbox" hidden></div>
-              </div>
-              <button class="btn ghost" type="submit">Search</button>
+        <section class="panel home-search-local-panel" aria-label="Search and local news">
+          <div class="home-search-local-grid">
+            <div class="home-search-column">
+              <form class="site-search home-search-form" id="siteSearchForm" role="search">
+                <label class="control-label" for="siteSearch">Search Live News</label>
+                <div class="site-search-row">
+                  <div class="site-search-box">
+                    <input
+                      id="siteSearch"
+                      type="search"
+                      placeholder="Search stories, sources, or categories"
+                      autocomplete="off"
+                      aria-autocomplete="list"
+                      aria-controls="searchDropdown"
+                      aria-expanded="false"
+                    />
+                    <div class="search-dropdown" id="searchDropdown" role="listbox" hidden></div>
+                  </div>
+                  <button class="btn ghost" type="submit">Search</button>
+                </div>
+              </form>
             </div>
-          </form>
-          <p class="home-search-note">
-            Search stories, sources, categories, and topics from current Live News coverage.
-          </p>
+
+            <div class="home-local-compact" aria-label="Local News city picker">
+              <div class="home-local-heading">
+                <div>
+                  <span class="control-label">Local News</span>
+                  <div class="local-display" id="localDisplay">Selected city: not set</div>
+                </div>
+              </div>
+              <div class="local-city-grid home-local-city-chips" id="topCityGrid" data-compact-limit="8"></div>
+              <div class="local-actions-row home-local-actions">
+                <button class="btn" id="useLocation">Share my location</button>
+                <a class="btn local-preview-cta" id="localDeepDive" href="/local">See more</a>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="lead-news-band" id="leadStory" aria-label="Top story spotlights"></section>
-
-        <section class="panel local-panel home-local-panel">
-          <div class="panel-header">
-            <h3>Local News</h3>
-          </div>
-          <p class="panel-note" id="localNote">
-            Open a dedicated local page for one of the biggest U.S. cities, use your
-            location, or search another city.
-          </p>
-          <div class="local-panel-grid">
-            <div class="local-tools">
-              <div class="local-actions-row">
-                <button class="btn" id="useLocation">Use my location</button>
-              </div>
-              <div class="local-input-wrap">
-                <div class="local-input">
-                  <input
-                    type="text"
-                    id="manualLocation"
-                    placeholder="Search any U.S. city or county"
-                    aria-label="Search any U.S. city or county"
-                  />
-                  <button class="btn ghost" id="setLocation">Set</button>
-                </div>
-                <div class="local-suggestions" id="localSuggestions"></div>
-              </div>
-              <div class="local-display" id="localDisplay">Selected city: not set</div>
-              <section class="local-preview-card">
-                <div class="local-preview-head">
-                  <div>
-                    <h4 id="localPreviewTitle">Quick preview</h4>
-                    <div class="local-status" id="localStatus">
-                      Select a city to preview local stories before opening the full page.
-                    </div>
-                  </div>
-                  <a class="btn local-preview-cta disabled" id="localDeepDive" href="/local">
-                    Open full page
-                  </a>
-                </div>
-                <div class="local-feed local-preview-feed" id="localFeed"></div>
-              </section>
-              <div class="local-deep">
-                <div class="local-deep-note">
-                  Preview a city here, then open the full local page for 25 or 50 recent
-                  stories when available.
-                </div>
-              </div>
-            </div>
-            <div class="local-featured">
-              <div class="local-featured-head">
-                <div>
-                  <h4>Browse top U.S. cities</h4>
-                  <p class="panel-note">
-                    Select any city to load a quick preview on the left.
-                  </p>
-                </div>
-              </div>
-              <div class="local-city-grid" id="topCityGrid"></div>
-            </div>
-          </div>
-        </section>
 
         <section class="panel top-stories">
           <div class="panel-header">

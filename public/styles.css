@@ -485,27 +485,32 @@ html[data-theme="night"] .brand {
   min-width: 0;
 }
 
-.home-local-panel {
-  margin-bottom: 16px;
-}
-
-.home-search-panel {
+.home-search-local-panel {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  align-items: stretch;
+  gap: 0;
   margin-bottom: 16px;
   background:
     radial-gradient(circle at 10% 0%, rgba(2, 132, 199, 0.1), transparent 34%),
     var(--surface);
 }
 
-.home-search-note {
-  margin: 0;
-  width: 100%;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1.6;
+.home-search-local-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.home-search-column,
+.home-local-compact {
+  min-width: 0;
+}
+
+.home-search-column {
+  display: flex;
+  align-items: center;
+  padding-right: 18px;
+  border-right: 1px solid var(--border);
 }
 
 .home-search-form {
@@ -520,6 +525,58 @@ html[data-theme="night"] .brand {
 .home-search-form input {
   padding: 12px 14px;
   font-size: 14px;
+}
+
+.home-local-compact {
+  display: grid;
+  gap: 10px;
+}
+
+.home-local-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-local-heading .local-display {
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+}
+
+.home-local-city-chips {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.home-local-city-chips .local-city-link {
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.home-local-city-chips .local-city-name {
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.home-local-city-chips .local-city-state {
+  font-size: 9px;
+}
+
+.home-local-actions {
+  gap: 8px;
+}
+
+.home-local-actions .btn,
+.home-local-heading .btn {
+  padding: 8px 11px;
+  font-size: 11px;
+  border-radius: 999px;
 }
 
 .lead-news-band,
@@ -2500,6 +2557,32 @@ html[data-theme="night"] .category-entertainment-controls {
 
   .site-search-row {
     display: grid;
+  }
+
+  .home-search-local-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .home-search-column {
+    padding-right: 0;
+    padding-bottom: 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .home-local-heading {
+    align-items: center;
+  }
+
+  .home-local-city-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-local-actions .btn,
+  .home-local-heading .btn {
+    flex: 1 1 auto;
+    text-align: center;
   }
 
   .lead-card {
