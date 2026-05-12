@@ -757,7 +757,7 @@ html[data-theme="night"] .category-lanes-panel .category-option {
 
 .lead-spotlights {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.86fr);
   gap: 14px;
   align-items: stretch;
 }
@@ -766,10 +766,14 @@ html[data-theme="night"] .category-lanes-panel .category-option {
   grid-template-columns: 1fr;
 }
 
+.lead-spotlights[data-count="1"] .lead-card {
+  grid-template-columns: minmax(0, 0.96fr) minmax(320px, 0.58fr);
+}
+
 .lead-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(116px, 0.28fr);
+  grid-template-columns: minmax(0, 0.92fr) minmax(190px, 0.48fr);
   gap: 18px;
   align-items: stretch;
   padding: 22px;
@@ -815,24 +819,24 @@ html[data-theme="night"] .category-lanes-panel .category-option {
   margin: 0;
   max-width: 920px;
   font-family: "Newsreader", serif;
-  font-size: clamp(28px, 3vw, 46px);
-  line-height: 0.98;
-  letter-spacing: -1.2px;
+  font-size: clamp(26px, 2.55vw, 40px);
+  line-height: 1.02;
+  letter-spacing: -0.9px;
   color: var(--lead-text);
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.18);
 }
 
 .lead-spotlights[data-count="1"] .lead-card h1,
 .lead-spotlights[data-count="1"] .lead-card h2 {
-  font-size: clamp(30px, 4vw, 54px);
+  font-size: clamp(28px, 3.4vw, 48px);
 }
 
 .lead-card p {
   max-width: 780px;
   margin: 0;
   color: var(--lead-muted);
-  font-size: 16px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .lead-card .story-eyebrow {
@@ -977,7 +981,7 @@ html[data-theme="night"] .category-lanes-panel .category-option {
 
 .lead-card .story-context {
   color: var(--lead-muted);
-  font-size: 14px;
+  font-size: 13px;
   max-width: 760px;
 }
 
@@ -1115,7 +1119,15 @@ html[data-theme="night"] .category-lanes-panel .category-option {
 }
 
 .story-visual-lead {
-  min-height: 230px;
+  min-height: 260px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.08), transparent 42%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.84), rgba(37, 52, 72, 0.72));
+}
+
+.story-visual-lead .story-photo {
+  object-fit: contain;
+  object-position: center;
 }
 
 .story-visual-card {
@@ -2486,8 +2498,12 @@ html[data-theme="night"] .category-entertainment-controls {
     grid-template-columns: 1fr;
   }
 
+  .lead-spotlights[data-count="1"] .lead-card {
+    grid-template-columns: 1fr;
+  }
+
   .story-visual-lead {
-    min-height: 190px;
+    min-height: 220px;
   }
 
   .story-list {
@@ -2587,12 +2603,16 @@ html[data-theme="night"] .category-entertainment-controls {
 
   .lead-card h1,
   .lead-card h2 {
-    font-size: 32px;
+    font-size: 30px;
   }
 
   .lead-card p,
   .story-dek {
-    font-size: 15px;
+    font-size: 14px;
+  }
+
+  .story-visual-lead {
+    min-height: 210px;
   }
 
   .story-page {

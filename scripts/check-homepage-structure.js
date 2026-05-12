@@ -70,6 +70,12 @@ if (indexHtml.includes('id="localFeed"') || indexHtml.includes("local-preview-ca
 if (entertainmentPosition === -1) fail("Homepage must include the Entertainment panel.");
 if (topStoriesPosition === -1) fail("Homepage must include Top Stories.");
 if (categoryPosition === -1) fail("Homepage must include Category Lanes.");
+if (!appJs.includes('["Top Story of the Day", "Top Story of the Week"]')) {
+  fail("Homepage should still render both Top Story of the Day and Top Story of the Week labels.");
+}
+if (!appJs.includes("renderLeadStoryCard") || !appJs.includes("buildDisplaySummaryParagraph(item, 300)")) {
+  fail("Homepage lead cards should still render readable summaries with a slightly tighter preview length.");
+}
 if (!(searchLocalPosition < topStoriesPosition)) {
   fail("Search + Local module should stay near the top before Top Stories.");
 }
@@ -103,6 +109,24 @@ if (!appJs.includes("if (elements.localFeed && elements.localStatus)")) {
 if (!stylesCss.includes(".home-search-local-panel") || !stylesCss.includes(".home-search-local-grid")) {
   fail("Homepage Search + Local split layout styles are missing.");
 }
+if (!stylesCss.includes("grid-template-columns: minmax(0, 1fr) minmax(360px, 0.86fr)")) {
+  fail("Top Story spotlight row should give the week card a wider desktop column.");
+}
+if (!stylesCss.includes("grid-template-columns: minmax(0, 0.92fr) minmax(190px, 0.48fr)")) {
+  fail("Top Story cards should rebalance text and media columns so the media area is larger.");
+}
+if (!stylesCss.includes("grid-template-columns: minmax(0, 0.96fr) minmax(320px, 0.58fr)")) {
+  fail("Single Top Story card should reserve a larger media column on desktop.");
+}
+if (!stylesCss.includes("font-size: clamp(26px, 2.55vw, 40px)") || !stylesCss.includes("font-size: clamp(28px, 3.4vw, 48px)")) {
+  fail("Top Story headline font sizes should be modestly reduced, not removed.");
+}
+if (!stylesCss.includes(".story-visual-lead .story-photo") || !stylesCss.includes("object-fit: contain")) {
+  fail("Top Story lead images should use a more forgiving fit so users can identify more of the image.");
+}
+if (!stylesCss.includes(".story-visual-lead") || !stylesCss.includes("min-height: 260px")) {
+  fail("Top Story media should have a taller desktop visual area.");
+}
 if (!stylesCss.includes(".sr-only") || !stylesCss.includes("clip: rect(0, 0, 0, 0)")) {
   fail("Hidden Search label should use an accessible screen-reader-only utility.");
 }
@@ -120,6 +144,9 @@ if (!stylesCss.includes(".home-local-city-chips") || !stylesCss.includes("grid-t
 }
 if (!stylesCss.includes("@media (max-width: 720px)") || !stylesCss.includes(".home-search-local-grid")) {
   fail("Homepage Search + Local module needs mobile stacking styles.");
+}
+if (!stylesCss.includes(".lead-spotlights[data-count=\"1\"] .lead-card") || !stylesCss.includes("min-height: 210px")) {
+  fail("Top Story cards should stack cleanly with a bounded mobile media height.");
 }
 if (appJs.includes("class=\"lane-story") || appJs.includes("lane-story-title")) {
   fail("Homepage Category Lanes should not render inline article cards anymore.");

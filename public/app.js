@@ -1897,7 +1897,7 @@ function renderLeadStoryCard(item, { label = "Top Story", headingTag = "h1", var
           <span>${escapeHtml(getPublishedDateBadge(item))}</span>
         </div>
         <${Heading}>${buildStoryTitleLink(item, "lead-title")}</${Heading}>
-        ${buildDisplaySummaryParagraph(item, 340)}
+        ${buildDisplaySummaryParagraph(item, 300)}
         ${buildStoryContext(item)}
         ${buildStoryMeta(item, published)}
         ${buildStoryActions(item)}
