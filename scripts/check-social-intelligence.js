@@ -250,6 +250,60 @@ const unsupportedClaimResult = buildSocialPublisherRun(
   }
 );
 
+const copyRewriteResult = buildSocialPublisherRun(
+  {
+    topStoryOfDay: {
+      id: "social-copy-rewrite-pass",
+      title: "Shipping costs put shoppers in focus",
+      liveNewsHeadline: "Shipping costs put shoppers in focus",
+      originalPublisherTitle: "Retail chain warns higher shipping costs could reach shoppers",
+      liveNewsSummary: "Retail chain warns higher shipping costs could reach shoppers",
+      sourceSummary: "Retail chain warns higher shipping costs could reach shoppers",
+      keyPoints: [
+        "The company said transport expenses are rising this year.",
+        "Shoppers could see price changes if shipping costs keep climbing.",
+      ],
+      sourceName: "Market Wire",
+      link: "https://example.com/retail-shipping",
+      category: "Business",
+      publishedAt: "2026-05-08T21:00:00.000Z",
+      hasLiveNewsStory: true,
+      approvedStoryUrl: "/stories/social-copy-rewrite-pass",
+    },
+    topStories: [],
+    feed: [],
+  },
+  {
+    origin: "https://newsmorenow.com",
+    limit: 1,
+    socialMemory: memory,
+  }
+);
+
+const weakRewriteResult = buildSocialPublisherRun(
+  {
+    topStoryOfDay: {
+      id: "social-weak-rewrite",
+      title: "Exact Publisher Headline Copied Here",
+      originalPublisherTitle: "Exact Publisher Headline Copied Here",
+      liveNewsHeadline: "Exact Publisher Headline Copied Here",
+      sourceName: "Live News Test Source",
+      link: "https://example.com/weak-copy-context",
+      category: "National",
+      publishedAt: "2026-05-08T22:00:00.000Z",
+      hasLiveNewsStory: true,
+      approvedStoryUrl: "/stories/social-weak-rewrite",
+    },
+    topStories: [],
+    feed: [],
+  },
+  {
+    origin: "https://newsmorenow.com",
+    limit: 1,
+    socialMemory: memory,
+  }
+);
+
 if (memory.schemaVersion !== SOCIAL_STYLE_MEMORY_SCHEMA_VERSION) {
   fail("Social style memory schema is not current.", failures);
 }
@@ -389,12 +443,12 @@ for (const draft of safetyResult.drafts) {
     fail(`${draft.socialDraftId} needs at least three Instagram variants.`, failures);
   }
   for (const variant of draft.platforms?.facebook?.variants || []) {
-    for (const field of ["id", "label", "title", "message", "description", "exactArticleUrl", "sourceAttribution", "hashtags", "captionShape", "safetyFlags", "teacherChecks", "publishable"]) {
+    for (const field of ["id", "label", "title", "message", "description", "exactArticleUrl", "sourceAttribution", "hashtags", "captionShape", "safetyFlags", "teacherChecks", "publishable", "writingSource", "originalWriterStatus", "rewriteSession", "copyRisk", "smartnessScore", "writerRoomNotes", "rewriteImprovementSummary"]) {
       if (!(field in variant)) fail(`${draft.socialDraftId} Facebook variant ${variant.id || "unknown"} is missing ${field}.`, failures);
     }
   }
   for (const variant of draft.platforms?.instagram?.variants || []) {
-    for (const field of ["id", "label", "shortTitle", "caption", "cardTitle", "cardSubtitle", "altText", "storyText", "carouselSlides", "hashtags", "imagePlan", "exactArticleUrl", "sourceAttribution", "captionShape", "safetyFlags", "teacherChecks", "publishable", "renderStatus"]) {
+    for (const field of ["id", "label", "shortTitle", "caption", "cardTitle", "cardSubtitle", "altText", "storyText", "carouselSlides", "hashtags", "imagePlan", "exactArticleUrl", "sourceAttribution", "captionShape", "safetyFlags", "teacherChecks", "publishable", "renderStatus", "writingSource", "originalWriterStatus", "rewriteSession", "copyRisk", "smartnessScore", "writerRoomNotes", "rewriteImprovementSummary"]) {
       if (!(field in variant)) fail(`${draft.socialDraftId} Instagram variant ${variant.id || "unknown"} is missing ${field}.`, failures);
     }
     if (!variant.cardTitle || !variant.altText) {
@@ -479,10 +533,11 @@ const copiedPublisherVariants = [
   ...(copiedPublisherDraft?.platforms?.facebook?.variants || []),
   ...(copiedPublisherDraft?.platforms?.instagram?.variants || []),
 ];
-if (!copiedPublisherVariants.some((variant) =>
-  (variant.teacherChecks || []).some((check) => check.id === "writing_copy_risk_teacher" && check.passed === false)
-)) {
-  fail("Social captions should block copied publisher wording.", failures);
+if (!copiedPublisherVariants.some((variant) => variant.writingSource === "rewrite_loop")) {
+  fail("Social captions with copied publisher wording should run through the rewrite loop.", failures);
+}
+if (copiedPublisherVariants.some((variant) => /Exact Publisher Headline Copied Here/i.test(variant.message || variant.caption || ""))) {
+  fail("Social captions should not keep exact copied publisher wording after repair.", failures);
 }
 
 const unsupportedClaimDraft = unsupportedClaimResult.drafts[0];
@@ -494,6 +549,48 @@ if (!unsupportedVariants.some((variant) =>
   (variant.teacherChecks || []).some((check) => check.id === "writing_context_faithfulness_teacher" && check.passed === false)
 )) {
   fail("Social captions should block unsupported or forced claims.", failures);
+}
+
+const copyRewriteDraft = copyRewriteResult.drafts[0];
+const copyRewriteFacebookVariants = copyRewriteDraft?.platforms?.facebook?.variants || [];
+const rewrittenFacebookVariant = copyRewriteFacebookVariants.find((variant) =>
+  variant.writingSource === "rewrite_loop" &&
+    variant.originalWriterStatus === "used" &&
+    variant.rewriteSession?.status === "passed"
+);
+if (!rewrittenFacebookVariant) {
+  fail("Social draft that fails CopyRiskTeacher should be rewritten from the fact map.", failures);
+}
+if (rewrittenFacebookVariant && !rewrittenFacebookVariant.message.includes("https://newsmorenow.com/stories/social-copy-rewrite-pass")) {
+  fail("Rewritten Facebook draft should include the exact /stories/... URL.", failures);
+}
+if (rewrittenFacebookVariant && !/Source: Market Wire\./.test(rewrittenFacebookVariant.message)) {
+  fail("Rewritten Facebook draft should keep source attribution.", failures);
+}
+if (rewrittenFacebookVariant && /Retail chain warns higher shipping costs could reach shoppers/i.test(rewrittenFacebookVariant.message)) {
+  fail("Rewritten social draft should not copy publisher wording.", failures);
+}
+if (rewrittenFacebookVariant && !/transport expenses are rising|Shoppers could see price changes/i.test(rewrittenFacebookVariant.message)) {
+  fail("Rewritten social draft should use source-backed facts instead of inventing context.", failures);
+}
+if (rewrittenFacebookVariant && /Read the original source for the full report|This article discusses|In a recent development/i.test(rewrittenFacebookVariant.message)) {
+  fail("Rewritten social draft should not use generic fallback text.", failures);
+}
+if (rewrittenFacebookVariant && rewrittenFacebookVariant.copyRisk?.risk !== "low") {
+  fail("Rewritten social draft should reduce copy risk to low.", failures);
+}
+if (rewrittenFacebookVariant && rewrittenFacebookVariant.rewriteSession?.copyRiskBefore?.risk !== "blocked") {
+  fail("RewriteSession should show blocked copy risk before repair.", failures);
+}
+if (copyRewriteDraft?.metaPostingStatus !== "not_connected" || copyRewriteDraft?.autoPostAllowed !== false) {
+  fail("Original Writer social repair must not attempt a real Meta post.", failures);
+}
+const weakRewriteVariants = [
+  ...(weakRewriteResult.drafts[0]?.platforms?.facebook?.variants || []),
+  ...(weakRewriteResult.drafts[0]?.platforms?.instagram?.variants || []),
+];
+if (!weakRewriteVariants.every((variant) => ["needs_more_context", "blocked"].includes(variant.originalWriterStatus))) {
+  fail("If social rewrite cannot pass, variants should show needs_more_context or blocked for review.", failures);
 }
 
 if (failures.length) {
