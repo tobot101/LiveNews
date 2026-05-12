@@ -1,3 +1,6 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const {
   buildArticleWritingContext,
   detectCopyRisk,
@@ -70,6 +73,13 @@ const {
   runSourceReaderAgent,
   runWriterRoom,
 } = require("../lib/article-agents/writer-room");
+const {
+  getRewriteLessonsForCopyRisk,
+  getRewriteLessonsForTeacherFailure,
+  recordApprovedRewriteLesson,
+  rejectUnsafeRewriteMemory,
+  sanitizeRewriteMemoryRecord,
+} = require("../lib/article-agents/rewrite-memory");
 
 const failures = [];
 
@@ -582,6 +592,111 @@ const weakRewriteSession = rewriteUntilPass(
   "description"
 );
 expect(weakRewriteSession.status === "needs_more_context", "Rewriter should return needs_more_context for a weak fact map.");
+
+const rewriteMemoryPath = path.join(os.tmpdir(), `live-news-rewrite-memory-${Date.now()}.json`);
+fs.writeFileSync(rewriteMemoryPath, JSON.stringify({
+  schemaVersion: "live-news-rewrite-quality-memory-v1",
+  updatedAt: null,
+  records: [],
+}, null, 2));
+const safeRewriteLesson = recordApprovedRewriteLesson({
+  storyId: "rewrite-memory-transit-1",
+  category: "Local",
+  fieldName: "description",
+  failedTeacherNames: ["CopyRiskTeacher", "StoryFocusTeacher"],
+  weakOutput: "After public review, city leaders approve overnight transit safety plan.",
+  approvedOutput: goodDescription,
+  publisherText: approvedStory.originalPublisherTitle,
+  editorReason: "The rewrite used the transit fact map instead of publisher sentence structure.",
+  rewriteStrategyUsed: "fact_map_rewrite",
+  beforeScore: 62,
+  afterScore: 94,
+  copyRiskBefore: { risk: "blocked", score: 0 },
+  copyRiskAfter: { risk: "low", score: 86 },
+  createdAt: "2026-05-11T00:00:00.000Z",
+}, { storePath: rewriteMemoryPath });
+expect(safeRewriteLesson.ok, "Approved rewrite lesson should be stored.");
+expect(safeRewriteLesson.record.failedTeacherNames.includes("CopyRiskTeacher"), "Failed teacher names should be stored.");
+expect(safeRewriteLesson.record.beforeScore === 62 && safeRewriteLesson.record.afterScore === 94, "Before/after scores should be stored.");
+expect(safeRewriteLesson.record.copyRiskBefore > safeRewriteLesson.record.copyRiskAfter, "CopyRisk before/after should be stored as an improvement.");
+expect(
+  safeRewriteLesson.record.weakOutputShape === "source_like_copy_risk" && !JSON.stringify(safeRewriteLesson.record).includes("After public review, city leaders approve"),
+  "Rewrite memory should store weak output shape, not copied source-like wording."
+);
+expect(
+  safeRewriteLesson.record.lesson.includes("CopyRiskTeacher fails"),
+  "Safe rewrite lesson should be generated from failed teacher names."
+);
+const fullSourceRejected = rejectUnsafeRewriteMemory({
+  storyId: "unsafe-source-memory",
+  category: "Local",
+  fieldName: "description",
+  failedTeacherNames: ["CopyRiskTeacher"],
+  weakOutput: "Weak draft.",
+  approvedOutput: goodDescription,
+  fullSourceArticleText: "Paragraph one from a full source article.\n\nParagraph two from a full source article with more details.",
+});
+expect(fullSourceRejected.rejected, "Full source article text should be rejected.");
+const usernameSanitized = sanitizeRewriteMemoryRecord({
+  storyId: "username-sanitized",
+  category: "Local",
+  fieldName: "description",
+  failedTeacherNames: ["StoryFocusTeacher"],
+  weakOutput: "Weak draft.",
+  approvedOutput: goodDescription,
+  editorReason: "Editor removed @private_reader from the note before learning.",
+  rewriteStrategyUsed: "story_focus_rewrite",
+});
+expect(
+  usernameSanitized.ok && !usernameSanitized.record.editorReason.includes("@private_reader"),
+  "Username handles should be removed from rewrite memory notes."
+);
+const privateMessageRejected = rejectUnsafeRewriteMemory({
+  storyId: "unsafe-private-message",
+  category: "Local",
+  fieldName: "description",
+  failedTeacherNames: ["StoryFocusTeacher"],
+  weakOutput: "Weak draft.",
+  approvedOutput: goodDescription,
+  privateMessage: "A private message gave extra context.",
+});
+expect(privateMessageRejected.rejected, "Private message text should be rejected.");
+const commentRejected = rejectUnsafeRewriteMemory({
+  storyId: "unsafe-comment",
+  category: "Local",
+  fieldName: "description",
+  failedTeacherNames: ["StoryFocusTeacher"],
+  weakOutput: "Weak draft.",
+  approvedOutput: goodDescription,
+  commentText: "A commenter said the plan changes fares.",
+});
+expect(commentRejected.rejected, "Copied comment text should be rejected.");
+const copiedPublisherRejected = sanitizeRewriteMemoryRecord({
+  storyId: "unsafe-publisher-copy",
+  category: "Local",
+  fieldName: "description",
+  failedTeacherNames: ["CopyRiskTeacher"],
+  weakOutput: "Weak draft.",
+  approvedOutput: approvedStory.originalPublisherTitle,
+  publisherText: approvedStory.originalPublisherTitle,
+  rewriteStrategyUsed: "fact_map_rewrite",
+});
+expect(!copiedPublisherRejected.ok, "Publisher wording should not be learned as a preferred pattern.");
+const teacherLessons = getRewriteLessonsForTeacherFailure(["CopyRiskTeacher"], { storePath: rewriteMemoryPath });
+expect(teacherLessons.length > 0, "Future rewrite should retrieve lesson by teacher failure.");
+const copyRiskLessons = getRewriteLessonsForCopyRisk("blocked", { storePath: rewriteMemoryPath });
+expect(copyRiskLessons.length > 0, "Future rewrite should retrieve lesson by copy-risk type.");
+const memoryGuidedWriterRoom = runWriterRoom(factMapStory, "description", {
+  rewriteMemoryStorePath: rewriteMemoryPath,
+});
+expect(
+  memoryGuidedWriterRoom.rewriteLessonsUsed?.some((record) => record.lesson.includes("CopyRiskTeacher fails")),
+  "WriterRoom should retrieve safe rewrite lessons before drafting."
+);
+expect(
+  memoryGuidedWriterRoom.agentNotes.some((note) => note.agent === "RewriteMemoryAgent"),
+  "WriterRoom should include rewrite-memory guidance notes."
+);
 
 const sourceReaderAgent = runSourceReaderAgent(factMapStory);
 expect(sourceReaderAgent.status === "ready", "WriterRoom SourceReaderAgent should read source-safe story context.");
