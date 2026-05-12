@@ -100,6 +100,91 @@ if (/Public safety language needs explicit source support/i.test(facebookHtml + 
   fail("Public safety must not appear as a default dashboard warning.");
 }
 
+const rewriteVisibleDraft = JSON.parse(JSON.stringify(draft));
+rewriteVisibleDraft.platforms.facebook.variants[0] = {
+  ...rewriteVisibleDraft.platforms.facebook.variants[0],
+  originalWriterStatus: "used",
+  writingSource: "rewrite_loop",
+  rewriteImprovementSummary: "Writing score moved from 62 to 94. Copy risk moved from blocked to low.",
+  copyRisk: { risk: "low", score: 86, explanation: "Copy risk is low after rewrite." },
+  writingExam: { total: 94, blockingReasons: [] },
+  teacherChecks: [
+    ...(rewriteVisibleDraft.platforms.facebook.variants[0].teacherChecks || []),
+    { id: "writing_copy_risk_teacher", name: "CopyRiskTeacher", passed: false, score: 42, message: "Caption was too close to publisher wording." },
+  ],
+  rewriteSession: {
+    status: "passed",
+    originalCandidate: "After public review, city leaders approve overnight transit safety plan.",
+    finalCandidate: "The transit safety plan moved forward after review, with late-night riders and station workers among the groups affected.",
+    attempts: [
+      {
+        diagnosis: {
+          failedTeacherNames: ["CopyRiskTeacher", "StoryFocusTeacher"],
+          strategies: ["fact_map_rewrite", "story_focus_rewrite"],
+          reasons: ["Candidate was too close to publisher wording."],
+        },
+        selected: { strategy: "fact_map_rewrite", writingScore: 62 },
+      },
+    ],
+    finalWritingExam: { total: 94 },
+    copyRiskBefore: {
+      risk: "blocked",
+      score: 0,
+      explanation: "Distinctive source phrase appears in candidate.",
+    },
+    copyRiskAfter: {
+      risk: "low",
+      score: 86,
+      explanation: "Copy risk is low after rewrite.",
+    },
+    improvementSummary: "Writing score moved from 62 to 94. Copy risk moved from blocked to low.",
+  },
+};
+const rewriteVisibleHtml = renderSocialVariantReviewHtml({
+  draft: rewriteVisibleDraft,
+  platform: "facebook",
+  actionUrl: "/admin/social/select-variant",
+});
+if (!/Rewrite visibility/.test(rewriteVisibleHtml) || !/Rewrite status/.test(rewriteVisibleHtml)) {
+  fail("Social dashboard should show rewrite status.");
+}
+if (!/CopyRiskTeacher/.test(rewriteVisibleHtml) || !/StoryFocusTeacher/.test(rewriteVisibleHtml)) {
+  fail("Social dashboard should show failed teachers.");
+}
+if (!/Copy-risk explanation/.test(rewriteVisibleHtml) || !/Distinctive source phrase/.test(rewriteVisibleHtml)) {
+  fail("Social dashboard should show copy-risk explanation.");
+}
+if (!/Before score/.test(rewriteVisibleHtml) || !/After score/.test(rewriteVisibleHtml)) {
+  fail("Social dashboard should show before and after score.");
+}
+if (!/Final selected rewrite/.test(rewriteVisibleHtml) || !/The transit safety plan moved forward after review/.test(rewriteVisibleHtml)) {
+  fail("Social dashboard should show final rewrite if passed.");
+}
+if (/access_token=|YOUR_ADMIN_TOKEN|mock-private-page-token/.test(rewriteVisibleHtml)) {
+  fail("Social rewrite visibility should not render tokens.");
+}
+
+const needsContextSocialDraft = JSON.parse(JSON.stringify(draft));
+needsContextSocialDraft.platforms.facebook.variants[0] = {
+  ...needsContextSocialDraft.platforms.facebook.variants[0],
+  originalWriterStatus: "needs_more_context",
+  rewriteSession: {
+    status: "needs_more_context",
+    originalCandidate: "This article discusses the update.",
+    attempts: [],
+    copyRiskBefore: { risk: "medium", score: 58, explanation: "Generic fallback-like writing." },
+    improvementSummary: "More source-backed context is needed before this can be posted.",
+  },
+};
+const needsContextSocialHtml = renderSocialVariantReviewHtml({
+  draft: needsContextSocialDraft,
+  platform: "facebook",
+  actionUrl: "/admin/social/select-variant",
+});
+if (!/Needs more context/.test(needsContextSocialHtml) || !/More source-backed context is needed/.test(needsContextSocialHtml)) {
+  fail("Social dashboard should show needs_more_context if no rewrite passed.");
+}
+
 const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
 if (!serverSource.includes("/admin/meta/publish-selected") || !serverSource.includes("bulk-social-post-form")) {
   fail("Social dashboard should support selecting multiple Facebook/Instagram drafts before posting.");

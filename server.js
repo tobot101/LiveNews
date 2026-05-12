@@ -2534,6 +2534,12 @@ function renderSocialPublisherPage(payload = buildCurrentNewsPayload(), req = nu
     .variant-score-panel { display: grid; gap: 6px; background: #fffaf0; border: 1px solid #ead7ad; border-radius: 12px; padding: 10px; }
     .variant-score-panel ul { margin: 0 0 6px; padding-left: 18px; color: #775226; }
     .variant-score-panel strong { color: #223a52; }
+    .variant-rewrite-panel { background: #f8fbfd; border: 1px solid #dbe6f0; border-radius: 12px; padding: 10px; }
+    .variant-rewrite-panel summary { color: #223a52; }
+    .rewrite-details { display: grid; grid-template-columns: minmax(120px, .34fr) 1fr; gap: 7px 10px; margin-top: 10px; }
+    .rewrite-details dt { color: #526984; font-size: .73rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .rewrite-details dd { margin: 0; overflow-wrap: anywhere; }
+    .rewrite-details ul { margin: 0; padding-left: 18px; }
     .teacher-list, .variant-list, .variant-list ul { padding-left: 18px; }
     .teacher-list .pass { color: #285d43; }
     .teacher-list .needs { color: #8a4d19; }
@@ -2926,6 +2932,14 @@ function renderStoryApprovalPage(req) {
     .candidate-card.warn, .teacher-score.warn { background: #fffaf1; }
     .candidate-card.passed, .teacher-score.passed { background: #f7fff9; }
     .teacher-score.blocking { background: #fff1f1; border-color: #f2c2c2; }
+    .rewrite-grid { display: grid; gap: 10px; margin-top: 10px; }
+    .rewrite-card { background: #fff; border: 1px solid #dbe6f0; border-radius: 14px; padding: 10px; }
+    .rewrite-card.passed { background: #f7fff9; border-color: #bedfc9; }
+    .rewrite-card.needs_more_context, .rewrite-card.blocked { background: #fff8e8; border-color: #ead4a2; }
+    .rewrite-details { display: grid; grid-template-columns: minmax(130px, .32fr) 1fr; gap: 7px 12px; margin: 10px 0 0; }
+    .rewrite-details dt { color: #526984; font-size: .75rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .rewrite-details dd { margin: 0; overflow-wrap: anywhere; color: #30445d; }
+    .rewrite-details ul { margin: 0; padding-left: 18px; }
     .candidate-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
     .warning { color: #7a3f00; font-weight: 700; }
     .writing-muted { color: #627893; }

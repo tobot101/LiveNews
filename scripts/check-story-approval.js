@@ -251,6 +251,125 @@ if (/YOUR_ADMIN_TOKEN|access_token=|token=/.test(writingPanelHtml)) {
   failures.push("Writing-quality panel should not render real or placeholder tokens.");
 }
 
+const rewriteVisibilityPanelHtml = renderStoryWritingQualityPanel(
+  draft,
+  {
+    writingPackage: {
+      ...approvalCheck.writingPackage,
+      writerRoom: {
+        fields: {
+          description: {
+            status: "passed",
+            candidates: [
+              {
+                text: "After public review, city leaders approve overnight transit safety plan.",
+                writingExam: { total: 62 },
+              },
+            ],
+            selectedCandidate: {
+              text: draft.description,
+              strategy: "writer_room_rewrite",
+              writingExam: { total: 94, blockingReasons: [] },
+              teacherChecks: [
+                { name: "StoryFocusTeacher", passed: true, score: 94 },
+                { name: "CopyRiskTeacher", passed: true, score: 88 },
+              ],
+              copyRisk: { risk: "low", score: 86, explanation: "Copy risk is low after rewrite." },
+            },
+            rewriteSession: {
+              status: "passed",
+              originalCandidate: "After public review, city leaders approve overnight transit safety plan.",
+              finalCandidate: draft.description,
+              attempts: [
+                {
+                  diagnosis: {
+                    failedTeacherNames: ["CopyRiskTeacher", "StoryFocusTeacher"],
+                    strategies: ["fact_map_rewrite", "story_focus_rewrite"],
+                    reasons: ["Candidate was too close to source wording."],
+                  },
+                  selected: { strategy: "fact_map_rewrite", writingScore: 62 },
+                },
+              ],
+              finalWritingExam: { total: 94 },
+              copyRiskBefore: {
+                risk: "blocked",
+                score: 0,
+                explanation: "Distinctive source phrase appears in candidate.",
+              },
+              copyRiskAfter: {
+                risk: "low",
+                score: 86,
+                explanation: "Copy risk is low after rewrite.",
+              },
+              improvementSummary: "Writing score moved from 62 to 94. Copy risk moved from blocked to low.",
+            },
+            rewriteLessonsUsed: [
+              {
+                lesson: "When CopyRiskTeacher fails, rebuild from confirmed facts instead of rearranging the source sentence.",
+              },
+            ],
+            managingEditorReason: "Selected the rewritten description.",
+          },
+        },
+      },
+    },
+  },
+  { editable: false }
+);
+if (!/Rewrite visibility/.test(rewriteVisibilityPanelHtml) || !/Rewrite status/.test(rewriteVisibilityPanelHtml)) {
+  failures.push("Story dashboard should show rewrite status.");
+}
+if (!/CopyRiskTeacher/.test(rewriteVisibilityPanelHtml) || !/StoryFocusTeacher/.test(rewriteVisibilityPanelHtml)) {
+  failures.push("Story dashboard should show failed teacher names.");
+}
+if (!/Copy-risk explanation/.test(rewriteVisibilityPanelHtml) || !/Distinctive source phrase/.test(rewriteVisibilityPanelHtml)) {
+  failures.push("Story dashboard should show copy-risk explanation.");
+}
+if (!/Before score/.test(rewriteVisibilityPanelHtml) || !/After score/.test(rewriteVisibilityPanelHtml)) {
+  failures.push("Story dashboard should show before and after scores.");
+}
+if (!/Final selected rewrite/.test(rewriteVisibilityPanelHtml) || !/Writing score moved from 62 to 94/.test(rewriteVisibilityPanelHtml)) {
+  failures.push("Story dashboard should show final rewrite and improvement summary.");
+}
+if (!/Approved rewrite lesson/.test(rewriteVisibilityPanelHtml) || !/rebuild from confirmed facts/.test(rewriteVisibilityPanelHtml)) {
+  failures.push("Story dashboard should show approved rewrite lesson when available.");
+}
+
+const needsContextRewritePanelHtml = renderStoryWritingQualityPanel(
+  weakDraft,
+  {
+    writingPackage: {
+      ...weakCheck.writingPackage,
+      writerRoom: {
+        fields: {
+          description: {
+            status: "needs_more_context",
+            selectedCandidate: null,
+            candidates: [],
+            rewriteSession: {
+              status: "needs_more_context",
+              originalCandidate: "This article discusses the update.",
+              finalCandidate: null,
+              attempts: [],
+              copyRiskBefore: { risk: "medium", score: 58, explanation: "Generic source-like wording." },
+              copyRiskAfter: {},
+              improvementSummary: "More source-backed context is needed.",
+            },
+            managingEditorReason: "Needs more context: main_event_missing.",
+          },
+        },
+      },
+    },
+  },
+  { editable: false }
+);
+if (!/Needs more context/.test(needsContextRewritePanelHtml) || !/More source-backed context is needed/.test(needsContextRewritePanelHtml)) {
+  failures.push("Story dashboard should show needs_more_context when no rewrite passed.");
+}
+if (/YOUR_ADMIN_TOKEN|access_token=|token=/.test(rewriteVisibilityPanelHtml + needsContextRewritePanelHtml)) {
+  failures.push("Rewrite visibility panel should not render real or placeholder tokens.");
+}
+
 const weakPanelHtml = renderStoryWritingQualityPanel(weakDraft, weakCheck, { editable: false });
 if (!/Missing context/.test(weakPanelHtml) || !/main_event_missing|confirmed_facts_missing/.test(weakPanelHtml)) {
   failures.push("Missing context should be visible for weak drafts.");
