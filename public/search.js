@@ -4,6 +4,7 @@ const state = {
   previewTimer: null,
   previewController: null,
 };
+const SEARCH_PREVIEW_LIMIT = 5;
 
 const elements = {
   modeControl: document.getElementById("modeControl"),
@@ -92,6 +93,15 @@ function bindControls() {
     scheduleSearchPreview(event.target.value);
   });
 
+  elements.siteSearch?.addEventListener("keyup", (event) => {
+    if (event.key === "Escape" || event.key === "Enter") return;
+    scheduleSearchPreview(event.target.value);
+  });
+
+  elements.siteSearch?.addEventListener("focus", (event) => {
+    scheduleSearchPreview(event.target.value);
+  });
+
   elements.siteSearch?.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       hideSearchDropdown();
@@ -129,12 +139,18 @@ async function fetchSearchPreview(query) {
   }
   state.previewController = new AbortController();
   try {
-    const params = new URLSearchParams({ q: query, limit: "8" });
+    const params = new URLSearchParams({ q: query, limit: String(SEARCH_PREVIEW_LIMIT) });
     const response = await fetch(`/api/search?${params.toString()}`, {
       signal: state.previewController.signal,
     });
     const data = await response.json();
-    renderSearchDropdown(data.items || [], query, "", Number(data.count || 0));
+    if (String(elements.siteSearch?.value || "").trim() !== query) return;
+    renderSearchDropdown(
+      Array.isArray(data.items) ? data.items.slice(0, SEARCH_PREVIEW_LIMIT) : [],
+      query,
+      "",
+      Number(data.count || 0)
+    );
   } catch (error) {
     if (error.name === "AbortError") return;
     renderSearchDropdown([], query, "Search is unavailable right now.");

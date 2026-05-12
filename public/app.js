@@ -8,6 +8,7 @@ const ANON_ID_DAYS = 90;
 const PROFILE_TTL_DAYS = 30;
 const ANALYTICS_TTL_DAYS = 30;
 const LOCAL_PREVIEW_LIMIT = 3;
+const SEARCH_PREVIEW_LIMIT = 5;
 const ALLOWED_FEED_LIMITS = new Set(["30", "50", "100"]);
 const CATEGORY_LANES = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
 const CATEGORY_PAGE_SLUGS = {
@@ -292,6 +293,13 @@ function bindControls() {
     elements.siteSearch.addEventListener("input", (event) => {
       scheduleSearchPreview(event.target.value);
     });
+    elements.siteSearch.addEventListener("keyup", (event) => {
+      if (event.key === "Escape" || event.key === "Enter") return;
+      scheduleSearchPreview(event.target.value);
+    });
+    elements.siteSearch.addEventListener("focus", (event) => {
+      scheduleSearchPreview(event.target.value);
+    });
     elements.siteSearch.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         hideSearchDropdown();
@@ -502,26 +510,119 @@ function scheduleSearchPreview(value) {
     hideSearchDropdown();
     return;
   }
-  searchPreviewTimer = setTimeout(() => fetchSearchPreview(query), 180);
+  const localItems = getLocalSearchPreviewItems(query);
+  renderSearchDropdown(localItems, query, "", localItems.length);
+  searchPreviewTimer = setTimeout(() => fetchSearchPreview(query, localItems), 180);
 }
 
-async function fetchSearchPreview(query) {
+async function fetchSearchPreview(query, fallbackItems = []) {
   if (!elements.searchDropdown) return;
   if (searchPreviewController) {
     searchPreviewController.abort();
   }
   searchPreviewController = new AbortController();
   try {
-    const params = new URLSearchParams({ q: query, limit: "8" });
+    const params = new URLSearchParams({ q: query, limit: String(SEARCH_PREVIEW_LIMIT) });
     const response = await fetch(`/api/search?${params.toString()}`, {
       signal: searchPreviewController.signal,
     });
     const data = await response.json();
-    renderSearchDropdown(data.items || [], query, "", Number(data.count || 0));
+    if (String(elements.siteSearch?.value || "").trim() !== query) return;
+    const remoteItems = Array.isArray(data.items) ? data.items.slice(0, SEARCH_PREVIEW_LIMIT) : [];
+    renderSearchDropdown(
+      remoteItems.length ? remoteItems : fallbackItems,
+      query,
+      "",
+      Number(data.count || remoteItems.length || fallbackItems.length)
+    );
   } catch (error) {
     if (error.name === "AbortError") return;
+    if (fallbackItems.length) {
+      renderSearchDropdown(fallbackItems, query, "", fallbackItems.length);
+      return;
+    }
     renderSearchDropdown([], query, "Search is unavailable right now.");
   }
+}
+
+function getLocalSearchPreviewItems(query) {
+  const cleanQuery = String(query || "").trim().toLowerCase();
+  if (!cleanQuery) return [];
+  const tokens = cleanQuery.split(/\s+/).filter(Boolean);
+  const scored = getSearchPreviewPool()
+    .map((item) => {
+      const text = getSearchPreviewText(item);
+      const title = String(getDisplayTitle(item) || "").toLowerCase();
+      const source = String(item.sourceName || item.source || item.sourceDomain || "").toLowerCase();
+      const category = String(item.category || "").toLowerCase();
+      let score = 0;
+      if (title.includes(cleanQuery)) score += title.startsWith(cleanQuery) ? 12 : 9;
+      if (source.includes(cleanQuery)) score += source.startsWith(cleanQuery) ? 8 : 5;
+      if (category.includes(cleanQuery)) score += category.startsWith(cleanQuery) ? 7 : 4;
+      if (text.includes(cleanQuery)) score += 3;
+      tokens.forEach((token) => {
+        if (!token) return;
+        if (title.includes(token)) score += 4;
+        if (source.includes(token)) score += 3;
+        if (category.includes(token)) score += 3;
+        if (text.includes(token)) score += 1;
+      });
+      return { item, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        Number(b.item.score || 0) - Number(a.item.score || 0) ||
+        new Date(b.item.publishedAt || 0) - new Date(a.item.publishedAt || 0)
+    );
+  return scored.slice(0, SEARCH_PREVIEW_LIMIT).map((entry) => entry.item);
+}
+
+function getSearchPreviewPool() {
+  return dedupeNewsItems([
+    ...state.currentItems,
+    ...state.currentTopStories,
+    ...state.currentFeed,
+    ...state.approvedStories,
+  ]).filter(Boolean);
+}
+
+function getSearchPreviewText(item) {
+  return flattenSearchValues([
+    item.liveNewsHeadline,
+    item.approvedTitle,
+    item.approvedHeadline,
+    item.title,
+    item.originalPublisherTitle,
+    item.approvedDescription,
+    item.liveNewsDescription,
+    item.description,
+    item.summary,
+    item.liveNewsSummary,
+    item.summaryText,
+    item.sourceName,
+    item.source,
+    item.sourceDomain,
+    item.category,
+    item.tags,
+    item.topic,
+    item.topics,
+    item.topicName,
+    item.topicCluster,
+    item.relatedQueries,
+  ]).toLowerCase();
+}
+
+function flattenSearchValues(values) {
+  return values
+    .flatMap((value) => {
+      if (Array.isArray(value)) return value;
+      if (value && typeof value === "object") return Object.values(value);
+      return value;
+    })
+    .filter(Boolean)
+    .join(" ");
 }
 
 function renderSearchDropdown(items, query, message = "", total = items.length) {
@@ -1546,18 +1647,7 @@ function filterBySearch(items) {
 }
 
 function getSearchableText(item) {
-  return [
-    item.title,
-    item.liveNewsHeadline,
-    item.summary,
-    item.liveNewsSummary,
-    item.sourceName,
-    item.category,
-    item.sourceDomain,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  return getSearchPreviewText(item);
 }
 
 function applyActiveFilters(items) {
@@ -1650,10 +1740,17 @@ function renderCurrent() {
   state.currentItems = Array.from(deduped.values());
   setUpdateNotice(false);
   updateSectionHeaders(state.category, filteredTop.length, limitedFeed.length, feedTotal);
+  refreshSearchPreviewFromCurrentInput();
+}
+
+function refreshSearchPreviewFromCurrentInput() {
+  const query = String(elements.siteSearch?.value || "").trim();
+  if (!query || !elements.searchDropdown || elements.searchDropdown.hidden) return;
+  scheduleSearchPreview(query);
 }
 
 function getLiveNewsUrl(item) {
-  return item.approvedStoryUrl || item.liveNewsUrl || "";
+  return item.approvedStoryUrl || item.liveNewsUrl || item.exactArticleUrl || item.canonicalUrl || "";
 }
 
 function getDisplayTitle(item) {
