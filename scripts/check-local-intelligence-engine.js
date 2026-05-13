@@ -81,6 +81,10 @@ const {
   renderLocalTopicPage,
 } = require("../lib/local-crawlable-pages");
 const {
+  getCityIndexEligibility,
+  getTopicIndexEligibility,
+} = require("../lib/local-index-eligibility");
+const {
   normalizeCity,
   normalizeCityTopicCoverage,
   normalizeInputSignal,
@@ -800,6 +804,22 @@ const liveTrafficDayFive = normalizeStoryCluster({
   source_count: 1,
   official_source_count: 0,
 });
+const liveCityHallDaySix = normalizeStoryCluster({
+  id: "cluster-live-city-hall-day-six",
+  city_id: modelCity.id,
+  primary_topic: "city-hall",
+  slug: "city-hall-agenda-day-six",
+  headline: "San Diego city hall agenda remains current",
+  summary: "A fifth current local cluster verifies city index eligibility without using coverage scoring.",
+  confidence_label: "official",
+  urgency: "normal",
+  public_started_at: fixtureDateFrom(expirationNow, -6 * 24 * 60 * 60 * 1000),
+  expires_at: fixtureDateFrom(expirationNow, 1 * 24 * 60 * 60 * 1000),
+  public_status: "live",
+  index_status: "index",
+  source_count: 1,
+  official_source_count: 1,
+});
 const expiredCluster = normalizeStoryCluster({
   id: "cluster-expired",
   city_id: modelCity.id,
@@ -850,7 +870,7 @@ expect(getExpiredStoryClusterResponse(expiredAfterJob, { now: expirationNow }).s
 writeJson(expirationFixture.paths.storyClusters, {
   schemaVersion: "live-news-story-clusters-v1",
   updatedAt: expirationNow,
-  story_clusters: [liveWithinGoogleNews, liveDayFour, liveTrafficDayThree, liveTrafficDayFive, expiredAfterJob],
+  story_clusters: [liveWithinGoogleNews, liveDayFour, liveTrafficDayThree, liveTrafficDayFive, liveCityHallDaySix, expiredAfterJob],
 });
 writeJson(expirationFixture.paths.localCities, {
   schemaVersion: "live-news-local-cities-v1",
@@ -932,6 +952,17 @@ const crawlSignals = [
     signal_status: "clustered",
   }),
   normalizeInputSignal({
+    id: "crawl-signal-city-hall",
+    source_id: modelSource.id,
+    source_feed_id: "crawl-official-feed",
+    canonical_url: "https://www.sandiego.gov/city-hall-agenda-day-six",
+    title: "San Diego city hall agenda remains current",
+    excerpt: "A current city hall agenda remains inside the local 7-day public window.",
+    published_at: liveCityHallDaySix.public_started_at,
+    city_candidates_json: [{ city_id: modelCity.id, confidence: 94 }],
+    signal_status: "clustered",
+  }),
+  normalizeInputSignal({
     id: "crawl-signal-expired",
     source_id: secondPublisherSource.id,
     source_feed_id: "crawl-wire-feed",
@@ -942,17 +973,6 @@ const crawlSignals = [
     city_candidates_json: [{ city_id: modelCity.id, confidence: 75 }],
     signal_status: "clustered",
   }),
-  ...Array.from({ length: 8 }, (_, index) => normalizeInputSignal({
-    id: `crawl-depth-signal-${index + 1}`,
-    source_id: index % 2 === 0 ? modelSource.id : publisherSource.id,
-    source_feed_id: index % 2 === 0 ? "crawl-official-feed" : "crawl-publisher-feed",
-    canonical_url: `https://depth.example.org/san-diego-local-signal-${index + 1}`,
-    title: `San Diego local civic signal ${index + 1}`,
-    excerpt: "A meaningful local signal used privately for city SEO coverage depth.",
-    published_at: fixtureDateFrom(expirationNow, -(index + 2) * 24 * 60 * 60 * 1000),
-    city_candidates_json: [{ city_id: modelCity.id, confidence: 82 }],
-    signal_status: "classified",
-  })),
 ];
 writeJson(expirationFixture.paths.inputSignals, {
   schemaVersion: "live-news-input-signals-v1",
@@ -988,6 +1008,12 @@ writeJson(expirationFixture.paths.storyClusterSignals, {
       is_primary: true,
     }),
     normalizeStoryClusterSignal({
+      story_cluster_id: liveCityHallDaySix.id,
+      input_signal_id: "crawl-signal-city-hall",
+      source_id: modelSource.id,
+      is_primary: true,
+    }),
+    normalizeStoryClusterSignal({
       story_cluster_id: expiredCluster.id,
       input_signal_id: "crawl-signal-expired",
       source_id: secondPublisherSource.id,
@@ -1004,7 +1030,11 @@ expect(statePage.html.includes('"@type":"CollectionPage"') || statePage.html.inc
 const cityPage = renderLocalCityPage("california", "san-diego", { paths: expirationFixture.paths, now: expirationNow });
 expect(cityPage && cityPage.html.includes("San Diego, CA"), "Crawlable city page should show city name and state.");
 expect(cityPage.robots === "index, follow", "City page should be indexable only after dynamic city SEO controls pass.");
-expect(cityPage.seoDecision.checks.meaningfulSignals30d >= 12, "City SEO controls should count meaningful local signals from the last 30 days.");
+expect(cityPage.seoDecision.checks.liveClusterCount >= 5, "City SEO controls should require 5+ live clusters from the last 7 days.");
+expect(!Object.prototype.hasOwnProperty.call(cityPage.seoDecision.checks, "meaningfulSignals30d"), "City SEO controls should not use 30-day signal depth as an index shortcut.");
+expect(cityPage.seoDecision.checks.distinctSourceCount >= 2, "City SEO controls should require 2+ distinct sources.");
+expect(cityPage.seoDecision.checks.officialCivicLocalAuthoritySourceCount >= 1, "City SEO controls should require 1+ official/civic/local authority source.");
+expect(cityPage.seoDecision.checks.onlyShowsLiveStories, "City SEO controls should require 7-day-only public stories.");
 expect(cityPage.html.includes("Live updates from the last 7 days"), "Crawlable city page should explain the 7-day public window.");
 expect(cityPage.html.includes("Last updated"), "Crawlable city page should show a last updated timestamp.");
 expect(cityPage.html.includes("live clusters") && cityPage.html.includes("Local Pulse"), "Crawlable city page should include local pulse data.");
@@ -1050,10 +1080,50 @@ const crawlSeoContext = {
   storyClusterSignals: readFixtureJson(expirationFixture.paths.storyClusterSignals).story_cluster_signals,
   inputSignals: readFixtureJson(expirationFixture.paths.inputSignals).input_signals,
 };
-const citySeoDecision = getCitySeoDecision(modelCity, getLiveStoriesForCity(modelCity.id, { paths: expirationFixture.paths, now: expirationNow }), crawlSeoContext, { now: expirationNow });
+const liveCityClusters = getLiveStoriesForCity(modelCity.id, { paths: expirationFixture.paths, now: expirationNow });
+const liveTrafficClusters = getLiveStoriesForTopic(modelCity.id, "traffic", { paths: expirationFixture.paths, now: expirationNow });
+const citySeoDecision = getCitySeoDecision(modelCity, liveCityClusters, crawlSeoContext, { now: expirationNow });
 expect(citySeoDecision.indexable, "City SEO helper should return indexable when all dynamic city requirements pass.");
-const topicSeoDecision = getTopicSeoDecision(modelCity, "traffic", getLiveStoriesForTopic(modelCity.id, "traffic", { paths: expirationFixture.paths, now: expirationNow }), crawlSeoContext);
+const thinCityEligibility = getCityIndexEligibility({
+  clusters: liveCityClusters.slice(0, 4),
+  sourceMix: [
+    { name: "San Diego City", sourceType: "official_city", trustLevel: "official" },
+    { name: "Metro Desk", sourceType: "local_news", trustLevel: "established_publisher" },
+  ],
+  hasVisibleLastUpdated: true,
+  onlyShowsLiveStories: true,
+});
+expect(thinCityEligibility.robots === "noindex, follow", "City eligibility should noindex pages with fewer than 5 live clusters.");
+const expiredCityEligibility = getCityIndexEligibility({
+  clusters: [...liveCityClusters.slice(0, 4), expiredAfterJob],
+  sourceMix: [
+    { name: "San Diego City", sourceType: "official_city", trustLevel: "official" },
+    { name: "Metro Desk", sourceType: "local_news", trustLevel: "established_publisher" },
+  ],
+  hasVisibleLastUpdated: true,
+  onlyShowsLiveStories: false,
+});
+expect(expiredCityEligibility.robots === "noindex, follow", "City eligibility should noindex pages that display anything outside the 7-day live window.");
+const topicSeoDecision = getTopicSeoDecision(modelCity, "traffic", liveTrafficClusters, crawlSeoContext, { now: expirationNow });
 expect(topicSeoDecision.indexable, "Topic SEO helper should return indexable when all dynamic topic requirements pass.");
+const thinTopicEligibility = getTopicIndexEligibility({
+  clusters: liveTrafficClusters.slice(0, 2),
+  sourceMix: [
+    { name: "Metro Desk", sourceType: "local_news", trustLevel: "established_publisher" },
+    { name: "City Newswire", sourceType: "tv", trustLevel: "established_publisher" },
+  ],
+  onlyShowsLiveStories: true,
+});
+expect(thinTopicEligibility.robots === "noindex, follow", "Topic eligibility should noindex pages with fewer than 3 live topic clusters.");
+const expiredTopicEligibility = getTopicIndexEligibility({
+  clusters: [...liveTrafficClusters.slice(0, 2), expiredAfterJob],
+  sourceMix: [
+    { name: "Metro Desk", sourceType: "local_news", trustLevel: "established_publisher" },
+    { name: "City Newswire", sourceType: "tv", trustLevel: "established_publisher" },
+  ],
+  onlyShowsLiveStories: false,
+});
+expect(expiredTopicEligibility.robots === "noindex, follow", "Topic eligibility should noindex pages that display anything outside the 7-day live window.");
 const localSitemapEntries = getCrawlableLocalSitemapEntries({ paths: expirationFixture.paths, now: expirationNow });
 const localSitemapGroups = getCrawlableLocalSitemapGroups({ paths: expirationFixture.paths, now: expirationNow });
 expect(localSitemapGroups.states.some((entry) => entry.path === "/local/california"), "State sitemap should include indexable state pages.");

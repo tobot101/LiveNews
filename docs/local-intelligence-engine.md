@@ -740,18 +740,21 @@ Rules:
 
 Dynamic city indexing requires:
 
-- 5 or more live local story clusters in the last 7 days, or 12 or more meaningful internal local signals in the last 30 days.
+- 5 or more live local story clusters in the last 7 days.
 - 2 or more distinct sources.
-- 1 or more official or civic source.
-- Unique city metadata.
+- 1 or more official, civic, or local authority source.
 - A visible last-updated timestamp.
-- Visible source links.
+- Only stories from the last 7 days displayed on the public city page.
+
+There is intentionally no 30-day signal-depth shortcut for city indexing in Phase 9.
 
 Dynamic topic indexing requires:
 
 - 3 or more live topic story clusters in the last 7 days.
 - 2 or more distinct sources.
-- Useful local context for that city and topic.
+- Only stories from the last 7 days displayed on the public topic page.
+
+Phase 10 coverage scoring, Phase 11 coverage dashboards, and Phase 12 optional external discovery providers are intentionally deferred. The current implementation should remain a minimal index eligibility service, not a complex coverage scoring system.
 
 Public live local story pages should include `NewsArticle` structured data with:
 
