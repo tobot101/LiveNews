@@ -47,6 +47,7 @@ const tsSource = fs.readFileSync(path.join(root, "src", "lib", "personalization"
 const browserSource = fs.readFileSync(path.join(root, "public", "live-news-prefs.js"), "utf8");
 const localHtml = fs.readFileSync(path.join(root, "public", "local.html"), "utf8");
 const localJs = fs.readFileSync(path.join(root, "public", "local.js"), "utf8");
+const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 const crawlable = fs.readFileSync(path.join(root, "lib", "local-crawlable-pages.js"), "utf8");
 const docs = fs.readFileSync(path.join(root, "docs", "local-intelligence-engine.md"), "utf8");
 
@@ -142,6 +143,9 @@ expect(blocked.setSavedCity({ cityId: "san-diego-ca", citySlug: "san-diego", sta
 
 expect(localHtml.includes("live-news-prefs.js"), "Local page should load the prefs runtime.");
 expect(localHtml.includes("localPageClearPrefs"), "Local page should include a Clear local preferences control.");
+expect(localJs.includes("window.location.replace(buildLocalPageHref(savedPlace))"), "Dedicated local page should default a saved city to the crawlable city dashboard.");
+expect(appJs.includes("window.LiveNewsPrefs?.getSavedCity?.()"), "Homepage should highlight the saved city through LiveNewsPrefs.");
+expect(!appJs.includes('link.addEventListener("click", () => setLocalPlace(place))'), "Homepage city chip clicks should navigate without auto-saving a city.");
 expect(localJs.includes("Make ${city.label} your local page?"), "Local page should show first-city save prompt.");
 expect(localJs.includes("new update${newStories.length === 1 ? \"\" : \"s\"} since your last visit"), "Local page should show returning visit update prompt.");
 expect(localJs.includes("Follow ${city.label}"), "Local page should show repeated topic interest prompt.");

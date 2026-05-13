@@ -243,14 +243,15 @@ function hydrateFromStorage() {
   if (state.place) return;
   const savedCity = window.LiveNewsPrefs?.getSavedCity?.();
   if (savedCity?.label) {
-    setPlace({
+    const savedPlace = {
       name: savedCity.label.replace(/,\s*[A-Z]{2}$/i, ""),
       display: savedCity.label,
       state: savedCity.label.match(/,\s*([A-Z]{2})$/)?.[1] || "",
       cityId: savedCity.cityId,
       citySlug: savedCity.citySlug,
       stateSlug: savedCity.stateSlug,
-    });
+    };
+    window.location.replace(buildLocalPageHref(savedPlace));
     return;
   }
   if (!personalizationAllowed()) return;
@@ -313,10 +314,7 @@ function renderSuggestions(results) {
       <span>${place.stateName || ""}</span>
     `;
     button.addEventListener("click", () => {
-      setPlace(place);
-      if (elements.input) {
-        elements.input.value = place.display || `${place.name}, ${place.state}`;
-      }
+      window.location.href = buildLocalPageHref(place);
       clearSuggestions();
     });
     elements.suggestions.appendChild(button);
@@ -382,9 +380,6 @@ function syncResolvedPlace(place) {
   if (elements.input && place.display) {
     elements.input.value = place.display;
   }
-  if (personalizationAllowed()) {
-    safeStorageSet("ln_local_place", JSON.stringify(place));
-  }
   history.replaceState(null, "", buildLocalPageHref(place));
   renderTopCities();
 }
@@ -423,7 +418,12 @@ function getVisibleStoryIds(items = state.feed) {
 
 function buildLocalPageHref(place) {
   const city = place?.name || place?.display;
-  if (!city) return "/local";
+  if (!city) return "/local/cities";
+  const stateSlug = slugifyLocal(place.stateSlug || place.stateName || place.state || "");
+  const citySlug = slugifyLocal(place.citySlug || place.slug || city);
+  if (stateSlug && citySlug) {
+    return `/local/${encodeURIComponent(stateSlug)}/${encodeURIComponent(citySlug)}`;
+  }
   const params = new URLSearchParams({ city });
   if (place?.state) {
     params.set("state", place.state);
@@ -451,11 +451,6 @@ function renderTopCities() {
       <span class="local-city-name">${place.name}</span>
       <span class="local-city-state">${place.state}</span>
     `;
-    link.addEventListener("click", () => {
-      if (personalizationAllowed()) {
-        safeStorageSet("ln_local_place", JSON.stringify(place));
-      }
-    });
     elements.topCityGrid.appendChild(link);
   });
 }
@@ -467,9 +462,6 @@ function setPlace(place) {
   }
   if (elements.input && place?.display) {
     elements.input.value = place.display;
-  }
-  if (personalizationAllowed()) {
-    safeStorageSet("ln_local_place", JSON.stringify(place));
   }
   history.replaceState(null, "", buildLocalPageHref(place));
   renderTopCities();

@@ -210,6 +210,24 @@ function hydrateFeedLimit() {
 }
 
 function hydrateLocalPlace() {
+  const savedCity = window.LiveNewsPrefs?.getSavedCity?.();
+  if (savedCity?.label) {
+    state.localPlace = {
+      name: savedCity.label.replace(/,\s*[A-Z]{2}$/i, ""),
+      display: savedCity.label,
+      state: savedCity.label.match(/,\s*([A-Z]{2})$/)?.[1] || "",
+      citySlug: savedCity.citySlug,
+      stateSlug: savedCity.stateSlug,
+      cityId: savedCity.cityId,
+    };
+    if (state.localPlace.display && elements.manualLocation) {
+      elements.manualLocation.value = state.localPlace.display;
+    }
+    syncLocalDisplay(state.localPlace);
+    syncLocalPreviewTitle(state.localPlace);
+    updateLocalDeepLink();
+    return;
+  }
   if (!state.consent.personalization) {
     state.localPlace = null;
     return;
@@ -461,13 +479,8 @@ function updateLocalControls() {
 
 function updateLocalDeepLink() {
   if (!elements.localDeepDive) return;
-  if (state.localPlace && (state.localPlace.name || state.localPlace.display)) {
-    elements.localDeepDive.href = buildLocalPageHref(state.localPlace);
-    elements.localDeepDive.classList.remove("disabled");
-  } else {
-    elements.localDeepDive.href = "/local";
-    elements.localDeepDive.classList.remove("disabled");
-  }
+  elements.localDeepDive.href = "/local/cities";
+  elements.localDeepDive.classList.remove("disabled");
 }
 
 function updateBrandShift() {
@@ -732,8 +745,7 @@ function renderLocalSuggestions(results) {
       <span>${place.stateName || ""}</span>
     `;
     button.addEventListener("click", () => {
-      setLocalPlace(place);
-      elements.manualLocation.value = place.display || `${place.name}, ${place.state}`;
+      window.location.href = buildLocalPageHref(place);
       clearLocalSuggestions();
     });
     elements.localSuggestions.appendChild(button);
@@ -796,16 +808,28 @@ function syncResolvedLocalPlace(place) {
   if (elements.manualLocation && place.display) {
     elements.manualLocation.value = place.display;
   }
-  if (state.consent.personalization) {
-    localStorage.setItem("ln_local_place", JSON.stringify(place));
-  }
   updateLocalDeepLink();
   renderTopCities();
 }
 
+function slugifyLocal(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function buildLocalPageHref(place) {
   const city = place?.name || place?.display;
-  if (!city) return "/local";
+  if (!city) return "/local/cities";
+  const citySlug = slugifyLocal(place.citySlug || place.slug || city);
+  const stateSlug = slugifyLocal(place.stateSlug || place.stateName || place.state || "");
+  if (citySlug && stateSlug) {
+    return `/local/${encodeURIComponent(stateSlug)}/${encodeURIComponent(citySlug)}`;
+  }
   const params = new URLSearchParams({ city });
   if (place?.state) {
     params.set("state", place.state);
@@ -831,17 +855,16 @@ function renderTopCities() {
   const compactLimit = Number(elements.topCityGrid.dataset.compactLimit || 0);
   const places = compactLimit > 0 ? TOP_US_CITIES.slice(0, compactLimit) : TOP_US_CITIES;
   places.forEach((place) => {
-    const link = document.createElement("button");
-    link.type = "button";
+    const link = document.createElement("a");
     link.className = "local-city-link";
     if (isSamePlace(place, state.localPlace)) {
       link.classList.add("active");
     }
+    link.href = buildLocalPageHref(place);
     link.innerHTML = `
       <span class="local-city-name">${place.name}</span>
       <span class="local-city-state">${place.state}</span>
     `;
-    link.addEventListener("click", () => setLocalPlace(place));
     elements.topCityGrid.appendChild(link);
   });
 }
@@ -852,11 +875,6 @@ function setLocalPlace(place) {
   syncLocalPreviewTitle(place);
   if (elements.manualLocation && place?.display) {
     elements.manualLocation.value = place.display;
-  }
-  if (state.consent.personalization) {
-    localStorage.setItem("ln_local_place", JSON.stringify(place));
-  } else {
-    localStorage.removeItem("ln_local_place");
   }
   state.localLastFetched = 0;
   updateLocalDeepLink();

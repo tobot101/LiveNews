@@ -58,8 +58,8 @@ if (!indexHtml.includes('data-compact-limit="8"')) {
 if (!indexHtml.includes(">Share my location</button>")) {
   fail("Compact Local News should keep the Share my location action.");
 }
-if (!indexHtml.includes('id="localDeepDive" href="/local"') || !indexHtml.includes(">See more</a>")) {
-  fail("Compact Local News should keep a See more link to the full local page.");
+if (!indexHtml.includes('id="localDeepDive" href="/local/cities"') || !indexHtml.includes(">See more</a>")) {
+  fail("Compact Local News should keep a See more link to the full city directory page.");
 }
 if (indexHtml.includes("home-local-panel")) {
   fail("Old standalone homepage Local News panel should not render separately.");
@@ -102,6 +102,9 @@ if (!appJs.includes("renderCategoryLaneOption") || !appJs.includes("category-opt
 }
 if (!appJs.includes("const compactLimit = Number(elements.topCityGrid.dataset.compactLimit || 0)")) {
   fail("Homepage city chips should support a compact city limit.");
+}
+if (!appJs.includes('document.createElement("a")') || !appJs.includes("link.href = buildLocalPageHref(place)")) {
+  fail("Homepage city chips should navigate to crawlable city URLs.");
 }
 if (!appJs.includes("if (elements.localFeed && elements.localStatus)")) {
   fail("Homepage city chip selection should not fetch/render local story cards when the compact module has no preview feed.");

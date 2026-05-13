@@ -115,6 +115,7 @@ const {
   getCrawlableLocalSitemapEntries,
   getCrawlableLocalSitemapGroups,
   renderLocalCityPage,
+  renderLocalCitiesPage,
   renderLocalStatePage,
   renderLocalStoryPage,
   renderLocalTopicPage,
@@ -4951,6 +4952,10 @@ function sendLocalCrawlablePage(page, res, next) {
   if (page.robots) res.setHeader("X-Robots-Tag", page.robots);
   return res.status(page.status || 200).type("html").send(page.html);
 }
+
+app.get("/local/cities", (req, res, next) => {
+  return sendLocalCrawlablePage(renderLocalCitiesPage(), res, next);
+});
 
 app.get("/local/:stateSlug", (req, res, next) => {
   return sendLocalCrawlablePage(renderLocalStatePage(req.params.stateSlug), res, next);

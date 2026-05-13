@@ -76,6 +76,7 @@ const {
   getCrawlableLocalSitemapEntries,
   getCrawlableLocalSitemapGroups,
   getTopicSeoDecision,
+  renderLocalCitiesPage,
   renderLocalCityPage,
   renderLocalStatePage,
   renderLocalStoryPage,
@@ -85,6 +86,12 @@ const {
   getCityIndexEligibility,
   getTopicIndexEligibility,
 } = require("../lib/local-index-eligibility");
+const {
+  getCityTopStories,
+  getEligibleLiveCityStories,
+  getTopStoryOfDay,
+  getTopStoryOfWeek,
+} = require("../lib/local-top-stories");
 const {
   normalizeCity,
   normalizeCityTopicCoverage,
@@ -836,6 +843,21 @@ const expiredCluster = normalizeStoryCluster({
   index_status: "index",
   source_count: 1,
 });
+const lowConfidenceCluster = normalizeStoryCluster({
+  id: "cluster-low-confidence",
+  city_id: modelCity.id,
+  primary_topic: "community",
+  slug: "low-confidence-local-rumor",
+  headline: "Low confidence San Diego rumor should not lead",
+  summary: "This low-confidence local cluster should stay out of selected top story cards.",
+  confidence_label: "low_confidence",
+  urgency: "breaking",
+  public_started_at: fixtureDateFrom(expirationNow, -2 * 60 * 60 * 1000),
+  expires_at: fixtureDateFrom(expirationNow, 6 * 24 * 60 * 60 * 1000),
+  public_status: "live",
+  index_status: "noindex",
+  source_count: 1,
+});
 writeJson(expirationFixture.paths.storyClusters, {
   schemaVersion: "live-news-story-clusters-v1",
   updatedAt: null,
@@ -871,7 +893,7 @@ expect(getExpiredStoryClusterResponse(expiredAfterJob, { now: expirationNow }).s
 writeJson(expirationFixture.paths.storyClusters, {
   schemaVersion: "live-news-story-clusters-v1",
   updatedAt: expirationNow,
-  story_clusters: [liveWithinGoogleNews, liveDayFour, liveTrafficDayThree, liveTrafficDayFive, liveCityHallDaySix, expiredAfterJob],
+  story_clusters: [liveWithinGoogleNews, liveDayFour, liveTrafficDayThree, liveTrafficDayFive, liveCityHallDaySix, lowConfidenceCluster, expiredAfterJob],
 });
 writeJson(expirationFixture.paths.localCities, {
   schemaVersion: "live-news-local-cities-v1",
@@ -1028,6 +1050,17 @@ expect(statePage && statePage.html.includes("California Local News"), "Crawlable
 expect(statePage.html.includes("/local/california/san-diego"), "State local page should link to crawlable city pages.");
 expect(statePage.robots === "index, follow", "State page should be indexable when it has an indexable city or enough live state coverage.");
 expect(statePage.html.includes('"@type":"CollectionPage"') || statePage.html.includes('"@type": "CollectionPage"'), "State page should include CollectionPage structured data.");
+const cityDirectoryPage = renderLocalCitiesPage({ paths: expirationFixture.paths, now: expirationNow });
+expect(cityDirectoryPage && cityDirectoryPage.robots === "index, follow", "/local/cities should be indexable.");
+expect(cityDirectoryPage.html.includes("Browse Local News by City"), "/local/cities should render Browse Local News by City.");
+expect(cityDirectoryPage.html.includes("Choose a city to see live local updates from the last 7 days."), "/local/cities should render the required subtitle.");
+expect(cityDirectoryPage.html.includes("Popular cities"), "/local/cities should render popular cities.");
+expect(cityDirectoryPage.html.includes("All available cities"), "/local/cities should render all available cities.");
+expect(cityDirectoryPage.html.includes("California") && cityDirectoryPage.html.includes("Los Angeles"), "/local/cities should group available cities by state.");
+expect(cityDirectoryPage.html.includes('id="localCityDirectorySearch"'), "/local/cities should include a city search input.");
+expect(cityDirectoryPage.html.includes('data-state-abbr="ca"'), "/local/cities search should support state abbreviation filtering.");
+expect(cityDirectoryPage.html.includes("/local/california/san-diego"), "/local/cities city links should navigate to crawlable city URLs.");
+expect(!/local-directory-city-link[^>]+data-save-city/.test(cityDirectoryPage.html), "City directory links should not automatically save a city.");
 const cityPage = renderLocalCityPage("california", "san-diego", { paths: expirationFixture.paths, now: expirationNow });
 expect(cityPage && cityPage.html.includes("San Diego, CA"), "Crawlable city page should show city name and state.");
 expect(cityPage.robots === "index, follow", "City page should be indexable only after dynamic city SEO controls pass.");
@@ -1036,18 +1069,28 @@ expect(!Object.prototype.hasOwnProperty.call(cityPage.seoDecision.checks, "meani
 expect(cityPage.seoDecision.checks.distinctSourceCount >= 2, "City SEO controls should require 2+ distinct sources.");
 expect(cityPage.seoDecision.checks.officialCivicLocalAuthoritySourceCount >= 1, "City SEO controls should require 1+ official/civic/local authority source.");
 expect(cityPage.seoDecision.checks.onlyShowsLiveStories, "City SEO controls should require 7-day-only public stories.");
-expect(cityPage.html.includes("Live updates from the last 7 days"), "Crawlable city page should explain the 7-day public window.");
+expect(cityPage.html.includes("Back to all cities") && cityPage.html.includes('href="/local/cities"'), "Crawlable city page should link back to all cities.");
+expect(cityPage.html.includes("San Diego Local News"), "Crawlable city page should show the selected city heading.");
+expect(cityPage.html.includes("Live local updates from the last 7 days."), "Crawlable city page should explain the selected-city 7-day public window.");
+expect(cityPage.html.includes("Top Story of the Day"), "Crawlable city page should render Top Story of the Day.");
+expect(cityPage.html.includes("Top Story of the Week"), "Crawlable city page should render Top Story of the Week.");
+expect(!cityPage.html.includes("Local News Deep Dive"), "Selected city page should not show Local News Deep Dive as the main heading.");
 expect(cityPage.html.includes("Last updated"), "Crawlable city page should show a last updated timestamp.");
 expect(cityPage.html.includes("live clusters") && cityPage.html.includes("Local Pulse"), "Crawlable city page should include local pulse data.");
 expect(cityPage.html.includes("What changed today"), "Crawlable city page should include what changed today.");
-expect(cityPage.html.includes("Top story clusters"), "Crawlable city page should include top story clusters.");
+expect(cityPage.html.includes("Latest local stories"), "Crawlable city page should include latest local stories.");
 expect(cityPage.html.includes("Topic modules"), "Crawlable city page should include topic modules.");
 expect(cityPage.html.includes("Official sources"), "Crawlable city page should include official sources.");
 expect(cityPage.html.includes("Local source directory"), "Crawlable city page should include a local source directory.");
 expect(cityPage.html.includes("Nearby cities"), "Crawlable city page should include nearby cities.");
+expect(cityPage.html.includes("Change city / Browse other cities"), "Crawlable city page should include a lower change-city section.");
 expect(cityPage.html.includes("Save city"), "Crawlable city page should include a save city CTA.");
 expect(cityPage.html.includes("Newsletter placeholder"), "Crawlable city page should include newsletter CTA placeholder.");
 expect(!cityPage.html.includes("Older San Diego community update"), "Crawlable city page should exclude expired story details.");
+const topStoryGridStart = cityPage.html.indexOf("local-top-stories-grid");
+const topStoryGridEnd = cityPage.html.indexOf("local-crawl-actions", topStoryGridStart);
+const topStoryGridHtml = cityPage.html.slice(topStoryGridStart, topStoryGridEnd);
+expect(!topStoryGridHtml.includes("Low confidence San Diego rumor should not lead"), "Crawlable city top story cards should exclude low-confidence stories.");
 expect(cityPage.html.includes('"@type":"CollectionPage"') || cityPage.html.includes('"@type": "CollectionPage"'), "City page should include CollectionPage structured data.");
 const thinCityPage = renderLocalCityPage("california", "los-angeles", { paths: expirationFixture.paths, now: expirationNow });
 expect(thinCityPage.robots === "noindex, follow", "Thin city pages should remain noindex, follow.");
@@ -1083,6 +1126,18 @@ const crawlSeoContext = {
 };
 const liveCityClusters = getLiveStoriesForCity(modelCity.id, { paths: expirationFixture.paths, now: expirationNow });
 const liveTrafficClusters = getLiveStoriesForTopic(modelCity.id, "traffic", { paths: expirationFixture.paths, now: expirationNow });
+const eligibleTopStories = getEligibleLiveCityStories(modelCity.id, { paths: expirationFixture.paths, now: expirationNow });
+const topStoryOfDay = getTopStoryOfDay(modelCity.id, expirationNow, { paths: expirationFixture.paths });
+const topStoryOfWeek = getTopStoryOfWeek(modelCity.id, expirationNow, topStoryOfDay?.id, { paths: expirationFixture.paths });
+const cityTopStories = getCityTopStories(modelCity.id, expirationNow, { paths: expirationFixture.paths });
+expect(eligibleTopStories.every((story) => story.city_id === modelCity.id), "Top story eligibility should only use story clusters for the selected city.");
+expect(!eligibleTopStories.some((story) => story.id === "cluster-expired"), "Top story eligibility should exclude expired stories older than 7 days.");
+expect(!eligibleTopStories.some((story) => story.confidence_label === "low_confidence"), "Top story eligibility should exclude low-confidence stories.");
+expect(topStoryOfDay && topStoryOfDay.city_id === modelCity.id, "Top Story of the Day should use an eligible live story for the selected city.");
+expect(topStoryOfDay.topStoryLabel === "Top Story of the Day", "Top Story of the Day should use the day label when a current local story exists.");
+expect(topStoryOfWeek && topStoryOfWeek.city_id === modelCity.id, "Top Story of the Week should use an eligible live story from the selected city.");
+expect(topStoryOfWeek.id !== topStoryOfDay.id, "Top Story of the Week should use the next best eligible story when the day story is already selected.");
+expect(cityTopStories.day?.id === topStoryOfDay.id && cityTopStories.week?.id === topStoryOfWeek.id, "getCityTopStories should return coordinated day and week selections.");
 const citySeoDecision = getCitySeoDecision(modelCity, liveCityClusters, crawlSeoContext, { now: expirationNow });
 expect(citySeoDecision.indexable, "City SEO helper should return indexable when all dynamic city requirements pass.");
 const thinCityEligibility = getCityIndexEligibility({
@@ -1604,6 +1659,7 @@ processCursorSource(
   expect(serverJs.includes("getExpiredStoryClusterResponse"), "Server story route should return expired local cluster responses.");
   expect(serverJs.includes("runLocalWorkerBatch"), "Server local intake should use the safe local worker abstraction.");
   expect(serverJs.includes("LOCAL_INTELLIGENCE_CONFIG.crawlerUserAgent"), "Server parser should use the configured crawler user agent.");
+  expect(serverJs.includes('app.get("/local/cities"') && serverJs.indexOf('app.get("/local/cities"') < serverJs.indexOf('app.get("/local/:stateSlug"'), "Server should route /local/cities before dynamic local state routes.");
   expect(serverJs.includes("isWithinNewsSitemapWindow"), "Server news sitemap should use the 48-hour news window.");
   expect(serverJs.includes("/sitemaps/states.xml"), "Server should expose the state sitemap route.");
   expect(serverJs.includes("/sitemaps/local-cities-001.xml"), "Server should expose the local city sitemap route.");
