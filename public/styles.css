@@ -2056,6 +2056,34 @@ html[data-theme="night"] .entertainment-hub-card {
   margin-top: 2px;
 }
 
+.local-pref-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(190, 137, 82, 0.45);
+  border-radius: 16px;
+  background: rgba(255, 234, 209, 0.62);
+}
+
+.local-pref-prompt[hidden] {
+  display: none;
+}
+
+.local-pref-prompt-copy {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.local-pref-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .local-crawl-page {
   max-width: 1120px;
   margin: 24px auto 52px;
@@ -2897,6 +2925,15 @@ html[data-theme="night"] .category-entertainment-controls {
 
   .local-input input {
     width: 100%;
+  }
+
+  .local-pref-prompt {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .local-pref-prompt-actions {
+    justify-content: flex-start;
   }
 
   .local-preview-head {

@@ -57,6 +57,7 @@
         <div class="local-page-controls">
           <div class="local-actions-row">
             <button class="btn" id="localPageUseLocation">Use my location</button>
+            <button class="btn ghost" id="localPageClearPrefs">Clear local preferences</button>
           </div>
           <div class="local-input-wrap">
             <div class="local-input">
@@ -73,6 +74,7 @@
         </div>
         <div class="local-display" id="localPageDisplay">Selected city: not set</div>
         <div class="local-status" id="localPageStatus">Choose a city to get started.</div>
+        <div class="local-pref-prompt" id="localPrefPrompt" hidden></div>
         <div class="local-featured local-featured-page">
           <div class="local-featured-head">
             <div>
@@ -114,6 +116,7 @@
     </footer>
 
     <script src="public-writing.js?v=20260510-safe-writing"></script>
+    <script src="live-news-prefs.js?v=20260513-local-prefs"></script>
     <script src="top-cities.js"></script>
     <script src="local.js"></script>
   </body>

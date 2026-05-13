@@ -1326,7 +1326,7 @@ processCursorSource(
   expect(localJs.includes("ln_followed_topics"), "Local page should reserve anonymous followed-topic storage.");
   expect(localJs.includes("ln_last_visit_at"), "Local page should store anonymous last visit time.");
   expect(localJs.includes("ln_seen_story_ids"), "Local page should store anonymous seen story IDs.");
-  expect(localJs.includes("ln_dismissed_prompts"), "Local page should reserve anonymous dismissed prompt storage.");
+  expect(localJs.includes("LiveNewsPrefs") && docs.includes("promptHistory"), "Local page should reserve anonymous dismissed prompt storage through liveNews:v1:prefs.");
   expect(localHtml.includes("last 7 days"), "Local page public copy should describe the 7-day public window.");
 
   if (failures.length) {

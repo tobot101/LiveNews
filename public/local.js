@@ -31,6 +31,8 @@ const elements = {
   feedTitle: document.getElementById("localFeedTitle"),
   topCityGrid: document.getElementById("localPageTopCityGrid"),
   modeControl: document.getElementById("modeControl"),
+  prefPrompt: document.getElementById("localPrefPrompt"),
+  clearPrefs: document.getElementById("localPageClearPrefs"),
 };
 
 function init() {
@@ -76,10 +78,18 @@ function parseStoredJson(key, fallback) {
 }
 
 function hydrateAnonymousPersonalization() {
-  state.personalization.followedTopics = parseStoredJson("ln_followed_topics", []);
-  state.personalization.seenStoryIds = parseStoredJson("ln_seen_story_ids", []);
-  state.personalization.dismissedPrompts = parseStoredJson("ln_dismissed_prompts", []);
-  state.personalization.lastVisitAt = safeStorageGet("ln_last_visit_at") || "";
+  const prefs = window.LiveNewsPrefs?.getLiveNewsPrefs?.() || null;
+  const savedCity = prefs?.savedCity || null;
+  state.personalization.followedTopics = savedCity?.cityId
+    ? window.LiveNewsPrefs?.getFollowedTopics?.(savedCity.cityId) || []
+    : parseStoredJson("ln_followed_topics", []);
+  state.personalization.seenStoryIds = savedCity?.cityId
+    ? window.LiveNewsPrefs?.getSeenStoryIds?.(savedCity.cityId) || []
+    : parseStoredJson("ln_seen_story_ids", []);
+  state.personalization.dismissedPrompts = Object.keys(prefs?.promptHistory || {});
+  state.personalization.lastVisitAt = savedCity?.cityId
+    ? prefs?.lastVisitByCity?.[savedCity.cityId] || ""
+    : safeStorageGet("ln_last_visit_at") || "";
   safeStorageSet("ln_last_visit_at", new Date().toISOString());
 }
 
@@ -177,6 +187,19 @@ function bindControls() {
     });
   }
 
+  if (elements.clearPrefs) {
+    elements.clearPrefs.addEventListener("click", () => {
+      window.LiveNewsPrefs?.clearLiveNewsPrefs?.();
+      state.personalization.followedTopics = [];
+      state.personalization.seenStoryIds = [];
+      state.personalization.dismissedPrompts = [];
+      state.personalization.lastVisitAt = "";
+      safeStorageSet("ln_last_visit_at", new Date().toISOString());
+      hidePreferencePrompt();
+      updateStatus("Local preferences cleared on this device.");
+    });
+  }
+
   if (elements.limitControl) {
     elements.limitControl.addEventListener("click", (event) => {
       const target = event.target.closest("button");
@@ -218,6 +241,18 @@ function hydrateFromQuery() {
 
 function hydrateFromStorage() {
   if (state.place) return;
+  const savedCity = window.LiveNewsPrefs?.getSavedCity?.();
+  if (savedCity?.label) {
+    setPlace({
+      name: savedCity.label.replace(/,\s*[A-Z]{2}$/i, ""),
+      display: savedCity.label,
+      state: savedCity.label.match(/,\s*([A-Z]{2})$/)?.[1] || "",
+      cityId: savedCity.cityId,
+      citySlug: savedCity.citySlug,
+      stateSlug: savedCity.stateSlug,
+    });
+    return;
+  }
   if (!personalizationAllowed()) return;
   const stored = safeStorageGet("ln_local_place");
   if (!stored) return;
@@ -354,6 +389,38 @@ function syncResolvedPlace(place) {
   renderTopCities();
 }
 
+function slugifyLocal(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getCityPreference(place = state.place) {
+  if (!place?.name && !place?.display) return null;
+  const label = place.display || [place.name, place.state].filter(Boolean).join(", ");
+  const stateSlug = slugifyLocal(place.stateSlug || place.stateName || place.state || "");
+  const citySlug = slugifyLocal(place.citySlug || place.slug || place.name || label);
+  const stateCode = String(place.state || "").trim().toLowerCase();
+  const cityId = String(place.cityId || place.id || [citySlug, stateCode || stateSlug].filter(Boolean).join("-"))
+    .replace(/^city-/, "");
+  return {
+    cityId,
+    citySlug,
+    stateSlug,
+    label,
+  };
+}
+
+function getVisibleStoryIds(items = state.feed) {
+  return (items || [])
+    .map((item) => item.id || item.storyId || item.storyClusterId || item.slug || item.link)
+    .filter(Boolean);
+}
+
 function buildLocalPageHref(place) {
   const city = place?.name || place?.display;
   if (!city) return "/local";
@@ -454,6 +521,8 @@ async function loadLocalFeed({ force = false } = {}) {
     syncResolvedPlace(data.place);
     state.feed = data.items || [];
     state.lastFetched = Date.now();
+    evaluateAnonymousLocalPrompts(data);
+    markCurrentCityVisited();
     renderLocalFeed();
   } catch {
     state.feed = [];
@@ -538,6 +607,125 @@ function renderLocalFeed() {
 function updateStatus(message) {
   if (!elements.status) return;
   elements.status.textContent = message;
+}
+
+function hidePreferencePrompt() {
+  if (!elements.prefPrompt) return;
+  elements.prefPrompt.hidden = true;
+  elements.prefPrompt.innerHTML = "";
+}
+
+function renderPreferencePrompt({ key, message, primaryLabel, onPrimary, dismissDays = 14 }) {
+  if (!elements.prefPrompt || !key || !window.LiveNewsPrefs?.shouldShowPrompt?.(key)) return false;
+  elements.prefPrompt.hidden = false;
+  elements.prefPrompt.innerHTML = `
+    <div class="local-pref-prompt-copy">${escapeHtml(message)}</div>
+    <div class="local-pref-prompt-actions">
+      ${primaryLabel ? `<button class="btn" data-pref-primary>${escapeHtml(primaryLabel)}</button>` : ""}
+      <button class="btn ghost" data-pref-dismiss>Not now</button>
+    </div>
+  `;
+  const primary = elements.prefPrompt.querySelector("[data-pref-primary]");
+  const dismiss = elements.prefPrompt.querySelector("[data-pref-dismiss]");
+  if (primary) {
+    primary.addEventListener("click", () => {
+      if (typeof onPrimary === "function") onPrimary();
+      hidePreferencePrompt();
+    });
+  }
+  if (dismiss) {
+    dismiss.addEventListener("click", () => {
+      window.LiveNewsPrefs?.dismissPrompt?.(key, dismissDays);
+      hidePreferencePrompt();
+    });
+  }
+  return true;
+}
+
+function getDominantTopic(stories = []) {
+  const counts = new Map();
+  for (const story of stories || []) {
+    const topic = slugifyLocal(story.topic || story.primary_topic || story.category || "");
+    if (!topic || topic === "local") continue;
+    counts.set(topic, (counts.get(topic) || 0) + 1);
+  }
+  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0] || null;
+}
+
+function evaluateAnonymousLocalPrompts(data = {}) {
+  const city = getCityPreference(data.place || state.place);
+  if (!city || !window.LiveNewsPrefs) return;
+  const prefs = window.LiveNewsPrefs;
+  const currentStories = [...(data.storyClusters || []), ...(data.items || state.feed || [])];
+  const newStories = prefs.getNewStoriesSinceLastVisit(city.cityId, currentStories);
+  const savedCity = prefs.getSavedCity();
+  const followedTopics = new Set(prefs.getFollowedTopics(city.cityId));
+  const dominantTopic = getDominantTopic(data.storyClusters || []);
+  const seenCount = prefs.getSeenStoryIds(city.cityId).length;
+
+  if ((!savedCity || savedCity.cityId !== city.cityId) && prefs.shouldShowPrompt("save_city")) {
+    renderPreferencePrompt({
+      key: "save_city",
+      message: `Make ${city.label} your local page?`,
+      primaryLabel: "Save city",
+      onPrimary: () => {
+        prefs.setSavedCity(city);
+        updateStatus(`${city.label} saved as your local page on this device.`);
+      },
+      dismissDays: 30,
+    });
+    return;
+  }
+
+  if (newStories.length > 0 && prefs.shouldShowPrompt(`returning_updates:${city.cityId}`)) {
+    renderPreferencePrompt({
+      key: `returning_updates:${city.cityId}`,
+      message: `${newStories.length} new update${newStories.length === 1 ? "" : "s"} since your last visit.`,
+      primaryLabel: "Show me",
+      onPrimary: () => updateStatus(`Showing ${newStories.length} new local update${newStories.length === 1 ? "" : "s"} for ${city.label}.`),
+      dismissDays: 3,
+    });
+    return;
+  }
+
+  if (dominantTopic && dominantTopic[1] >= 2 && !followedTopics.has(dominantTopic[0])) {
+    const promptKey = `follow_topic:${city.cityId}:${dominantTopic[0]}`;
+    if (prefs.shouldShowPrompt(promptKey)) {
+      renderPreferencePrompt({
+        key: promptKey,
+        message: `Follow ${city.label} ${dominantTopic[0].replace(/-/g, " ")} updates?`,
+        primaryLabel: "Follow topic",
+        onPrimary: () => {
+          prefs.followTopic(city.cityId, dominantTopic[0]);
+          updateStatus(`${dominantTopic[0].replace(/-/g, " ")} updates followed for ${city.label}.`);
+        },
+        dismissDays: 21,
+      });
+      return;
+    }
+  }
+
+  if (seenCount >= 6 && prefs.shouldShowPrompt(`newsletter:${city.cityId}`)) {
+    renderPreferencePrompt({
+      key: `newsletter:${city.cityId}`,
+      message: `Get the ${city.label.replace(/,\s*[A-Z]{2}$/i, "")} Morning Brief?`,
+      primaryLabel: "Coming soon",
+      onPrimary: () => {
+        prefs.dismissPrompt(`newsletter:${city.cityId}`, 30);
+        updateStatus("Newsletter signup is a placeholder for now.");
+      },
+      dismissDays: 30,
+    });
+    return;
+  }
+
+  hidePreferencePrompt();
+}
+
+function markCurrentCityVisited() {
+  const city = getCityPreference(state.place);
+  if (!city || !window.LiveNewsPrefs?.markCityVisited) return;
+  window.LiveNewsPrefs.markCityVisited(city.cityId, getVisibleStoryIds(state.feed));
 }
 
 function groupFeedByAge(items) {

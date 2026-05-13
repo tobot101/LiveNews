@@ -653,6 +653,62 @@ Allowed localStorage fields:
 - Seen story IDs.
 - Dismissed prompts.
 
+Live News stores these anonymous preferences under `liveNews:v1:prefs`.
+
+Preference shape:
+
+```json
+{
+  "savedCity": {
+    "cityId": "los-angeles-ca",
+    "citySlug": "los-angeles",
+    "stateSlug": "california",
+    "label": "Los Angeles, CA"
+  },
+  "followedTopics": {
+    "los-angeles-ca": ["traffic", "weather", "schools"]
+  },
+  "lastVisitByCity": {
+    "los-angeles-ca": "2026-05-13T09:00:00-07:00"
+  },
+  "seenStoryIdsByCity": {
+    "los-angeles-ca": ["story_1", "story_2"]
+  },
+  "promptHistory": {
+    "save_city": { "status": "accepted", "updatedAt": "..." },
+    "newsletter": { "status": "dismissed", "dismissedUntil": "..." },
+    "push_alerts": { "status": "not_asked" }
+  },
+  "updatedAt": "..."
+}
+```
+
+Preference helper API lives in `src/lib/personalization/liveNewsPrefs.ts` and the browser-safe runtime mirror lives in `public/live-news-prefs.js`.
+
+Required helpers:
+
+- `getLiveNewsPrefs()`
+- `saveLiveNewsPrefs(prefs)`
+- `clearLiveNewsPrefs()`
+- `setSavedCity(city)`
+- `getSavedCity()`
+- `followTopic(cityId, topic)`
+- `unfollowTopic(cityId, topic)`
+- `getFollowedTopics(cityId)`
+- `markCityVisited(cityId, visibleStoryIds)`
+- `getSeenStoryIds(cityId)`
+- `getNewStoriesSinceLastVisit(cityId, currentStories)`
+- `dismissPrompt(promptKey, days)`
+- `shouldShowPrompt(promptKey)`
+
+Prompt behavior:
+
+- First city visit can ask: "Make Los Angeles your local page?"
+- Returning visit can say: "8 new updates since your last visit."
+- Repeated topic interest can ask: "Follow Los Angeles traffic updates?"
+- After multiple visits, Live News can show a newsletter placeholder: "Get the Los Angeles Morning Brief?"
+- If a prompt is dismissed, do not show it again until `dismissedUntil`.
+
 Client behavior:
 
 - Read localStorage only inside safe wrappers.
@@ -660,6 +716,10 @@ Client behavior:
 - Do not send private localStorage identifiers to the server as user profiles.
 - Do not store usernames, emails, private messages, personal profiles, or real identities.
 - Seen story IDs may be used locally to reduce repeated cards or mark previously seen stories.
+- Do not store sensitive personal information in localStorage.
+- Do not fingerprint users.
+- Do not use third-party tracking for this feature.
+- Provide a "Clear local preferences" control.
 
 The product should feel personalized without creating account-level tracking.
 
