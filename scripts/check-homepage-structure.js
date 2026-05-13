@@ -112,14 +112,17 @@ if (!stylesCss.includes(".home-search-local-panel") || !stylesCss.includes(".hom
 if (!stylesCss.includes("grid-template-columns: minmax(0, 1fr) minmax(360px, 0.86fr)")) {
   fail("Top Story spotlight row should give the week card a wider desktop column.");
 }
-if (!stylesCss.includes("grid-template-columns: minmax(0, 0.92fr) minmax(190px, 0.48fr)")) {
-  fail("Top Story cards should rebalance text and media columns so the media area is larger.");
+if (!stylesCss.includes(".lead-card .story-visual-lead") || !stylesCss.includes("position: absolute") || !stylesCss.includes("inset: 0")) {
+  fail("Top Story media should become the full image frame behind the story copy.");
 }
-if (!stylesCss.includes("grid-template-columns: minmax(0, 0.96fr) minmax(320px, 0.58fr)")) {
-  fail("Single Top Story card should reserve a larger media column on desktop.");
+if (!stylesCss.includes(".lead-copy") || !stylesCss.includes("max-width: min(520px, 72%)") || !stylesCss.includes("backdrop-filter: blur(2px)")) {
+  fail("Top Story copy should sit inside a compact readable overlay within the image frame.");
 }
-if (!stylesCss.includes("font-size: clamp(26px, 2.55vw, 40px)") || !stylesCss.includes("font-size: clamp(28px, 3.4vw, 48px)")) {
-  fail("Top Story headline font sizes should be modestly reduced, not removed.");
+if (!stylesCss.includes("font-size: clamp(22px, 2.05vw, 32px)") || !stylesCss.includes("font-size: clamp(26px, 3vw, 44px)")) {
+  fail("Top Story headline font sizes should be reduced enough to fit the image-frame card.");
+}
+if (!appJs.includes("lead-media-${escapeHtml(mediaShape)}") || !appJs.includes("lead-media-fallback")) {
+  fail("Top Story cards should carry adaptive media-shape classes on the card itself.");
 }
 if (!appJs.includes("getAdaptiveLeadMediaShape") || !appJs.includes("adaptLeadMediaShape")) {
   fail("Top Story media should adapt its shape after image dimensions are known.");
@@ -157,8 +160,8 @@ if (!stylesCss.includes(".home-local-city-chips") || !stylesCss.includes("grid-t
 if (!stylesCss.includes("@media (max-width: 720px)") || !stylesCss.includes(".home-search-local-grid")) {
   fail("Homepage Search + Local module needs mobile stacking styles.");
 }
-if (!stylesCss.includes(".lead-spotlights[data-count=\"1\"] .lead-card") || !stylesCss.includes("max-width: min(360px, 100%)")) {
-  fail("Top Story cards should stack cleanly with a bounded mobile media height.");
+if (!stylesCss.includes(".lead-spotlights[data-count=\"1\"] .lead-card") || !stylesCss.includes("min-height: 390px") || !stylesCss.includes("max-width: 100%")) {
+  fail("Top Story image-frame cards should stack cleanly with readable mobile overlays.");
 }
 if (appJs.includes("class=\"lane-story") || appJs.includes("lane-story-title")) {
   fail("Homepage Category Lanes should not render inline article cards anymore.");

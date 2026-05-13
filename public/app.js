@@ -1824,9 +1824,13 @@ function buildStoryVisual(item, variant = "lead") {
 
 function getInitialStoryMediaShape(item, variant = "lead") {
   if (variant !== "lead") return "";
+  return `media-shape-${getInitialLeadMediaShape(item)}`;
+}
+
+function getInitialLeadMediaShape(item) {
   const width = Number(item.imageWidth || item.image_width || item.width || item.mediaWidth || 0);
   const height = Number(item.imageHeight || item.image_height || item.height || item.mediaHeight || 0);
-  return `media-shape-${getAdaptiveLeadMediaShape(width, height)}`;
+  return getAdaptiveLeadMediaShape(width, height);
 }
 
 function getAdaptiveLeadMediaShape(width, height) {
@@ -1848,9 +1852,14 @@ function isWeakLoadedArticleImage(image) {
 
 function rejectStoryImage(image) {
   const visual = image.closest(".story-visual");
+  const card = image.closest(".lead-card");
   if (!visual) return;
   visual.classList.remove("has-photo");
   visual.classList.remove("media-shape-portrait", "media-shape-square", "media-shape-standard");
+  if (card) {
+    card.classList.remove("lead-media-portrait", "lead-media-square", "lead-media-standard");
+    card.classList.add("lead-media-fallback");
+  }
   visual.classList.add("image-failed");
   image.remove();
 }
@@ -1859,8 +1868,13 @@ function adaptLeadMediaShape(image) {
   const visual = image.closest(".story-visual-lead");
   if (!visual) return;
   const shape = getAdaptiveLeadMediaShape(Number(image.naturalWidth || 0), Number(image.naturalHeight || 0));
+  const card = visual.closest(".lead-card");
   visual.classList.remove("media-shape-portrait", "media-shape-square", "media-shape-standard");
   visual.classList.add(`media-shape-${shape}`);
+  if (card) {
+    card.classList.remove("lead-media-portrait", "lead-media-square", "lead-media-standard", "lead-media-fallback");
+    card.classList.add(`lead-media-${shape}`);
+  }
 }
 
 function validateStoryImage(image) {
@@ -1916,8 +1930,9 @@ function buildStoryActions(item) {
 function renderLeadStoryCard(item, { label = "Top Story", headingTag = "h1", variant = "day" } = {}) {
   const published = item.publishedAt ? formatTime(item.publishedAt) : "";
   const Heading = headingTag === "h2" ? "h2" : "h1";
+  const mediaShape = getInitialLeadMediaShape(item);
   return `
-    <article class="lead-card lead-card-${escapeHtml(variant)}" data-article-id="${escapeHtml(item.id || "")}">
+    <article class="lead-card lead-card-${escapeHtml(variant)} lead-media-${escapeHtml(mediaShape)}" data-article-id="${escapeHtml(item.id || "")}">
       <div class="lead-copy">
         <div class="story-eyebrow">
           <span>${escapeHtml(label)}</span>
