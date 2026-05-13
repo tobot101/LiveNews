@@ -111,7 +111,9 @@ const {
 } = require("./lib/local-story-expiration");
 const { slugify: slugifyLocalId } = require("./lib/local-intelligence-models");
 const {
+  getCrawlableLocalNewsSitemapEntries,
   getCrawlableLocalSitemapEntries,
+  getCrawlableLocalSitemapGroups,
   renderLocalCityPage,
   renderLocalStatePage,
   renderLocalStoryPage,
@@ -4715,16 +4717,20 @@ function buildHomeStructuredData({ spotlightStories = [], topCards = [], feedCar
 }
 
 function renderSitemap() {
+  const localEntries = getCrawlableLocalSitemapEntries();
+  return renderSitemapUrlSet([...SITEMAP_STABLE_PAGES, ...localEntries]);
+}
+
+function renderSitemapUrlSet(entries = []) {
   const origin = getCanonicalOrigin();
   const now = new Date().toISOString();
-  const sitemapPages = [...SITEMAP_STABLE_PAGES, ...getCrawlableLocalSitemapEntries()];
-  const body = sitemapPages
+  const body = entries
     .map(
       (url) => `  <url>
     <loc>${escapeHtml(absoluteUrl(origin, url.path))}</loc>
     <lastmod>${escapeHtml(url.lastmod || now)}</lastmod>
-    <changefreq>${escapeHtml(url.changefreq)}</changefreq>
-    <priority>${escapeHtml(url.priority)}</priority>
+    <changefreq>${escapeHtml(url.changefreq || "daily")}</changefreq>
+    <priority>${escapeHtml(url.priority || "0.5")}</priority>
   </url>`
     )
     .join("\n");
@@ -4735,27 +4741,58 @@ ${body}
 `;
 }
 
-function renderNewsSitemap() {
-  const stories = filterCurrentPublicStories(listApprovedStories()).filter((story) =>
-    isWithinNewsSitemapWindow(story)
-  );
-  if (!stories.length) return "";
+function renderLocalSitemapSection(section) {
+  const groups = getCrawlableLocalSitemapGroups();
+  const entries = groups[section] || [];
+  return renderSitemapUrlSet(entries);
+}
+
+function renderNewsSitemapUrlSet(entries = []) {
+  if (!entries.length) return "";
   const origin = getCanonicalOrigin();
-  const body = stories
-    .map((story) => {
-      const loc = story.liveNewsUrl || `/stories/${story.slug}`;
-      const lastmod = story.updatedAt || story.publishedAt || story.approvedAt || new Date().toISOString();
+  const now = new Date().toISOString();
+  const body = entries
+    .map((entry) => {
+      const loc = entry.path || entry.loc;
+      const title = cleanText(entry.title || "Live News story");
+      const lastmod = entry.lastmod || entry.publicationDate || now;
+      const publicationDate = entry.publicationDate || lastmod;
       return `  <url>
     <loc>${escapeHtml(absoluteUrl(origin, loc))}</loc>
     <lastmod>${escapeHtml(lastmod)}</lastmod>
+    <news:news>
+      <news:publication>
+        <news:name>Live News</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>${escapeHtml(publicationDate)}</news:publication_date>
+      <news:title>${escapeHtml(title)}</news:title>
+    </news:news>
   </url>`;
     })
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
 ${body}
 </urlset>
 `;
+}
+
+function getNewsSitemapEntries() {
+  const approvedStories = filterCurrentPublicStories(listApprovedStories())
+    .filter((story) => isWithinNewsSitemapWindow(story))
+    .map((story) => ({
+      path: story.liveNewsUrl || `/stories/${story.slug}`,
+      lastmod: story.updatedAt || story.publishedAt || story.approvedAt || new Date().toISOString(),
+      publicationDate: story.publishedAt || story.approvedAt || story.updatedAt || new Date().toISOString(),
+      title: story.title || story.headline,
+    }));
+  return [...approvedStories, ...getCrawlableLocalNewsSitemapEntries()];
+}
+
+function renderNewsSitemap() {
+  return renderNewsSitemapUrlSet(getNewsSitemapEntries());
 }
 
 function findStoredApprovedStoryBySlug(slug) {
@@ -4820,9 +4857,31 @@ app.get("/sitemap.xml", (req, res) => {
   res.type("application/xml").send(renderSitemap());
 });
 
+app.get("/sitemaps/states.xml", (req, res) => {
+  res.type("application/xml").send(renderLocalSitemapSection("states"));
+});
+
+app.get("/sitemaps/local-cities-001.xml", (req, res) => {
+  res.type("application/xml").send(renderLocalSitemapSection("cities"));
+});
+
+app.get("/sitemaps/local-topics-001.xml", (req, res) => {
+  res.type("application/xml").send(renderLocalSitemapSection("topics"));
+});
+
+app.get("/sitemaps/live-stories-001.xml", (req, res) => {
+  res.type("application/xml").send(renderLocalSitemapSection("stories"));
+});
+
+app.get("/sitemaps/news.xml", (req, res) => {
+  const xml = renderNewsSitemap();
+  if (!xml) return res.status(404).type("text/plain").send("No Live News story pages are eligible for the Google News sitemap yet.");
+  return res.type("application/xml").send(xml);
+});
+
 app.get("/news-sitemap.xml", (req, res) => {
   const xml = renderNewsSitemap();
-  if (!xml) return res.status(404).type("text/plain").send("No internal Live News story pages are public yet.");
+  if (!xml) return res.status(404).type("text/plain").send("No internal Live News story pages are eligible for the Google News sitemap yet.");
   return res.type("application/xml").send(xml);
 });
 

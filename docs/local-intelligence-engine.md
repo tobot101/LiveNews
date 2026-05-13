@@ -738,16 +738,47 @@ Rules:
 - Story structured data must use exact Live News story URLs when a story page exists.
 - Trend or source-volume signals may guide ranking but must not add unsupported facts to public copy.
 
+Dynamic city indexing requires:
+
+- 5 or more live local story clusters in the last 7 days, or 12 or more meaningful internal local signals in the last 30 days.
+- 2 or more distinct sources.
+- 1 or more official or civic source.
+- Unique city metadata.
+- A visible last-updated timestamp.
+- Visible source links.
+
+Dynamic topic indexing requires:
+
+- 3 or more live topic story clusters in the last 7 days.
+- 2 or more distinct sources.
+- Useful local context for that city and topic.
+
+Public live local story pages should include `NewsArticle` structured data with:
+
+- `headline`
+- `datePublished`
+- `dateModified`
+- `image` when a durable story image is available
+- `publisher`
+- `author`
+- `mainEntityOfPage`
+
 Engine helpers:
 
 - `getCityPageSeoState({ place, clusters })`
 - `getExpiredStoryResponse(story)`
+- `getCitySeoDecision(city, clusters, context, options)`
+- `getTopicSeoDecision(city, topic, clusters, context)`
 
 ## Sitemap Rules
 
 Regular XML sitemap:
 
 - Include only stable indexable Live News pages.
+- Include indexable state pages.
+- Include indexable city pages.
+- Include indexable topic pages.
+- Include live public local story pages under 7 days.
 - Exclude expired stories.
 - Exclude thin city/topic pages.
 - Exclude query-driven local pages.
@@ -761,9 +792,20 @@ Google News sitemap:
 - Exclude thin city/topic pages.
 - Exclude external publisher URLs.
 
+Generated sitemap routes:
+
+- `/sitemap.xml`
+- `/sitemaps/states.xml`
+- `/sitemaps/local-cities-001.xml`
+- `/sitemaps/local-topics-001.xml`
+- `/sitemaps/live-stories-001.xml`
+- `/sitemaps/news.xml`
+
 Engine helper:
 
 - `isWithinNewsSitemapWindow(story)`
+- `getCrawlableLocalSitemapGroups()`
+- `getCrawlableLocalNewsSitemapEntries()`
 
 ## Testing Plan
 
