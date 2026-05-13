@@ -110,6 +110,13 @@ const {
   getLiveStoriesForCity,
 } = require("./lib/local-story-expiration");
 const { slugify: slugifyLocalId } = require("./lib/local-intelligence-models");
+const {
+  getCrawlableLocalSitemapEntries,
+  renderLocalCityPage,
+  renderLocalStatePage,
+  renderLocalStoryPage,
+  renderLocalTopicPage,
+} = require("./lib/local-crawlable-pages");
 const { runLocalWorkerBatch } = require("./lib/local-intelligence-worker");
 const {
   applyCoverageContext,
@@ -1620,7 +1627,8 @@ function resolveLocalRequestPlace(city, state) {
 function getLocalCityIdFromPlace(place = {}) {
   const citySlug = slugifyLocalId(place.name || place.city || "");
   const stateAbbr = cleanText(place.state || place.state_abbr || place.stateCode || "").toLowerCase();
-  return [citySlug, stateAbbr].filter(Boolean).join("-");
+  if (!citySlug || !stateAbbr) return "";
+  return `city-${citySlug}-${stateAbbr}`;
 }
 
 function toPublicLocalStoryCluster(cluster = {}) {
@@ -4709,7 +4717,8 @@ function buildHomeStructuredData({ spotlightStories = [], topCards = [], feedCar
 function renderSitemap() {
   const origin = getCanonicalOrigin();
   const now = new Date().toISOString();
-  const body = SITEMAP_STABLE_PAGES
+  const sitemapPages = [...SITEMAP_STABLE_PAGES, ...getCrawlableLocalSitemapEntries()];
+  const body = sitemapPages
     .map(
       (url) => `  <url>
     <loc>${escapeHtml(absoluteUrl(origin, url.path))}</loc>
@@ -4876,6 +4885,36 @@ app.get("/local", (req, res) => {
     res.setHeader("X-Robots-Tag", "noindex, follow");
   }
   res.type("html").send(renderCanonicalStaticPage("local.html", "/local"));
+});
+
+function sendLocalCrawlablePage(page, res, next) {
+  if (!page) return next();
+  if (page.robots) res.setHeader("X-Robots-Tag", page.robots);
+  return res.status(page.status || 200).type("html").send(page.html);
+}
+
+app.get("/local/:stateSlug", (req, res, next) => {
+  return sendLocalCrawlablePage(renderLocalStatePage(req.params.stateSlug), res, next);
+});
+
+app.get("/local/:stateSlug/:citySlug", (req, res, next) => {
+  return sendLocalCrawlablePage(renderLocalCityPage(req.params.stateSlug, req.params.citySlug), res, next);
+});
+
+app.get("/local/:stateSlug/:citySlug/story/:storySlug", (req, res, next) => {
+  return sendLocalCrawlablePage(
+    renderLocalStoryPage(req.params.stateSlug, req.params.citySlug, req.params.storySlug),
+    res,
+    next
+  );
+});
+
+app.get("/local/:stateSlug/:citySlug/:topic", (req, res, next) => {
+  return sendLocalCrawlablePage(
+    renderLocalTopicPage(req.params.stateSlug, req.params.citySlug, req.params.topic),
+    res,
+    next
+  );
 });
 
 app.get("/latest", (req, res) => {

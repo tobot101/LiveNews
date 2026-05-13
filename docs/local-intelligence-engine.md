@@ -581,10 +581,29 @@ The Express refresh loop runs the expiration job before the normal news refresh 
 
 City and topic pages are live public discovery pages, but their story lists must stay current.
 
+Crawlable local routes:
+
+- `/local`
+- `/local/[stateSlug]`
+- `/local/[stateSlug]/[citySlug]`
+- `/local/[stateSlug]/[citySlug]/[topic]`
+- `/local/[stateSlug]/[citySlug]/story/[storySlug]`
+
 City pages should:
 
 - Resolve the requested city and state.
 - Show only current clusters from the last 7 days.
+- Show the city name and state.
+- State that Live News shows live updates from the last 7 days.
+- Show a last-updated timestamp.
+- Include Local Pulse metrics.
+- Include What changed today.
+- Include top story clusters.
+- Include topic modules.
+- Include official sources.
+- Include a local source directory.
+- Include nearby cities.
+- Include save-city, follow-topic, and newsletter placeholder CTAs.
 - Attribute all source-linked stories.
 - Link to original publishers.
 - Use noindex, follow when thin.
@@ -594,10 +613,26 @@ City pages should:
 Topic pages should:
 
 - Show only current clusters from the last 7 days.
+- Show topic-specific live story clusters.
+- Show a last-updated timestamp.
+- Show the topic source mix.
+- Show confidence labels.
+- Include save-city, follow-topic, and newsletter placeholder CTAs.
 - Use topic classification from local signals.
 - Avoid showing expired story details.
 - Use noindex, follow when thin.
 - Avoid sitemap inclusion when thin.
+
+Local story pages should:
+
+- Show a Live News summary.
+- Show the confidence label.
+- Link to original sources.
+- Show a timeline.
+- Show the latest update.
+- Include original source attribution.
+- Link back to the city and topic pages.
+- Return `410 Gone` or a minimal expired notice after expiration.
 
 Thin page criteria should consider:
 

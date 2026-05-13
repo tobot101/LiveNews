@@ -70,6 +70,13 @@ const {
   isPublicStoryLive,
 } = require("../lib/local-story-expiration");
 const {
+  getCrawlableLocalSitemapEntries,
+  renderLocalCityPage,
+  renderLocalStatePage,
+  renderLocalStoryPage,
+  renderLocalTopicPage,
+} = require("../lib/local-crawlable-pages");
+const {
   normalizeCity,
   normalizeCityTopicCoverage,
   normalizeInputSignal,
@@ -801,6 +808,141 @@ expect(!getRegularSitemapStoryClusters({ paths: expirationFixture.paths, now: ex
 expect(getGoogleNewsSitemapStoryClusters({ paths: expirationFixture.paths, now: expirationNow }).length === 1, "Google News sitemap helper should only include indexable live clusters from 0-48 hours.");
 expect(findStoryClusterBySlug("expired-community-update", { paths: expirationFixture.paths }).id === "cluster-expired", "Expired clusters should remain privately findable by slug.");
 expect(getExpiredStoryClusterResponse(expiredAfterJob, { now: expirationNow }).status === 410, "Expired local story cluster URLs should return 410.");
+
+writeJson(expirationFixture.paths.localCities, {
+  schemaVersion: "live-news-local-cities-v1",
+  updatedAt: expirationNow,
+  cities: [modelCity, losAngelesCity],
+});
+writeJson(expirationFixture.paths.localSources, {
+  schemaVersion: "live-news-local-sources-v1",
+  updatedAt: expirationNow,
+  local_sources: [modelSource, publisherSource, secondPublisherSource],
+});
+writeJson(expirationFixture.paths.sourceCityCoverage, {
+  schemaVersion: "live-news-source-city-coverage-v1",
+  updatedAt: expirationNow,
+  source_city_coverage: [
+    normalizeSourceCityCoverage({
+      source_id: modelSource.id,
+      city_id: modelCity.id,
+      confidence: 96,
+      coverage_type: "primary",
+    }),
+    normalizeSourceCityCoverage({
+      source_id: publisherSource.id,
+      city_id: modelCity.id,
+      confidence: 80,
+      coverage_type: "regional",
+    }),
+    normalizeSourceCityCoverage({
+      source_id: secondPublisherSource.id,
+      city_id: modelCity.id,
+      confidence: 78,
+      coverage_type: "regional",
+    }),
+  ],
+});
+const crawlSignals = [
+  normalizeInputSignal({
+    id: "crawl-signal-road",
+    source_id: modelSource.id,
+    source_feed_id: "crawl-official-feed",
+    canonical_url: "https://www.sandiego.gov/live-road-closure",
+    title: "San Diego road closure remains active today",
+    excerpt: "Officials say the road closure remains active.",
+    published_at: liveWithinGoogleNews.public_started_at,
+    signal_status: "clustered",
+  }),
+  normalizeInputSignal({
+    id: "crawl-signal-schools",
+    source_id: publisherSource.id,
+    source_feed_id: "crawl-publisher-feed",
+    canonical_url: "https://metro.example.org/school-board-plan",
+    title: "San Diego school board plan remains current this week",
+    excerpt: "A local schools plan remains under public review.",
+    published_at: liveDayFour.public_started_at,
+    signal_status: "clustered",
+  }),
+  normalizeInputSignal({
+    id: "crawl-signal-expired",
+    source_id: secondPublisherSource.id,
+    source_feed_id: "crawl-wire-feed",
+    canonical_url: "https://wire.example.org/expired-community-update",
+    title: "Older San Diego community update",
+    excerpt: "This old local cluster should not remain public.",
+    published_at: expiredCluster.public_started_at,
+    signal_status: "clustered",
+  }),
+];
+writeJson(expirationFixture.paths.inputSignals, {
+  schemaVersion: "live-news-input-signals-v1",
+  updatedAt: expirationNow,
+  input_signals: crawlSignals,
+});
+writeJson(expirationFixture.paths.storyClusterSignals, {
+  schemaVersion: "live-news-story-cluster-signals-v1",
+  updatedAt: expirationNow,
+  story_cluster_signals: [
+    normalizeStoryClusterSignal({
+      story_cluster_id: liveWithinGoogleNews.id,
+      input_signal_id: "crawl-signal-road",
+      source_id: modelSource.id,
+      is_primary: true,
+    }),
+    normalizeStoryClusterSignal({
+      story_cluster_id: liveDayFour.id,
+      input_signal_id: "crawl-signal-schools",
+      source_id: publisherSource.id,
+      is_primary: true,
+    }),
+    normalizeStoryClusterSignal({
+      story_cluster_id: expiredCluster.id,
+      input_signal_id: "crawl-signal-expired",
+      source_id: secondPublisherSource.id,
+      is_primary: true,
+    }),
+  ],
+});
+
+const statePage = renderLocalStatePage("california", { paths: expirationFixture.paths, now: expirationNow });
+expect(statePage && statePage.html.includes("California Local News"), "Crawlable state local page should render.");
+expect(statePage.html.includes("/local/california/san-diego"), "State local page should link to crawlable city pages.");
+const cityPage = renderLocalCityPage("california", "san-diego", { paths: expirationFixture.paths, now: expirationNow });
+expect(cityPage && cityPage.html.includes("San Diego, CA"), "Crawlable city page should show city name and state.");
+expect(cityPage.html.includes("Live updates from the last 7 days"), "Crawlable city page should explain the 7-day public window.");
+expect(cityPage.html.includes("Last updated"), "Crawlable city page should show a last updated timestamp.");
+expect(cityPage.html.includes("live clusters") && cityPage.html.includes("Local Pulse"), "Crawlable city page should include local pulse data.");
+expect(cityPage.html.includes("What changed today"), "Crawlable city page should include what changed today.");
+expect(cityPage.html.includes("Top story clusters"), "Crawlable city page should include top story clusters.");
+expect(cityPage.html.includes("Topic modules"), "Crawlable city page should include topic modules.");
+expect(cityPage.html.includes("Official sources"), "Crawlable city page should include official sources.");
+expect(cityPage.html.includes("Local source directory"), "Crawlable city page should include a local source directory.");
+expect(cityPage.html.includes("Nearby cities"), "Crawlable city page should include nearby cities.");
+expect(cityPage.html.includes("Save city"), "Crawlable city page should include a save city CTA.");
+expect(cityPage.html.includes("Newsletter placeholder"), "Crawlable city page should include newsletter CTA placeholder.");
+expect(!cityPage.html.includes("Older San Diego community update"), "Crawlable city page should exclude expired story details.");
+const topicPage = renderLocalTopicPage("california", "san-diego", "traffic", { paths: expirationFixture.paths, now: expirationNow });
+expect(topicPage && topicPage.html.includes("Topic-specific live story clusters from the last 7 days"), "Crawlable topic page should explain live topic-specific clusters.");
+expect(topicPage.html.includes("Topic source mix"), "Crawlable topic page should include topic source mix.");
+expect(topicPage.html.includes("Confidence labels"), "Crawlable topic page should include confidence labels.");
+expect(topicPage.html.includes("Follow topic"), "Crawlable topic page should include follow topic CTA.");
+expect(!topicPage.html.includes("Older San Diego community update"), "Crawlable topic page should exclude expired stories.");
+const localStoryPage = renderLocalStoryPage("california", "san-diego", "live-road-closure-24h", { paths: expirationFixture.paths, now: expirationNow });
+expect(localStoryPage && localStoryPage.html.includes("Live News summary"), "Crawlable local story page should include Live News summary.");
+expect(localStoryPage.html.includes("Confidence label") || localStoryPage.html.includes("confidence"), "Crawlable local story page should include confidence label.");
+expect(localStoryPage.html.includes("Original source attribution"), "Crawlable local story page should include original source attribution.");
+expect(localStoryPage.html.includes("Timeline"), "Crawlable local story page should include timeline.");
+expect(localStoryPage.html.includes("Latest update"), "Crawlable local story page should include latest update.");
+expect(localStoryPage.html.includes("/local/california/san-diego") && localStoryPage.html.includes("/local/california/san-diego/traffic"), "Crawlable local story page should include city and topic links.");
+expect(localStoryPage.html.includes("https://www.sandiego.gov/live-road-closure"), "Crawlable local story page should link to original source.");
+const expiredLocalStoryPage = renderLocalStoryPage("california", "san-diego", "expired-community-update", { paths: expirationFixture.paths, now: expirationNow });
+expect(expiredLocalStoryPage.status === 410, "Expired crawlable local story page should return 410.");
+expect(!expiredLocalStoryPage.html.includes("This old local cluster should not remain public."), "Expired crawlable local story page should not show old story details.");
+const localSitemapEntries = getCrawlableLocalSitemapEntries({ paths: expirationFixture.paths, now: expirationNow });
+expect(localSitemapEntries.some((entry) => entry.path === "/local/california/san-diego"), "Crawlable local sitemap entries should include indexable city pages.");
+expect(localSitemapEntries.some((entry) => entry.path === "/local/california/san-diego/story/live-road-closure-24h"), "Crawlable local sitemap entries should include live story URLs.");
+expect(!localSitemapEntries.some((entry) => entry.path.includes("expired-community-update")), "Crawlable local sitemap entries should exclude expired story URLs.");
 
 const modelTopicCoverage = normalizeCityTopicCoverage({
   city_id: modelCity.id,
