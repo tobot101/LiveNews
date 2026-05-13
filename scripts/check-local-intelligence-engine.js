@@ -1064,6 +1064,26 @@ expect(!/local-directory-city-link[^>]+data-save-city/.test(cityDirectoryPage.ht
 const houstonPage = renderLocalCityPage("texas", "houston", { paths: expirationFixture.paths, now: expirationNow });
 expect(houstonPage && houstonPage.html.includes("Houston Local News"), "Crawlable city pages should resolve U.S. cities that are not seeded in local-cities.json yet.");
 expect(houstonPage.robots === "noindex, follow", "Unseeded or weak city pages should remain noindex, follow.");
+expect(!houstonPage.html.includes("Local Pulse"), "City pages without live clusters should not show unrelated zero-count Local Pulse panels.");
+const houstonArticlePage = renderLocalCityPage("texas", "houston", {
+  paths: expirationFixture.paths,
+  now: expirationNow,
+  localArticleFeed: {
+    sourceCount: 2,
+    items: [
+      {
+        title: "Houston transit update adds service changes",
+        liveNewsSummary: "Houston transit riders have a current source-linked update about service changes this week.",
+        sourceName: "Houston Public Media",
+        topicLabel: "Transit",
+        publishedAt: expirationNow,
+        link: "https://example.com/houston-transit-update",
+      },
+    ],
+  },
+});
+expect(houstonArticlePage.html.includes("Houston transit riders have a current source-linked update"), "City article feed should render Live News summaries when article intelligence is available.");
+expect(houstonArticlePage.html.includes("Houston Public Media"), "City article feed should render source attribution.");
 const cityPage = renderLocalCityPage("california", "san-diego", { paths: expirationFixture.paths, now: expirationNow });
 expect(cityPage && cityPage.html.includes("San Diego, CA"), "Crawlable city page should show city name and state.");
 expect(cityPage.robots === "index, follow", "City page should be indexable only after dynamic city SEO controls pass.");

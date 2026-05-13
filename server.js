@@ -114,6 +114,7 @@ const {
   getCrawlableLocalNewsSitemapEntries,
   getCrawlableLocalSitemapEntries,
   getCrawlableLocalSitemapGroups,
+  findCityByRoute,
   renderLocalCityPage,
   renderLocalCitiesPage,
   renderLocalStatePage,
@@ -5011,8 +5012,25 @@ app.get("/local/:stateSlug", (req, res, next) => {
   return sendLocalCrawlablePage(renderLocalStatePage(req.params.stateSlug), res, next);
 });
 
-app.get("/local/:stateSlug/:citySlug", (req, res, next) => {
-  return sendLocalCrawlablePage(renderLocalCityPage(req.params.stateSlug, req.params.citySlug), res, next);
+app.get("/local/:stateSlug/:citySlug", async (req, res, next) => {
+  const city = findCityByRoute(req.params.stateSlug, req.params.citySlug);
+  if (!city) return next();
+  let localArticleFeed = null;
+  try {
+    localArticleFeed = await fetchLocalNews({
+      name: city.name,
+      state: city.state_abbr,
+      stateName: city.state_name,
+      display: `${city.name}, ${city.state_abbr}`,
+    });
+  } catch {
+    localArticleFeed = null;
+  }
+  return sendLocalCrawlablePage(
+    renderLocalCityPage(req.params.stateSlug, req.params.citySlug, { localArticleFeed }),
+    res,
+    next
+  );
 });
 
 app.get("/local/:stateSlug/:citySlug/story/:storySlug", (req, res, next) => {

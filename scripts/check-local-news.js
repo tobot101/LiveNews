@@ -71,6 +71,7 @@ expect(serverJs.includes("hasLocalRelevance(item, place)"), "Local feeds should 
 expect(serverJs.includes("LOCAL_CITY_ALIASES"), "Local feeds should keep city-specific aliases for teams and neighborhoods.");
 expect(serverJs.includes("live & on demand"), "Local feeds should block event listings that cannot produce useful news summaries.");
 expect(serverJs.includes("getPlaceSearchScore"), "City search should rank major exact city matches before smaller same-name places.");
+expect(serverJs.includes("localArticleFeed = await fetchLocalNews"), "Crawlable city routes should pre-render local article intelligence when available.");
 expect(indexHtml.includes("home-search-local-panel"), "Homepage should expose Local News inside the compact Search + Local module.");
 expect(indexHtml.includes('id="topCityGrid"'), "Homepage compact Local News should render city chips.");
 expect(indexHtml.includes('id="localDeepDive" href="/local/cities"'), "Homepage compact Local News should link See more to the full city directory page.");
@@ -87,6 +88,7 @@ expect(localJs.includes("getPublishedDateBadge(item)"), "Dedicated local page sh
 expect(stylesCss.includes(".local-story-card"), "Dedicated local page should style local stories like readable Live News cards.");
 expect(localCrawlablePages.includes("data-local-live-feed"), "Crawlable city pages should mount a live article feed.");
 expect(localCrawlablePages.includes('fetch("/api/local?"'), "Crawlable city pages should load recent local articles from the existing local API.");
+expect(localCrawlablePages.includes("Local Pulse") && localCrawlablePages.includes("clusters.length ?"), "Cluster dashboard sections should only render when cluster data exists.");
 
 if (failures.length) {
   console.error("Live News local-news check failed:");
