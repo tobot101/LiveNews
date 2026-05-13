@@ -1078,6 +1078,9 @@ expect(cityPage.html.includes("Live local updates from the last 7 days."), "Craw
 expect(cityPage.html.includes("Top Story of the Day"), "Crawlable city page should render Top Story of the Day.");
 expect(cityPage.html.includes("Top Story of the Week"), "Crawlable city page should render Top Story of the Week.");
 expect(!cityPage.html.includes("Local News Deep Dive"), "Selected city page should not show Local News Deep Dive as the main heading.");
+expect(cityPage.html.includes("Latest local articles"), "Selected city page should include the dynamic recent local article feed.");
+expect(cityPage.html.includes("data-local-live-feed"), "Selected city page should expose a live-feed mount for browser article loading.");
+expect(cityPage.html.includes('fetch("/api/local?"'), "Selected city page should load current local articles from the existing local API.");
 expect(cityPage.html.includes("Last updated"), "Crawlable city page should show a last updated timestamp.");
 expect(cityPage.html.includes("live clusters") && cityPage.html.includes("Local Pulse"), "Crawlable city page should include local pulse data.");
 expect(cityPage.html.includes("What changed today"), "Crawlable city page should include what changed today.");

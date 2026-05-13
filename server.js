@@ -487,6 +487,30 @@ let placesMeta = {
   sourceUrl: "",
   totalPlaces: 0,
 };
+const majorCitySearchOrder = new Map([
+  "new-york/new-york",
+  "california/los-angeles",
+  "illinois/chicago",
+  "texas/houston",
+  "arizona/phoenix",
+  "pennsylvania/philadelphia",
+  "texas/san-antonio",
+  "california/san-diego",
+  "texas/dallas",
+  "florida/jacksonville",
+  "texas/austin",
+  "texas/fort-worth",
+  "california/san-jose",
+  "ohio/columbus",
+  "north-carolina/charlotte",
+  "california/san-francisco",
+  "washington/seattle",
+  "colorado/denver",
+  "district-of-columbia/washington",
+  "massachusetts/boston",
+  "nevada/las-vegas",
+  "oregon/portland",
+].map((key, index) => [key, index]));
 const localCache = new Map();
 let lastLocalIntelligenceRun = null;
 const articleImageCache = new Map();
@@ -550,6 +574,32 @@ function loadPlaces() {
     stateNameByCode.clear();
     placesMeta = { source: "", sourceUrl: "", totalPlaces: 0 };
   }
+}
+
+function getPlaceRouteKey(place = {}) {
+  const stateSlug = slugifyLocalId(place.stateSlug || place.stateName || place.state || "");
+  const citySlug = slugifyLocalId(place.citySlug || place.name || "");
+  return [stateSlug, citySlug].filter(Boolean).join("/");
+}
+
+function getPlaceSearchScore(place = {}, query = "") {
+  const normalizedQuery = cleanText(query).toLowerCase();
+  const name = cleanText(place.name).toLowerCase();
+  const display = cleanText(place.display).toLowerCase();
+  const state = cleanText(place.state).toLowerCase();
+  const stateName = cleanText(place.stateName).toLowerCase();
+  const routeKey = getPlaceRouteKey(place);
+  const majorRank = majorCitySearchOrder.has(routeKey)
+    ? majorCitySearchOrder.size - majorCitySearchOrder.get(routeKey)
+    : 0;
+  let score = majorRank * 100;
+  if (display === normalizedQuery) score += 100000;
+  if (name === normalizedQuery) score += 50000;
+  if (`${name} ${state}` === normalizedQuery || `${name}, ${state}` === normalizedQuery) score += 85000;
+  if (`${name} ${stateName}` === normalizedQuery || `${name}, ${stateName}` === normalizedQuery) score += 80000;
+  if (display.startsWith(normalizedQuery)) score += 12000;
+  if (name.startsWith(normalizedQuery)) score += 8000;
+  return score;
 }
 
 function parseDate(value) {
@@ -5570,6 +5620,11 @@ app.get("/api/places", (req, res) => {
   }
   const matches = placesIndex
     .filter((place) => place.search.includes(query))
+    .sort((left, right) => {
+      const scoreDiff = getPlaceSearchScore(right, query) - getPlaceSearchScore(left, query);
+      if (scoreDiff) return scoreDiff;
+      return String(left.display || left.name || "").localeCompare(String(right.display || right.name || ""));
+    })
     .slice(0, limit)
     .map(({ search, ...rest }) => rest);
   res.json({

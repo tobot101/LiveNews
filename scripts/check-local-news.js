@@ -60,6 +60,7 @@ const appJs = fs.readFileSync(path.join(root, "public", "app.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
 const localJs = fs.readFileSync(path.join(root, "public", "local.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(root, "public", "styles.css"), "utf8");
+const localCrawlablePages = fs.readFileSync(path.join(root, "lib", "local-crawlable-pages.js"), "utf8");
 
 expect(serverJs.includes("resolveLocalRequestPlace"), "Server local API should resolve typed city/state input.");
 expect(serverJs.includes("localHealthStats"), "Server health should include local-news stability diagnostics.");
@@ -69,6 +70,7 @@ expect(serverJs.includes("lastAudienceIntelligence"), "Server health should expo
 expect(serverJs.includes("hasLocalRelevance(item, place)"), "Local feeds should filter weak city matches before summary agents run.");
 expect(serverJs.includes("LOCAL_CITY_ALIASES"), "Local feeds should keep city-specific aliases for teams and neighborhoods.");
 expect(serverJs.includes("live & on demand"), "Local feeds should block event listings that cannot produce useful news summaries.");
+expect(serverJs.includes("getPlaceSearchScore"), "City search should rank major exact city matches before smaller same-name places.");
 expect(indexHtml.includes("home-search-local-panel"), "Homepage should expose Local News inside the compact Search + Local module.");
 expect(indexHtml.includes('id="topCityGrid"'), "Homepage compact Local News should render city chips.");
 expect(indexHtml.includes('id="localDeepDive" href="/local/cities"'), "Homepage compact Local News should link See more to the full city directory page.");
@@ -83,6 +85,8 @@ expect(localJs.includes("getDisplaySummary(item)"), "Dedicated local page should
 expect(localJs.includes("local-story-card"), "Dedicated local page should render local stories with organized card markup.");
 expect(localJs.includes("getPublishedDateBadge(item)"), "Dedicated local page should display a clear published-date badge.");
 expect(stylesCss.includes(".local-story-card"), "Dedicated local page should style local stories like readable Live News cards.");
+expect(localCrawlablePages.includes("data-local-live-feed"), "Crawlable city pages should mount a live article feed.");
+expect(localCrawlablePages.includes('fetch("/api/local?"'), "Crawlable city pages should load recent local articles from the existing local API.");
 
 if (failures.length) {
   console.error("Live News local-news check failed:");
