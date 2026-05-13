@@ -39,6 +39,16 @@ const {
   normalizeUrl,
 } = require("../lib/local-source-fetcher");
 const {
+  applySignalClassification,
+  classifyCityCandidates,
+  classifyInputSignal,
+  classifyInputSignals,
+  classifyTopicCandidates,
+  createLocalSignalClassifierService,
+  extractLocalEntities,
+  getSignalSourceType,
+} = require("../lib/local-signal-classifier");
+const {
   normalizeCity,
   normalizeCityTopicCoverage,
   normalizeInputSignal,
@@ -193,6 +203,8 @@ const modelCity = normalizeCity({
   state_name: "California",
   state_abbr: "CA",
   county_name: "San Diego County",
+  latitude: 32.7157,
+  longitude: -117.1611,
   coverage_score: 88,
   index_status: "index",
 });
@@ -254,6 +266,102 @@ const modelSignal = normalizeInputSignal({
 expect(modelSignal.city_candidates_json[0].city_id === modelCity.id, "Input signal model should preserve city candidate JSON.");
 expect(modelSignal.signal_status === "classified", "Input signal model should preserve signal status.");
 expect(validateInputSignal(modelSignal).ok, "Normalized input signal fixture should validate.");
+
+const classifierCity = { ...modelCity, neighborhoods: ["North Park"] };
+const losAngelesCity = normalizeCity({
+  name: "Los Angeles",
+  state_name: "California",
+  state_abbr: "CA",
+  county_name: "Los Angeles County",
+  coverage_score: 80,
+  index_status: "index",
+});
+const classifierSignal = normalizeInputSignal({
+  source_id: modelSource.id,
+  source_feed_id: modelFeed.id,
+  canonical_url: "https://www.sandiego.gov/road-closure",
+  title: "San Diego officials announce road closure near North Park",
+  excerpt: "The City of San Diego said the San Diego County closure affects I-5 ramps while crews work downtown.",
+  entities_json: {
+    coordinates: { latitude: 32.7157, longitude: -117.1611 },
+    organizations: ["City of San Diego"],
+  },
+  signal_status: "new",
+});
+const localClassification = classifyInputSignal(classifierSignal, {
+  cities: [classifierCity, losAngelesCity],
+  sources: [modelSource],
+  sourceCityCoverage: [modelCoverage],
+});
+expect(localClassification.cityCandidates[0].city_id === modelCity.id, "Signal classifier should rank the covered San Diego city first.");
+expect(localClassification.cityCandidates[0].confidence >= 90, "Signal classifier should use source_city_coverage and official source mapping for city confidence.");
+expect(localClassification.cityCandidates[0].reasons.some((reason) => reason.includes("source_city_coverage")), "City classifier should explain source_city_coverage matches.");
+expect(localClassification.cityCandidates[0].reasons.some((reason) => reason.includes("city name")), "City classifier should explain city/state title or excerpt matches.");
+expect(localClassification.cityCandidates[0].reasons.some((reason) => reason.includes("county reference")), "City classifier should use county references.");
+expect(localClassification.cityCandidates[0].reasons.some((reason) => reason.includes("neighborhood")), "City classifier should use neighborhood references when available.");
+expect(localClassification.cityCandidates[0].reasons.some((reason) => reason.includes("latitude/longitude")), "City classifier should use source latitude/longitude when available.");
+expect(localClassification.topicCandidates.some((topic) => topic.topic === "traffic"), "Topic classifier should assign road-closure signals to traffic.");
+expect(localClassification.topicCandidates.some((topic) => topic.topic === "city-hall"), "Topic classifier should use official city source type as a city-hall hint.");
+expect(localClassification.urgency === "high", "Urgency classifier should mark road closures as high urgency.");
+expect(localClassification.sourceType === "official_city", "Signal classifier should assign source type from local_sources.");
+expect(localClassification.confidence >= 70, "Signal classifier should return a useful overall confidence score.");
+expect(localClassification.localEntities.places.includes("San Diego"), "Signal classifier should extract local place entities.");
+expect(localClassification.localEntities.roads.some((road) => /I-5/i.test(road)), "Signal classifier should extract local road entities.");
+expect(localClassification.localEntities.organizations.includes("City of San Diego"), "Signal classifier should preserve source-provided organizations.");
+
+const classifiedSignal = applySignalClassification(classifierSignal, localClassification);
+expect(classifiedSignal.signal_status === "classified", "Classified signals should move to classified status.");
+expect(classifiedSignal.city_candidates_json[0].city_id === modelCity.id, "Classified signal should store city candidates.");
+expect(classifiedSignal.topic_candidates_json.some((topic) => topic.topic === "traffic"), "Classified signal should store topic candidates.");
+expect(classifiedSignal.entities_json.localClassification.urgency === "high", "Classified signal should store urgency metadata.");
+expect(classifiedSignal.entities_json.localClassification.source_type === "official_city", "Classified signal should store source type metadata.");
+expect(validateInputSignal(classifiedSignal).ok, "Classified input signal should still validate against input_signals schema.");
+
+const topicFixtures = [
+  ["breaking", "Breaking: emergency alert issued for residents", "local_news"],
+  ["crime-public-safety", "Police issue missing person public advisory", "police_fire"],
+  ["traffic", "Downtown crash closes highway ramp", "local_news"],
+  ["weather", "National Weather Service forecast calls for rain", "weather"],
+  ["schools", "School board votes on campus plan", "school"],
+  ["city-hall", "City council budget hearing set for Tuesday", "official_city"],
+  ["events", "Weekend festival and parade announced downtown", "event"],
+  ["sports", "Local team opens playoffs at stadium", "sports"],
+  ["local-economy", "New restaurant brings jobs downtown", "local_news"],
+  ["health", "Hospital opens public health clinic", "local_news"],
+  ["transit", "Transit agency changes bus route service", "transit"],
+  ["housing", "City considers apartment rent and housing proposal", "local_news"],
+  ["courts", "Judge issues ruling in local lawsuit", "local_news"],
+  ["community", "Neighborhood library volunteer event expands", "community"],
+];
+for (const [expectedTopic, title, sourceType] of topicFixtures) {
+  const topicSignal = normalizeInputSignal({
+    source_id: modelSource.id,
+    source_feed_id: modelFeed.id,
+    canonical_url: `https://example.org/${expectedTopic}`,
+    title,
+  });
+  const topics = classifyTopicCandidates(topicSignal, { sourceType });
+  expect(topics.some((topic) => topic.topic === expectedTopic), `Topic classifier should assign ${expectedTopic}.`);
+}
+
+const cityCandidatesFromHelper = classifyCityCandidates(classifierSignal, [classifierCity, losAngelesCity], [modelCoverage], {
+  sources: [modelSource],
+  source: modelSource,
+});
+expect(cityCandidatesFromHelper.length >= 1 && cityCandidatesFromHelper[0].city_id === modelCity.id, "classifyCityCandidates helper should return ranked city candidates.");
+expect(getSignalSourceType(classifierSignal, [modelSource]) === "official_city", "getSignalSourceType should resolve local source type.");
+expect(extractLocalEntities(classifierSignal, { cities: [classifierCity] }).counties.includes("San Diego County"), "extractLocalEntities should identify county references.");
+const classifierService = createLocalSignalClassifierService({
+  cities: [classifierCity, losAngelesCity],
+  sources: [modelSource],
+  sourceCityCoverage: [modelCoverage],
+});
+expect(classifierService.classifyInputSignal(classifierSignal).confidence >= 70, "Classifier service should expose classifyInputSignal.");
+expect(classifyInputSignals([classifierSignal, modelSignal], {
+  cities: [classifierCity, losAngelesCity],
+  sources: [modelSource],
+  sourceCityCoverage: [modelCoverage],
+}).length === 2, "Batch classification should process every supplied signal without an artificial intake cap.");
 
 const modelCluster = normalizeStoryCluster({
   city_id: modelCity.id,
@@ -433,6 +541,7 @@ async function runSourceFetcherChecks() {
   expect(firstSignalCreate.created === true, "createInputSignal should store a new signal.");
   expect(duplicateSignalCreate.created === false && duplicateSignalCreate.duplicateReason === "url_hash", "createInputSignal should dedupe by URL hash.");
 
+  const rssXmlForClassifiedFetch = `<?xml version="1.0"?><rss version="2.0"><channel><title>Feed</title><item><title>San Diego classified source update</title><link>https://fetch.example.org/story-classified?utm_source=test</link><description>City residents get a fresh local signal for classification.</description><pubDate>Tue, 12 May 2026 12:00:00 GMT</pubDate></item></channel></rss>`;
   let retryCalls = 0;
   const fetchedFeedResult = await fetchSourceFeed(
     { source: fetchSource, feed: fetchFeed },
@@ -443,7 +552,7 @@ async function runSourceFetcherChecks() {
         retryCalls += 1;
         if (retryCalls === 1) throw new Error("temporary source failure");
         return mockResponse({
-          body: rssXml,
+          body: rssXmlForClassifiedFetch,
           headers: { etag: "final-etag", "last-modified": "Tue, 12 May 2026 10:00:00 GMT" },
         });
       },
@@ -451,6 +560,10 @@ async function runSourceFetcherChecks() {
   );
   expect(retryCalls === 2, "fetchSourceFeed should retry with backoff after a source failure.");
   expect(fetchedFeedResult.status === "success", "fetchSourceFeed should recover and log a successful run after retry.");
+  expect(fetchedFeedResult.createdSignals[0].signal.signal_status === "classified", "Fetched source items should be classified before storage.");
+  expect(fetchedFeedResult.createdSignals[0].signal.entities_json.localClassification.source_type === "local_news", "Fetched source classification should preserve source type.");
+  expect(Array.isArray(fetchedFeedResult.createdSignals[0].signal.city_candidates_json), "Fetched source classification should store city candidates.");
+  expect(Array.isArray(fetchedFeedResult.createdSignals[0].signal.topic_candidates_json), "Fetched source classification should store topic candidates.");
   const fetchRunsAfterSuccess = readFixtureJson(fetchFixture.paths.sourceFetchRuns).source_fetch_runs;
   expect(fetchRunsAfterSuccess.length === 1 && fetchRunsAfterSuccess[0].status === "success", "fetchSourceFeed should log every successful fetch run.");
   const feedAfterFetch = readFixtureJson(fetchFixture.paths.sourceFeeds).source_feeds[0];

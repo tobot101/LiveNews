@@ -435,6 +435,73 @@ Fetch behavior:
 - HTML source fetching is disabled unless explicitly allowed on the source or feed.
 - Public HTML extraction must stay minimal and source-linked; do not store full article text.
 
+## Signal Classification Service
+
+The deterministic classification service lives in `lib/local-signal-classifier.js`.
+
+It assigns every input signal to:
+
+- City candidates.
+- Topic candidates.
+- Urgency.
+- Source type.
+- Overall confidence.
+- Local entities.
+
+The first production version is deterministic. If Live News later adds an AI/LLM classifier, it should be added as a clean extension point after deterministic classification, not as a blocker for this phase.
+
+City classification uses:
+
+- Existing `source_city_coverage` mappings.
+- City and state names in the signal title, excerpt, and URL context.
+- County references.
+- Neighborhood references when a city record provides them.
+- Latitude/longitude when a source provides coordinates.
+- Official source mapping from `local_sources`.
+
+Topic classification uses:
+
+- Keyword rules.
+- Source type.
+- Title and excerpt text.
+- Official agency type.
+
+Canonical local topics:
+
+- `breaking`
+- `crime-public-safety`
+- `traffic`
+- `weather`
+- `schools`
+- `city-hall`
+- `events`
+- `sports`
+- `local-economy`
+- `health`
+- `transit`
+- `housing`
+- `courts`
+- `community`
+
+Classification output is stored on `input_signals` using existing JSON fields:
+
+- `city_candidates_json`
+- `topic_candidates_json`
+- `entities_json.local_entities`
+- `entities_json.localClassification`
+
+`entities_json.localClassification` includes:
+
+- `classifierVersion`
+- `urgency`
+- `urgencyReasons`
+- `source_type`
+- `source_trust_level`
+- `confidence`
+- `status`
+
+Public safety handling remains conditional. Ordinary weather, local, traffic, or crime labels do not automatically become a public-safety angle unless the signal itself contains source-backed alert, closure, evacuation, advisory, warning, missing-person, recall, or emergency language.
+
 ## City/Topic Page Behavior
 
 City and topic pages are live public discovery pages, but their story lists must stay current.
@@ -536,6 +603,9 @@ Required checks:
 - Disabled or non-public sources are blocked.
 - Intake plan is cursor-capable.
 - Intake has no fixed artificial article limit.
+- Input signals classify into city candidates, topic candidates, urgency, source type, confidence, and local entities.
+- City classification uses source coverage, title/excerpt location text, county/neighborhood references, coordinates, and official source mapping.
+- Topic classification uses keyword rules, source type, title/excerpt text, and official agency type.
 - Signals older than 7 days are blocked from public output.
 - Current signals classify into local topics.
 - Similar local signals cluster together.
