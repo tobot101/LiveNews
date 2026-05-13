@@ -434,6 +434,8 @@ Fetch behavior:
 - Use cursor/pagination processing for API feeds instead of fixed article limits.
 - HTML source fetching is disabled unless explicitly allowed on the source or feed.
 - Public HTML extraction must stay minimal and source-linked; do not store full article text.
+- Newly stored source items are classified and then passed into story clustering.
+- Source fetches continue even if one item cannot be classified or clustered.
 
 ## Signal Classification Service
 
@@ -501,6 +503,52 @@ Classification output is stored on `input_signals` using existing JSON fields:
 - `status`
 
 Public safety handling remains conditional. Ordinary weather, local, traffic, or crime labels do not automatically become a public-safety angle unless the signal itself contains source-backed alert, closure, evacuation, advisory, warning, missing-person, recall, or emergency language.
+
+## Story Clustering Service
+
+The story clustering service lives in `lib/local-story-clustering.js`.
+
+Its job is to make many public source signals about the same local event become one Live News story cluster.
+
+Matching signals:
+
+- Shared canonical URL.
+- Shared URL hash.
+- Shared content hash.
+- Similar normalized titles.
+- Same city candidate.
+- Same primary topic.
+- Same 72-hour event window.
+- Shared local entities.
+- Same official incident, case, alert, advisory, permit, project, or entity reference.
+- Official-source relationship from government, school, transit, weather, police/fire, or similar public agencies.
+
+When a signal matches an existing live cluster:
+
+- Attach the signal through `story_cluster_signals`.
+- Update `source_count`.
+- Update `official_source_count`.
+- Update `last_updated_at`.
+- Update `latest_signal_id`.
+- Upgrade `confidence_label` if stronger evidence appears.
+- Create a `story_cluster_events` row such as `source_added`, `official_update`, or `confidence_changed`.
+
+When no matching cluster exists:
+
+- Create a new `story_clusters` row.
+- Create the primary `story_cluster_signals` row.
+- Create a `first_seen` story cluster event.
+- Set `public_started_at` from the signal time.
+- Set `expires_at` to `public_started_at + STORY_PUBLIC_TTL_DAYS`.
+
+Confidence labels:
+
+- `official`: an official government, school, transit, weather, police/fire, or similar source is attached.
+- `confirmed_multiple_sources`: at least two distinct established sources report the same event.
+- `reported_one_source`: one established publisher source reports the event.
+- `community_source`: community/blog source without official or established publisher confirmation.
+- `developing`: story is changing or lacks complete detail.
+- `low_confidence`: weak source or unclear locality; set `noindex` and do not alert.
 
 ## City/Topic Page Behavior
 
@@ -606,6 +654,9 @@ Required checks:
 - Input signals classify into city candidates, topic candidates, urgency, source type, confidence, and local entities.
 - City classification uses source coverage, title/excerpt location text, county/neighborhood references, coordinates, and official source mapping.
 - Topic classification uses keyword rules, source type, title/excerpt text, and official agency type.
+- Similar signals about the same local event attach to one durable story cluster.
+- Cluster matches use URL/hash, city/topic/time/title similarity, shared entities, and official incident references.
+- Cluster updates create story cluster events and preserve source attribution.
 - Signals older than 7 days are blocked from public output.
 - Current signals classify into local topics.
 - Similar local signals cluster together.

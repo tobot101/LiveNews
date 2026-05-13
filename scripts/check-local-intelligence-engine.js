@@ -49,6 +49,15 @@ const {
   getSignalSourceType,
 } = require("../lib/local-signal-classifier");
 const {
+  calculateTitleSimilarity,
+  clusterInputSignal,
+  clusterInputSignals,
+  clusterUnclusteredInputSignals,
+  createLocalStoryClusteringService,
+  findMatchingStoryCluster,
+  getOfficialIncidentReferences,
+} = require("../lib/local-story-clustering");
+const {
   normalizeCity,
   normalizeCityTopicCoverage,
   normalizeInputSignal,
@@ -107,6 +116,11 @@ function createRegistryFixture() {
     sourceFetchRuns: path.join(dir, "source-fetch-runs.json"),
     userSubmittedSources: path.join(dir, "user-submitted-sources.json"),
     inputSignals: path.join(dir, "input-signals.json"),
+    storyClusters: path.join(dir, "story-clusters.json"),
+    storyClusterSignals: path.join(dir, "story-cluster-signals.json"),
+    storyClusterEvents: path.join(dir, "story-cluster-events.json"),
+    localCities: path.join(dir, "local-cities.json"),
+    sourceCityCoverage: path.join(dir, "source-city-coverage.json"),
   };
   writeJson(paths.localSources, {
     schemaVersion: "live-news-local-sources-v1",
@@ -132,6 +146,31 @@ function createRegistryFixture() {
     schemaVersion: "live-news-input-signals-v1",
     updatedAt: null,
     input_signals: [],
+  });
+  writeJson(paths.storyClusters, {
+    schemaVersion: "live-news-story-clusters-v1",
+    updatedAt: null,
+    story_clusters: [],
+  });
+  writeJson(paths.storyClusterSignals, {
+    schemaVersion: "live-news-story-cluster-signals-v1",
+    updatedAt: null,
+    story_cluster_signals: [],
+  });
+  writeJson(paths.storyClusterEvents, {
+    schemaVersion: "live-news-story-cluster-events-v1",
+    updatedAt: null,
+    story_cluster_events: [],
+  });
+  writeJson(paths.localCities, {
+    schemaVersion: "live-news-local-cities-v1",
+    updatedAt: null,
+    cities: [],
+  });
+  writeJson(paths.sourceCityCoverage, {
+    schemaVersion: "live-news-source-city-coverage-v1",
+    updatedAt: null,
+    source_city_coverage: [],
   });
   return { dir, paths };
 }
@@ -397,6 +436,275 @@ const modelClusterEvent = normalizeStoryClusterEvent({
 expect(modelClusterEvent.event_type === "first_seen", "Story cluster event model should preserve event type.");
 expect(validateStoryClusterEvent(modelClusterEvent).ok, "Normalized story cluster event fixture should validate.");
 
+const clusterFixture = createRegistryFixture();
+const publisherSource = normalizeLocalSource({
+  id: "metro-desk",
+  name: "Metro Desk",
+  homepage_url: "https://metro.example.org",
+  source_type: "local_news",
+  trust_level: "established_publisher",
+  crawl_status: "active",
+});
+const secondPublisherSource = normalizeLocalSource({
+  id: "city-newswire",
+  name: "City Newswire",
+  homepage_url: "https://wire.example.org",
+  source_type: "tv",
+  trust_level: "established_publisher",
+  crawl_status: "active",
+});
+const communityOnlySource = normalizeLocalSource({
+  id: "neighborhood-notes",
+  name: "Neighborhood Notes",
+  homepage_url: "https://notes.example.org",
+  source_type: "blog",
+  trust_level: "unknown",
+  crawl_status: "active",
+});
+const clusteringSources = [modelSource, publisherSource, secondPublisherSource, communityOnlySource];
+writeJson(clusterFixture.paths.localSources, {
+  schemaVersion: "live-news-local-sources-v1",
+  updatedAt: null,
+  local_sources: clusteringSources,
+});
+
+function makeClassifiedSignal({
+  id,
+  source,
+  title,
+  excerpt,
+  canonicalUrl,
+  topic = "traffic",
+  cityId = modelCity.id,
+  publishedAt = daysAgo(0.2),
+  contentHash = "",
+  entities = {},
+}) {
+  const signal = normalizeInputSignal({
+    id,
+    source_id: source.id,
+    source_feed_id: `${source.id}-feed`,
+    canonical_url: canonicalUrl || `https://example.org/${id}`,
+    title,
+    excerpt,
+    published_at: publishedAt,
+    content_hash: contentHash || undefined,
+    city_candidates_json: cityId ? [{ city_id: cityId, confidence: 94, reasons: ["test fixture city"] }] : [],
+    topic_candidates_json: [{ topic, confidence: 90, reasons: ["test fixture topic"] }],
+    entities_json: entities,
+    signal_status: "classified",
+  });
+  return applySignalClassification(signal, {
+    classifierVersion: "test-classifier",
+    signalId: signal.id,
+    cityCandidates: signal.city_candidates_json,
+    topicCandidates: signal.topic_candidates_json,
+    urgency: topic === "breaking" ? "breaking" : (topic === "traffic" ? "high" : "normal"),
+    urgencyReasons: ["test fixture urgency"],
+    sourceType: source.source_type,
+    sourceTrustLevel: source.trust_level,
+    confidence: cityId ? 88 : 30,
+    localEntities: {
+      organizations: entities.organizations || [],
+      places: cityId ? ["San Diego"] : [],
+      roads: entities.roads || [],
+      agencies: entities.agencies || [],
+    },
+    status: cityId ? "classified" : "classified_low_confidence",
+  });
+}
+
+const officialClosureSignal = makeClassifiedSignal({
+  id: "signal-official-closure",
+  source: modelSource,
+  title: "San Diego officials announce road closure near North Park",
+  excerpt: "The city says I-5 ramps will close while crews repair a water line.",
+  canonicalUrl: "https://www.sandiego.gov/road-closure-1",
+  entities: {
+    organizations: ["City of San Diego"],
+    roads: ["I-5"],
+    incident_id: "SD-ROAD-2026-11",
+  },
+});
+const similarPublisherSignal = makeClassifiedSignal({
+  id: "signal-publisher-closure",
+  source: publisherSource,
+  title: "Road closure announced near North Park in San Diego",
+  excerpt: "Drivers are being routed around I-5 ramp work after a city notice.",
+  canonicalUrl: "https://metro.example.org/north-park-road-closure",
+  entities: {
+    organizations: ["City of San Diego"],
+    roads: ["I-5"],
+  },
+});
+const sameCanonicalSignal = makeClassifiedSignal({
+  id: "signal-same-canonical",
+  source: secondPublisherSource,
+  title: "Traffic note issued for North Park drivers",
+  excerpt: "A separate source points readers to the same road closure notice.",
+  canonicalUrl: "https://www.sandiego.gov/road-closure-1",
+});
+const schoolSignalOne = makeClassifiedSignal({
+  id: "signal-school-one",
+  source: publisherSource,
+  title: "San Diego school board approves campus safety plan",
+  excerpt: "The district vote focuses on campus access and student safety.",
+  canonicalUrl: "https://metro.example.org/school-board-plan",
+  topic: "schools",
+});
+const schoolSignalTwo = makeClassifiedSignal({
+  id: "signal-school-two",
+  source: secondPublisherSource,
+  title: "Campus safety plan approved by San Diego school board",
+  excerpt: "A second source reports the same district vote.",
+  canonicalUrl: "https://wire.example.org/campus-safety-plan",
+  topic: "schools",
+});
+const officialIncidentSignalOne = makeClassifiedSignal({
+  id: "signal-official-incident-one",
+  source: modelSource,
+  title: "San Diego police post downtown response update",
+  excerpt: "Officials refer residents to case SD-CASE-4401.",
+  canonicalUrl: "https://www.sandiego.gov/police-case-4401",
+  topic: "crime-public-safety",
+  entities: {
+    incident_id: "SD-CASE-4401",
+    agencies: ["San Diego Police"],
+  },
+});
+const officialIncidentSignalTwo = makeClassifiedSignal({
+  id: "signal-official-incident-two",
+  source: secondPublisherSource,
+  title: "Downtown response note adds official case context",
+  excerpt: "The update points to case SD-CASE-4401 and city police records.",
+  canonicalUrl: "https://wire.example.org/downtown-response-context",
+  topic: "crime-public-safety",
+  entities: {
+    incident_id: "SD-CASE-4401",
+    agencies: ["San Diego Police"],
+  },
+});
+const weakLocalitySignal = makeClassifiedSignal({
+  id: "signal-weak-locality",
+  source: communityOnlySource,
+  title: "Community note mentions a weekend update",
+  excerpt: "The item has unclear locality and weak source confirmation.",
+  canonicalUrl: "https://notes.example.org/weekend-update",
+  topic: "community",
+  cityId: "",
+});
+writeJson(clusterFixture.paths.inputSignals, {
+  schemaVersion: "live-news-input-signals-v1",
+  updatedAt: null,
+  input_signals: [
+    officialClosureSignal,
+    similarPublisherSignal,
+    sameCanonicalSignal,
+    schoolSignalOne,
+    schoolSignalTwo,
+    officialIncidentSignalOne,
+    officialIncidentSignalTwo,
+    weakLocalitySignal,
+  ],
+});
+
+expect(calculateTitleSimilarity(
+  officialClosureSignal.title,
+  similarPublisherSignal.title
+) >= 0.52, "Title similarity should recognize reordered but similar local event titles.");
+
+const createdClusterResult = clusterInputSignal(officialClosureSignal, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(createdClusterResult.action === "created", "First signal for an event should create a story cluster.");
+expect(createdClusterResult.cluster.confidence_label === "official", "Official source should create an official cluster confidence label.");
+expect(createdClusterResult.cluster.source_count === 1, "New cluster should start with one source.");
+expect(createdClusterResult.cluster.official_source_count === 1, "New official cluster should count official sources.");
+expect(createdClusterResult.cluster.index_status === "index", "Official cluster should be indexable.");
+expect(
+  new Date(createdClusterResult.cluster.expires_at).getTime() - new Date(createdClusterResult.cluster.public_started_at).getTime() === 7 * 24 * 60 * 60 * 1000,
+  "New story cluster should expire seven days after public_started_at."
+);
+expect(createdClusterResult.events[0].event_type === "first_seen", "New cluster should create a first_seen event.");
+
+const attachedSimilarResult = clusterInputSignal(similarPublisherSignal, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(attachedSimilarResult.action === "attached", "Similar title with same city/topic/time should attach to existing cluster.");
+expect(attachedSimilarResult.match.reason === "same_city_topic_time_title_similarity", "Similar event match should explain title/time/city/topic matching.");
+expect(attachedSimilarResult.cluster.id === createdClusterResult.cluster.id, "Similar signal should attach to the existing closure cluster.");
+expect(attachedSimilarResult.cluster.source_count === 2, "Attached signal should update source_count.");
+expect(attachedSimilarResult.cluster.official_source_count === 1, "Attached publisher signal should preserve official_source_count.");
+expect(attachedSimilarResult.events.some((event) => event.event_type === "source_added"), "Attached publisher signal should create a source_added event.");
+
+const attachedCanonicalResult = clusterInputSignal(sameCanonicalSignal, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(attachedCanonicalResult.action === "attached", "Shared canonical URL should attach to an existing cluster.");
+expect(attachedCanonicalResult.match.reason === "shared_canonical_url" || attachedCanonicalResult.match.reason === "shared_url_hash", "Shared URL/hash match should explain exact URL matching.");
+
+const schoolCreatedResult = clusterInputSignal(schoolSignalOne, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(schoolCreatedResult.cluster.confidence_label === "reported_one_source", "One established publisher source should be reported_one_source.");
+const schoolAttachedResult = clusterInputSignal(schoolSignalTwo, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(schoolAttachedResult.cluster.confidence_label === "confirmed_multiple_sources", "Two distinct established sources should upgrade to confirmed_multiple_sources.");
+expect(schoolAttachedResult.events.some((event) => event.event_type === "confidence_changed"), "Confidence upgrades should create a confidence_changed event.");
+
+const officialIncidentRefs = getOfficialIncidentReferences(officialIncidentSignalOne);
+expect(officialIncidentRefs.some((ref) => ref.includes("sd-case-4401")), "Official incident references should be extracted for matching.");
+const officialIncidentCreated = clusterInputSignal(officialIncidentSignalOne, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+const officialIncidentAttached = clusterInputSignal(officialIncidentSignalTwo, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(officialIncidentAttached.cluster.id === officialIncidentCreated.cluster.id, "Same official incident reference should attach to existing cluster.");
+expect(officialIncidentAttached.match.reason === "same_official_incident_reference", "Official incident match should explain the incident reference.");
+expect(officialIncidentAttached.events.some((event) => event.event_type === "source_added"), "Official incident publisher attachment should create a cluster event.");
+
+const weakClusterResult = clusterInputSignal(weakLocalitySignal, {
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(weakClusterResult.cluster.confidence_label === "low_confidence", "Weak source with unclear locality should create a low_confidence cluster.");
+expect(weakClusterResult.cluster.index_status === "noindex", "Low confidence clusters should not be indexable.");
+
+const persistedClusters = readFixtureJson(clusterFixture.paths.storyClusters).story_clusters;
+const persistedLinks = readFixtureJson(clusterFixture.paths.storyClusterSignals).story_cluster_signals;
+const persistedEvents = readFixtureJson(clusterFixture.paths.storyClusterEvents).story_cluster_events;
+expect(persistedClusters.length >= 4, "Story clustering should persist created clusters.");
+expect(persistedLinks.length >= 8, "Story clustering should persist cluster-signal links.");
+expect(persistedEvents.length >= 8, "Story clustering should persist cluster events.");
+expect(persistedClusters.every((cluster) => validateStoryCluster(normalizeStoryCluster(cluster)).ok), "Persisted story clusters should validate.");
+expect(persistedLinks.every((link) => validateStoryClusterSignal(normalizeStoryClusterSignal(link)).ok), "Persisted cluster-signal links should validate.");
+expect(persistedEvents.every((event) => validateStoryClusterEvent(normalizeStoryClusterEvent(event)).ok), "Persisted cluster events should validate.");
+
+const finderMatch = findMatchingStoryCluster(
+  similarPublisherSignal,
+  persistedClusters.map(normalizeStoryCluster),
+  persistedLinks.map(normalizeStoryClusterSignal),
+  readFixtureJson(clusterFixture.paths.inputSignals).input_signals.map(normalizeInputSignal),
+  clusteringSources
+);
+expect(Boolean(finderMatch), "findMatchingStoryCluster should find a matching live cluster.");
+const clusteringService = createLocalStoryClusteringService({
+  paths: clusterFixture.paths,
+  sources: clusteringSources,
+});
+expect(typeof clusteringService.clusterInputSignal === "function", "Clustering service should expose clusterInputSignal.");
+expect(clusterInputSignals([], { paths: clusterFixture.paths }).length === 0, "Batch clustering should safely handle an empty signal list.");
+expect(clusterUnclusteredInputSignals({ paths: clusterFixture.paths, sources: clusteringSources }).length === 0, "Clustered fixture signals should not be processed again as unclustered.");
+
 const modelTopicCoverage = normalizeCityTopicCoverage({
   city_id: modelCity.id,
   topic: "local_government",
@@ -564,6 +872,8 @@ async function runSourceFetcherChecks() {
   expect(fetchedFeedResult.createdSignals[0].signal.entities_json.localClassification.source_type === "local_news", "Fetched source classification should preserve source type.");
   expect(Array.isArray(fetchedFeedResult.createdSignals[0].signal.city_candidates_json), "Fetched source classification should store city candidates.");
   expect(Array.isArray(fetchedFeedResult.createdSignals[0].signal.topic_candidates_json), "Fetched source classification should store topic candidates.");
+  expect(fetchedFeedResult.clusteredSignals.length === 1, "Fetched source items should be clustered after storage.");
+  expect(["created", "attached"].includes(fetchedFeedResult.clusteredSignals[0].action), "Fetched source clustering should create or attach a story cluster.");
   const fetchRunsAfterSuccess = readFixtureJson(fetchFixture.paths.sourceFetchRuns).source_fetch_runs;
   expect(fetchRunsAfterSuccess.length === 1 && fetchRunsAfterSuccess[0].status === "success", "fetchSourceFeed should log every successful fetch run.");
   const feedAfterFetch = readFixtureJson(fetchFixture.paths.sourceFeeds).source_feeds[0];
