@@ -77,6 +77,8 @@ Blocked source intake:
 
 Source intake should store only what is needed for classification, deduplication, attribution, summary generation, city/topic intelligence, source quality, and future relevance.
 
+Do not write source jobs that process only a fixed first batch forever. Public UI may display a reasonable first page, but ingestion jobs must continue processing all approved fresh signals by using feed pagination, sitemaps, API cursors, or source-specific cursor fields where available.
+
 ## Configuration
 
 The first version uses the existing repository pattern: configuration comes from environment variables with safe code defaults.
@@ -375,6 +377,63 @@ The intake plan is cursor-friendly:
 - Each source may support `nextCursor` later.
 - The current Google News RSS adapter has no cursor, but future adapters can process pages until no cursor remains.
 - UI display limits may exist, but source ingestion should not use a fixed artificial article cap.
+
+## Source Registry Service
+
+The source registry service lives in `lib/local-source-registry.js`.
+
+Required functions:
+
+- `createSource()`
+- `updateSource()`
+- `addSourceFeed()`
+- `pauseSource()`
+- `markRobotsBlocked()`
+- `getSourcesDueForFetch()`
+- `getSourceHealth()`
+- `submitUserSource()`
+- `approveUserSource()`
+
+Source registry behavior:
+
+- Sources marked `blocked_by_robots` are not due for fetch.
+- Sources marked `paused`, `failed`, or `pending_review` are not due for fetch.
+- Feeds marked inactive are not due for fetch.
+- Feeds with runtime query templates are not fetched as standalone jobs.
+- Source health reports feed count, active feed count, due feed count, latest run, successes, failures, and current crawl status.
+- User-submitted sources remain pending until reviewed.
+- Approved user-submitted sources default to `pending_review` unless an editor explicitly activates them.
+
+## Source Fetcher Service
+
+The source fetcher service lives in `lib/local-source-fetcher.js`.
+
+Supported functions:
+
+- `fetchRssFeed(feed)`
+- `fetchAtomFeed(feed)`
+- `fetchSitemap(feed)`
+- `fetchApiFeed(feed)`
+- `fetchHtmlSource(feed)` only when explicitly allowed
+- `normalizeUrl(url)`
+- `canonicalizeUrl(url)`
+- `dedupeByUrlHash(url)`
+- `dedupeByContentHash(title, excerpt, publishedAt)`
+- `createInputSignal(signal)`
+
+Fetch behavior:
+
+- Use source-specific rate limits through `source_feeds.next_fetch_at` and `fetch_frequency_minutes`.
+- Use `ETag` and `Last-Modified` headers where a source supports them.
+- Skip sources marked `blocked_by_robots`.
+- Skip sources requiring login.
+- Skip paywalled content.
+- Log every fetch run in `source_fetch_runs`.
+- Use retries with backoff for temporary failures.
+- Never throw away the whole job because one source fails.
+- Use cursor/pagination processing for API feeds instead of fixed article limits.
+- HTML source fetching is disabled unless explicitly allowed on the source or feed.
+- Public HTML extraction must stay minimal and source-linked; do not store full article text.
 
 ## City/Topic Page Behavior
 

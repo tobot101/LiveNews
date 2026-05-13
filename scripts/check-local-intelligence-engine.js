@@ -1,4 +1,5 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const {
   LOCAL_INTELLIGENCE_CONFIG,
@@ -23,6 +24,20 @@ const {
   buildLocalIntelligenceConfig,
 } = require("../lib/local-intelligence-config");
 const { runLocalWorkerBatch } = require("../lib/local-intelligence-worker");
+const { createSourceRegistryService } = require("../lib/local-source-registry");
+const {
+  canonicalizeUrl,
+  createInputSignal,
+  dedupeByContentHash,
+  dedupeByUrlHash,
+  fetchApiFeed,
+  fetchAtomFeed,
+  fetchHtmlSource,
+  fetchRssFeed,
+  fetchSitemap,
+  fetchSourceFeed,
+  normalizeUrl,
+} = require("../lib/local-source-fetcher");
 const {
   normalizeCity,
   normalizeCityTopicCoverage,
@@ -68,6 +83,67 @@ function expect(condition, message) {
 
 function daysAgo(days) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function writeJson(filePath, payload) {
+  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function createRegistryFixture() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "live-news-local-registry-"));
+  const paths = {
+    localSources: path.join(dir, "local-sources.json"),
+    sourceFeeds: path.join(dir, "source-feeds.json"),
+    sourceFetchRuns: path.join(dir, "source-fetch-runs.json"),
+    userSubmittedSources: path.join(dir, "user-submitted-sources.json"),
+    inputSignals: path.join(dir, "input-signals.json"),
+  };
+  writeJson(paths.localSources, {
+    schemaVersion: "live-news-local-sources-v1",
+    updatedAt: null,
+    local_sources: [],
+  });
+  writeJson(paths.sourceFeeds, {
+    schemaVersion: "live-news-source-feeds-v1",
+    updatedAt: null,
+    source_feeds: [],
+  });
+  writeJson(paths.sourceFetchRuns, {
+    schemaVersion: "live-news-source-fetch-runs-v1",
+    updatedAt: null,
+    source_fetch_runs: [],
+  });
+  writeJson(paths.userSubmittedSources, {
+    schemaVersion: "live-news-user-submitted-sources-v1",
+    updatedAt: null,
+    user_submitted_sources: [],
+  });
+  writeJson(paths.inputSignals, {
+    schemaVersion: "live-news-input-signals-v1",
+    updatedAt: null,
+    input_signals: [],
+  });
+  return { dir, paths };
+}
+
+function readFixtureJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function mockResponse({ status = 200, body = "", headers = {} } = {}) {
+  const normalizedHeaders = Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value])
+  );
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get(name) {
+        return normalizedHeaders[String(name || "").toLowerCase()] || "";
+      },
+    },
+    text: async () => body,
+  };
 }
 
 const place = {
@@ -234,6 +310,168 @@ const submittedSource = normalizeUserSubmittedSource({
 expect(submittedSource.status === "pending", "User-submitted source model should default to pending.");
 expect(validateUserSubmittedSource(submittedSource).ok, "Normalized user-submitted source fixture should validate.");
 
+const registryFixture = createRegistryFixture();
+const registryService = createSourceRegistryService({ paths: registryFixture.paths });
+const createdRegistrySource = registryService.createSource({
+  name: "San Diego Civic Source",
+  homepage_url: "https://www.sandiego.gov",
+  source_type: "official_city",
+  trust_level: "official",
+  crawl_status: "active",
+});
+expect(createdRegistrySource.id === "san-diego-civic-source", "createSource should create a stable source id.");
+const updatedRegistrySource = registryService.updateSource(createdRegistrySource.id, { trust_level: "official" });
+expect(updatedRegistrySource.updated_at, "updateSource should return an updated source timestamp.");
+const createdRegistryFeed = registryService.addSourceFeed(createdRegistrySource.id, {
+  feed_type: "rss",
+  url: "https://www.sandiego.gov/rss.xml",
+  fetch_frequency_minutes: 15,
+  next_fetch_at: daysAgo(0.01),
+});
+expect(createdRegistryFeed.source_id === createdRegistrySource.id, "addSourceFeed should attach feed to the source.");
+expect(registryService.getSourcesDueForFetch().length === 1, "getSourcesDueForFetch should return active feeds due now.");
+const pausedRegistrySource = registryService.pauseSource(createdRegistrySource.id);
+expect(pausedRegistrySource.crawl_status === "paused", "pauseSource should mark the source paused.");
+expect(registryService.getSourcesDueForFetch().length === 0, "Paused sources should not be due for fetch.");
+registryService.updateSource(createdRegistrySource.id, { crawl_status: "active" });
+const blockedRegistrySource = registryService.markRobotsBlocked(createdRegistrySource.id);
+expect(blockedRegistrySource.crawl_status === "blocked_by_robots", "markRobotsBlocked should mark the source blocked by robots.");
+expect(registryService.getSourcesDueForFetch().length === 0, "Robots-blocked sources should not be due for fetch.");
+registryService.updateSource(createdRegistrySource.id, { crawl_status: "active" });
+const registryHealth = registryService.getSourceHealth(createdRegistrySource.id);
+expect(registryHealth.feedCount === 1, "getSourceHealth should count source feeds.");
+const pendingSubmission = registryService.submitUserSource({
+  submitted_url: "https://community.example.org/feed.xml",
+  submitted_city: "San Diego, CA",
+});
+expect(pendingSubmission.status === "pending", "submitUserSource should create a pending submission.");
+const approvedSubmission = registryService.approveUserSource(pendingSubmission.id, {
+  name: "Community Example",
+  source_type: "community",
+  trust_level: "community",
+  createFeed: false,
+});
+expect(approvedSubmission.submission.status === "approved", "approveUserSource should approve the submitted source.");
+expect(approvedSubmission.source.crawl_status === "pending_review", "Approved user sources should remain pending review unless explicitly activated.");
+
+async function runSourceFetcherChecks() {
+  const fetchFixture = createRegistryFixture();
+  const fetchRegistry = createSourceRegistryService({ paths: fetchFixture.paths });
+  const fetchSource = fetchRegistry.createSource({
+    name: "Fetch Test Source",
+    homepage_url: "https://fetch.example.org",
+    source_type: "local_news",
+    trust_level: "established_publisher",
+    crawl_status: "active",
+  });
+  const fetchFeed = fetchRegistry.addSourceFeed(fetchSource.id, {
+    feed_type: "rss",
+    url: "https://fetch.example.org/rss.xml",
+    fetch_frequency_minutes: 15,
+    next_fetch_at: daysAgo(0.1),
+  });
+
+  expect(normalizeUrl("https://example.org/story#section") === "https://example.org/story", "normalizeUrl should remove fragments.");
+  expect(canonicalizeUrl("https://www.example.org/story?utm_source=x&b=2") === "https://example.org/story?b=2", "canonicalizeUrl should remove tracking params and normalize host.");
+  expect(dedupeByUrlHash("https://example.org/story") === dedupeByUrlHash("https://example.org/story#comments"), "URL hash should dedupe fragment-only differences.");
+  expect(dedupeByContentHash("Title", "Excerpt", "2026-05-12") === dedupeByContentHash(" title ", "excerpt", "2026-05-12T10:00:00Z"), "Content hash should normalize text and date.");
+
+  const rssXml = `<?xml version="1.0"?><rss version="2.0"><channel><title>Feed</title><item><title>San Diego RSS update</title><link>https://fetch.example.org/story?utm_source=test</link><description>Residents get a local update.</description><pubDate>Tue, 12 May 2026 10:00:00 GMT</pubDate></item></channel></rss>`;
+  const rssResult = await fetchRssFeed(fetchFeed, {
+    fetchImpl: async () => mockResponse({
+      body: rssXml,
+      headers: { etag: "rss-etag", "last-modified": "Tue, 12 May 2026 10:00:00 GMT" },
+    }),
+  });
+  expect(rssResult.items.length === 1, "fetchRssFeed should return RSS items.");
+  expect(rssResult.etag === "rss-etag", "fetchRssFeed should expose ETag.");
+
+  const atomXml = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Atom</title><entry><title>San Diego Atom update</title><link href="https://fetch.example.org/atom-story"/><updated>2026-05-12T11:00:00Z</updated><summary>Atom local update.</summary></entry></feed>`;
+  const atomResult = await fetchAtomFeed({ ...fetchFeed, feed_type: "atom", url: "https://fetch.example.org/atom.xml" }, {
+    fetchImpl: async () => mockResponse({ body: atomXml }),
+  });
+  expect(atomResult.items.length === 1, "fetchAtomFeed should return Atom items.");
+
+  const sitemapXml = `<?xml version="1.0"?><urlset><url><loc>https://fetch.example.org/a</loc><lastmod>2026-05-12</lastmod></url><url><loc>https://fetch.example.org/b</loc><lastmod>2026-05-12</lastmod></url><url><loc>https://fetch.example.org/c</loc><lastmod>2026-05-12</lastmod></url></urlset>`;
+  const sitemapResult = await fetchSitemap({ ...fetchFeed, feed_type: "sitemap", url: "https://fetch.example.org/sitemap.xml" }, {
+    fetchImpl: async () => mockResponse({ body: sitemapXml }),
+  });
+  expect(sitemapResult.items.length === 3, "fetchSitemap should process all sitemap URLs supplied by the page, not a hard first batch.");
+
+  let apiCalls = 0;
+  const apiResult = await fetchApiFeed({ ...fetchFeed, feed_type: "api", url: "https://api.example.org/local" }, {
+    fetchImpl: async (url) => {
+      apiCalls += 1;
+      if (String(url).includes("cursor=page-2")) {
+        return mockResponse({ body: JSON.stringify({ items: [{ title: "API page two", url: "https://api.example.org/two", summary: "Second page." }] }) });
+      }
+      return mockResponse({
+        body: JSON.stringify({
+          items: [{ title: "API page one", url: "https://api.example.org/one", summary: "First page." }],
+          nextCursor: "page-2",
+        }),
+      });
+    },
+  });
+  expect(apiCalls === 2, "fetchApiFeed should follow cursor pagination.");
+  expect(apiResult.items.length === 2, "fetchApiFeed should collect items across cursor pages.");
+
+  const htmlFeed = { ...fetchFeed, feed_type: "html", url: "https://fetch.example.org/page.html" };
+  const blockedHtml = await fetchHtmlSource(htmlFeed, { source: fetchSource, fetchImpl: async () => mockResponse({ body: "" }) });
+  expect(blockedHtml.skipped === true, "fetchHtmlSource should skip HTML unless explicitly allowed.");
+  const allowedHtml = await fetchHtmlSource(
+    { ...htmlFeed, allow_html_fetch: true },
+    {
+      source: { ...fetchSource, allow_html_fetch: true },
+      fetchImpl: async () => mockResponse({ body: `<html><head><title>Local HTML update</title><meta name="description" content="Short public page description."><link rel="canonical" href="https://fetch.example.org/page.html"></head></html>` }),
+    }
+  );
+  expect(allowedHtml.items.length === 1, "fetchHtmlSource should fetch allowed public HTML source pages.");
+
+  const firstSignalCreate = createInputSignal(rssResult.items[0], { paths: fetchFixture.paths });
+  const duplicateSignalCreate = createInputSignal({ ...rssResult.items[0], title: "Different title" }, { paths: fetchFixture.paths });
+  expect(firstSignalCreate.created === true, "createInputSignal should store a new signal.");
+  expect(duplicateSignalCreate.created === false && duplicateSignalCreate.duplicateReason === "url_hash", "createInputSignal should dedupe by URL hash.");
+
+  let retryCalls = 0;
+  const fetchedFeedResult = await fetchSourceFeed(
+    { source: fetchSource, feed: fetchFeed },
+    {
+      paths: fetchFixture.paths,
+      retryBackoffMs: 0,
+      fetchImpl: async () => {
+        retryCalls += 1;
+        if (retryCalls === 1) throw new Error("temporary source failure");
+        return mockResponse({
+          body: rssXml,
+          headers: { etag: "final-etag", "last-modified": "Tue, 12 May 2026 10:00:00 GMT" },
+        });
+      },
+    }
+  );
+  expect(retryCalls === 2, "fetchSourceFeed should retry with backoff after a source failure.");
+  expect(fetchedFeedResult.status === "success", "fetchSourceFeed should recover and log a successful run after retry.");
+  const fetchRunsAfterSuccess = readFixtureJson(fetchFixture.paths.sourceFetchRuns).source_fetch_runs;
+  expect(fetchRunsAfterSuccess.length === 1 && fetchRunsAfterSuccess[0].status === "success", "fetchSourceFeed should log every successful fetch run.");
+  const feedAfterFetch = readFixtureJson(fetchFixture.paths.sourceFeeds).source_feeds[0];
+  expect(feedAfterFetch.etag === "final-etag", "fetchSourceFeed should persist ETag after successful fetch.");
+  expect(feedAfterFetch.next_fetch_at, "fetchSourceFeed should schedule the next fetch using source frequency.");
+
+  fetchRegistry.markRobotsBlocked(fetchSource.id);
+  const skippedFetchResult = await fetchSourceFeed(
+    { source: { ...fetchSource, crawl_status: "blocked_by_robots" }, feed: fetchFeed },
+    { paths: fetchFixture.paths, fetchImpl: async () => mockResponse({ body: rssXml }) }
+  );
+  expect(skippedFetchResult.status === "skipped", "fetchSourceFeed should skip robots-blocked sources.");
+  const loginSkippedFetchResult = await fetchSourceFeed(
+    { source: fetchSource, feed: { ...fetchFeed, requires_login: true } },
+    { paths: fetchFixture.paths, fetchImpl: async () => mockResponse({ body: rssXml }) }
+  );
+  expect(loginSkippedFetchResult.status === "skipped", "fetchSourceFeed should skip feeds requiring login.");
+  const fetchRunsAfterSkip = readFixtureJson(fetchFixture.paths.sourceFetchRuns).source_fetch_runs;
+  expect(fetchRunsAfterSkip.some((run) => run.status === "skipped"), "Skipped source fetches should be logged.");
+}
+
 const intakePlan = buildLocalIntakePlan(place, ["San Diego CA local news", "San Diego California when:7d"], registry);
 expect(intakePlan.requestCount === 2, "Local intake plan should create a request for each query variant.");
 expect(intakePlan.fixedIntakeLimit === null, "Local source intake must not impose a fixed article intake limit.");
@@ -377,6 +615,7 @@ processCursorSource(
 ).then(async (cursorResult) => {
   expect(cursorCalls === 2, "Cursor source processing should continue until no cursor remains.");
   expect(cursorResult.signals.length === 2, "Cursor source processing should collect all pages.");
+  await runSourceFetcherChecks();
 
   let activeWorkers = 0;
   let maxActiveWorkers = 0;
