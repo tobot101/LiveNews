@@ -106,6 +106,7 @@ const newStories = api.getNewStoriesSinceLastVisit("los-angeles-ca", [
 expect(newStories.length === 1 && newStories[0].id === "story_2", "getNewStoriesSinceLastVisit should return unseen updates after last visit.");
 api.markCityVisited("los-angeles-ca", ["story_1", "story_2"]);
 expect(api.getSeenStoryIds("los-angeles-ca").includes("story_2"), "markCityVisited should store visible story IDs.");
+expect(Boolean(api.getLiveNewsPrefs().lastVisitByCity["los-angeles-ca"]), "markCityVisited should track the city last visit time.");
 
 api.dismissPrompt("newsletter", 7);
 expect(api.shouldShowPrompt("newsletter") === false, "Dismissed prompts should not show before dismissedUntil.");
@@ -124,6 +125,11 @@ expect(api.shouldShowPrompt("newsletter") === true, "Dismissed prompts should sh
 api.clearLiveNewsPrefs();
 expect(api.getSavedCity() === null, "clearLiveNewsPrefs should clear saved city.");
 expect(!localStorage.dump()["liveNews:v1:prefs"], "clearLiveNewsPrefs should remove liveNews:v1:prefs from localStorage.");
+
+const corruptedStorage = createLocalStorage();
+corruptedStorage.setItem("liveNews:v1:prefs", "{not valid json");
+const corrupted = loadPrefsRuntime(corruptedStorage).api;
+expect(corrupted.getLiveNewsPrefs().savedCity === null, "Corrupted localStorage JSON should fall back to empty prefs.");
 
 const throwingStorage = {
   getItem() { throw new Error("blocked"); },

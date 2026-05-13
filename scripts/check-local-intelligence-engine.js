@@ -35,6 +35,7 @@ const {
   fetchHtmlSource,
   fetchRssFeed,
   fetchSitemap,
+  fetchDueSourceFeeds,
   fetchSourceFeed,
   normalizeUrl,
 } = require("../lib/local-source-fetcher");
@@ -1094,6 +1095,25 @@ const thinCityEligibility = getCityIndexEligibility({
   onlyShowsLiveStories: true,
 });
 expect(thinCityEligibility.robots === "noindex, follow", "City eligibility should noindex pages with fewer than 5 live clusters.");
+const oneSourceCityEligibility = getCityIndexEligibility({
+  clusters: liveCityClusters,
+  sourceMix: [
+    { name: "San Diego City", sourceType: "official_city", trustLevel: "official" },
+  ],
+  hasVisibleLastUpdated: true,
+  onlyShowsLiveStories: true,
+});
+expect(oneSourceCityEligibility.robots === "noindex, follow", "City eligibility should noindex pages with only 1 distinct source.");
+const noAuthorityCityEligibility = getCityIndexEligibility({
+  clusters: liveCityClusters,
+  sourceMix: [
+    { name: "Metro Desk", sourceType: "local_news", trustLevel: "established_publisher" },
+    { name: "City Newswire", sourceType: "tv", trustLevel: "established_publisher" },
+  ],
+  hasVisibleLastUpdated: true,
+  onlyShowsLiveStories: true,
+});
+expect(noAuthorityCityEligibility.robots === "noindex, follow", "City eligibility should noindex pages without an official/civic/local authority source.");
 const expiredCityEligibility = getCityIndexEligibility({
   clusters: [...liveCityClusters.slice(0, 4), expiredAfterJob],
   sourceMix: [
@@ -1115,6 +1135,14 @@ const thinTopicEligibility = getTopicIndexEligibility({
   onlyShowsLiveStories: true,
 });
 expect(thinTopicEligibility.robots === "noindex, follow", "Topic eligibility should noindex pages with fewer than 3 live topic clusters.");
+const oneSourceTopicEligibility = getTopicIndexEligibility({
+  clusters: liveTrafficClusters,
+  sourceMix: [
+    { name: "Metro Desk", sourceType: "local_news", trustLevel: "established_publisher" },
+  ],
+  onlyShowsLiveStories: true,
+});
+expect(oneSourceTopicEligibility.robots === "noindex, follow", "Topic eligibility should noindex pages with only 1 distinct source.");
 const expiredTopicEligibility = getTopicIndexEligibility({
   clusters: [...liveTrafficClusters.slice(0, 2), expiredAfterJob],
   sourceMix: [
@@ -1128,14 +1156,21 @@ const localSitemapEntries = getCrawlableLocalSitemapEntries({ paths: expirationF
 const localSitemapGroups = getCrawlableLocalSitemapGroups({ paths: expirationFixture.paths, now: expirationNow });
 expect(localSitemapGroups.states.some((entry) => entry.path === "/local/california"), "State sitemap should include indexable state pages.");
 expect(localSitemapGroups.cities.some((entry) => entry.path === "/local/california/san-diego"), "City sitemap should include indexable city pages.");
+expect(!localSitemapGroups.cities.some((entry) => entry.path === "/local/california/los-angeles"), "City sitemap should exclude noindex city pages.");
 expect(localSitemapGroups.topics.some((entry) => entry.path === "/local/california/san-diego/traffic"), "Topic sitemap should include indexable topic pages.");
+expect(!localSitemapGroups.topics.some((entry) => entry.path === "/local/california/san-diego/schools"), "Topic sitemap should exclude noindex topic pages.");
 expect(localSitemapGroups.stories.some((entry) => entry.path === "/local/california/san-diego/story/live-road-closure-24h"), "Live story sitemap should include public story pages under 7 days.");
 expect(localSitemapEntries.some((entry) => entry.path === "/local/california/san-diego"), "Crawlable local sitemap entries should include indexable city pages.");
 expect(localSitemapEntries.some((entry) => entry.path === "/local/california/san-diego/traffic"), "Crawlable local sitemap entries should include indexable topic pages.");
 expect(localSitemapEntries.some((entry) => entry.path === "/local/california/san-diego/story/live-road-closure-24h"), "Crawlable local sitemap entries should include live story URLs.");
+expect(!localSitemapEntries.some((entry) => entry.path === "/local/california/los-angeles"), "Crawlable local sitemap entries should exclude noindex city pages.");
+expect(!localSitemapEntries.some((entry) => entry.path === "/local/california/san-diego/schools"), "Crawlable local sitemap entries should exclude noindex topic pages.");
 expect(!localSitemapEntries.some((entry) => entry.path.includes("expired-community-update")), "Crawlable local sitemap entries should exclude expired story URLs.");
 const localNewsEntries = getCrawlableLocalNewsSitemapEntries({ paths: expirationFixture.paths, now: expirationNow });
 expect(localNewsEntries.length === 1 && localNewsEntries[0].path.includes("live-road-closure-24h"), "Google News local sitemap entries should only include story pages created within 48 hours.");
+expect(localNewsEntries.some((entry) => entry.path.includes("live-road-closure-24h")), "Google News local sitemap should include 1-day-old live stories.");
+expect(!localNewsEntries.some((entry) => entry.path.includes("downtown-detour-day-three")), "Google News local sitemap should exclude 3-day-old live stories.");
+expect(!localNewsEntries.some((entry) => entry.path.includes("expired-community-update")), "Google News local sitemap should exclude expired stories.");
 
 const modelTopicCoverage = normalizeCityTopicCoverage({
   city_id: modelCity.id,
@@ -1278,8 +1313,18 @@ async function runSourceFetcherChecks() {
 
   const firstSignalCreate = createInputSignal(rssResult.items[0], { paths: fetchFixture.paths });
   const duplicateSignalCreate = createInputSignal({ ...rssResult.items[0], title: "Different title" }, { paths: fetchFixture.paths });
+  const contentDuplicateCreate = createInputSignal(
+    {
+      ...rssResult.items[0],
+      canonical_url: "https://fetch.example.org/same-content-different-url",
+      original_url: "https://fetch.example.org/same-content-different-url",
+      url_hash: dedupeByUrlHash("https://fetch.example.org/same-content-different-url"),
+    },
+    { paths: fetchFixture.paths }
+  );
   expect(firstSignalCreate.created === true, "createInputSignal should store a new signal.");
   expect(duplicateSignalCreate.created === false && duplicateSignalCreate.duplicateReason === "url_hash", "createInputSignal should dedupe by URL hash.");
+  expect(contentDuplicateCreate.created === false && contentDuplicateCreate.duplicateReason === "content_hash", "createInputSignal should dedupe by content hash when canonical URL differs.");
 
   const rssXmlForClassifiedFetch = `<?xml version="1.0"?><rss version="2.0"><channel><title>Feed</title><item><title>San Diego classified source update</title><link>https://fetch.example.org/story-classified?utm_source=test</link><description>City residents get a fresh local signal for classification.</description><pubDate>Tue, 12 May 2026 12:00:00 GMT</pubDate></item></channel></rss>`;
   let retryCalls = 0;
@@ -1325,6 +1370,52 @@ async function runSourceFetcherChecks() {
   expect(loginSkippedFetchResult.status === "skipped", "fetchSourceFeed should skip feeds requiring login.");
   const fetchRunsAfterSkip = readFixtureJson(fetchFixture.paths.sourceFetchRuns).source_fetch_runs;
   expect(fetchRunsAfterSkip.some((run) => run.status === "skipped"), "Skipped source fetches should be logged.");
+
+  const batchFixture = createRegistryFixture();
+  const batchRegistry = createSourceRegistryService({ paths: batchFixture.paths });
+  const batchSourceOk = batchRegistry.createSource({
+    name: "Batch Source OK",
+    homepage_url: "https://batch.example.org",
+    source_type: "local_news",
+    trust_level: "established_publisher",
+    crawl_status: "active",
+  });
+  const batchSourceFail = batchRegistry.createSource({
+    name: "Batch Source Fail",
+    homepage_url: "https://down.example.org",
+    source_type: "local_news",
+    trust_level: "established_publisher",
+    crawl_status: "active",
+  });
+  batchRegistry.addSourceFeed(batchSourceOk.id, {
+    feed_type: "rss",
+    url: "https://batch.example.org/rss.xml",
+    fetch_frequency_minutes: 15,
+    next_fetch_at: daysAgo(0.1),
+  });
+  batchRegistry.addSourceFeed(batchSourceFail.id, {
+    feed_type: "rss",
+    url: "https://down.example.org/rss.xml",
+    fetch_frequency_minutes: 15,
+    next_fetch_at: daysAgo(0.1),
+  });
+  const batchResults = await fetchDueSourceFeeds({
+    paths: batchFixture.paths,
+    retries: 0,
+    retryBackoffMs: 0,
+    fetchImpl: async (url) => {
+      if (String(url).includes("down.example.org")) throw new Error("source is down");
+      return mockResponse({
+        body: `<?xml version="1.0"?><rss version="2.0"><channel><title>Batch</title><item><title>San Diego batch source update</title><link>https://batch.example.org/local-update</link><description>Batch source gives residents a local update.</description><pubDate>Tue, 12 May 2026 13:00:00 GMT</pubDate></item></channel></rss>`,
+      });
+    },
+  });
+  expect(batchResults.length === 2, "fetchDueSourceFeeds should process every due feed instead of stopping at a fixed first batch.");
+  expect(batchResults.every((result) => result.status === "fulfilled"), "One failed source should not crash the entire due-source intake job.");
+  expect(batchResults.some((result) => result.value.status === "success"), "Due-source intake should still return successful source results.");
+  expect(batchResults.some((result) => result.value.status === "failed"), "Due-source intake should return failed source results without throwing away the whole job.");
+  const batchRuns = readFixtureJson(batchFixture.paths.sourceFetchRuns).source_fetch_runs;
+  expect(batchRuns.some((run) => run.status === "success") && batchRuns.some((run) => run.status === "failed"), "Due-source intake should log both successful and failed source fetch runs.");
 }
 
 const intakePlan = buildLocalIntakePlan(place, ["San Diego CA local news", "San Diego California when:7d"], registry);
