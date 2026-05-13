@@ -589,34 +589,34 @@ html[data-theme="night"] .brand {
 }
 
 .home-local-city-chips {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
 }
 
 .home-local-city-chips .local-city-link {
-  min-height: 34px;
-  padding: 7px 9px;
+  min-height: 28px;
+  padding: 6px 8px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.58);
 }
 
 .home-local-city-chips .local-city-name {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.1;
 }
 
 .home-local-city-chips .local-city-state {
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .home-local-actions {
-  gap: 8px;
+  gap: 7px;
 }
 
 .home-local-actions .btn,
 .home-local-heading .btn {
-  padding: 8px 11px;
-  font-size: 11px;
+  padding: 7px 10px;
+  font-size: 10px;
   border-radius: 999px;
 }
 
@@ -3004,7 +3004,7 @@ html[data-theme="night"] .category-entertainment-controls {
   }
 
   .home-local-city-chips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .home-local-actions .btn,

@@ -52,8 +52,8 @@ if (!appJs.includes("isLiveNewsStoryUrl") || !appJs.includes("newsmorenow") || !
 if (!indexHtml.includes('id="topCityGrid"') || !indexHtml.includes("home-local-city-chips")) {
   fail("Compact Local News city chips should render in the top module.");
 }
-if (!indexHtml.includes('data-compact-limit="8"')) {
-  fail("Compact Local News city chips should stay intentionally limited on the homepage.");
+if (!indexHtml.includes('data-compact-limit="16"')) {
+  fail("Compact Local News city chips should show more top cities while staying intentionally limited on the homepage.");
 }
 if (!indexHtml.includes(">Share my location</button>")) {
   fail("Compact Local News should keep the Share my location action.");
@@ -157,8 +157,8 @@ if (!stylesCss.includes("max-width: 100%") || !stylesCss.includes("overflow-x: h
 if (!stylesCss.includes(".search-preview-summary") || !stylesCss.includes(".search-preview-footer")) {
   fail("Search dropdown should show compact safe snippets and a bottom-right footer action.");
 }
-if (!stylesCss.includes(".home-local-city-chips") || !stylesCss.includes("grid-template-columns: repeat(4")) {
-  fail("Homepage Local News city chips should be compact on desktop.");
+if (!stylesCss.includes(".home-local-city-chips") || !stylesCss.includes("grid-template-columns: repeat(5")) {
+  fail("Homepage Local News city chips should be smaller and denser on desktop.");
 }
 if (!stylesCss.includes("@media (max-width: 720px)") || !stylesCss.includes(".home-search-local-grid")) {
   fail("Homepage Search + Local module needs mobile stacking styles.");
