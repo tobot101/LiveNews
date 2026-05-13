@@ -93,6 +93,7 @@ const {
   resolveLocalPlaceInput,
 } = require("./lib/local-news-helpers");
 const {
+  LOCAL_INTELLIGENCE_CONFIG,
   buildLocalIntakePlan,
   buildLocalIntelligenceRun,
   filterCurrentPublicStories,
@@ -102,6 +103,7 @@ const {
   readLocalSourceRegistry,
   saveLocalIntelligenceRun,
 } = require("./lib/local-intelligence-engine");
+const { runLocalWorkerBatch } = require("./lib/local-intelligence-worker");
 const {
   applyCoverageContext,
   applyCoverageContextsToItems,
@@ -165,7 +167,7 @@ const AGENT_DRAFT_LIMIT = Number(process.env.LIVE_NEWS_DRAFT_LIMIT || 16);
 const AGENT_MODE = process.env.LIVE_NEWS_AGENT_MODE || "review_only";
 const SUMMARY_ADMIN_TOKEN = process.env.LIVE_NEWS_ADMIN_TOKEN || process.env.LIVE_NEWS_REVIEW_TOKEN || "";
 const CATEGORY_SECTIONS = ["National", "International", "Business", "Tech", "Sports", "Entertainment"];
-const PUBLIC_CANONICAL_ORIGIN = "https://newsmorenow.com";
+const PUBLIC_CANONICAL_ORIGIN = LOCAL_INTELLIGENCE_CONFIG.baseUrl;
 const SITEMAP_STABLE_PAGES = [
   { path: "/", changefreq: "hourly", priority: "1.0" },
   { path: "/local", changefreq: "hourly", priority: "0.8" },
@@ -438,9 +440,9 @@ const LOCAL_CITY_ALIASES = {
 };
 
 const parser = new Parser({
-  timeout: 10000,
+  timeout: LOCAL_INTELLIGENCE_CONFIG.sourceFetchTimeoutMs,
   headers: {
-    "User-Agent": "LiveNewsBot/1.0 (+https://github.com/tobot101/LiveNews)",
+    "User-Agent": LOCAL_INTELLIGENCE_CONFIG.crawlerUserAgent,
   },
 });
 
@@ -1647,8 +1649,15 @@ async function fetchLocalNews(place) {
   const variants = buildLocalQueryVariants(city, state, stateNameByCode);
   const sourceRegistry = readLocalSourceRegistry();
   const intakePlan = buildLocalIntakePlan(place, variants, sourceRegistry);
-  const feeds = await Promise.allSettled(
-    intakePlan.requests.map((request) => parser.parseURL(request.url))
+  const feeds = await runLocalWorkerBatch(
+    intakePlan.requests,
+    (request) => parser.parseURL(request.url),
+    {
+      concurrency: LOCAL_INTELLIGENCE_CONFIG.sourceFetchConcurrency,
+      timeoutMs: LOCAL_INTELLIGENCE_CONFIG.sourceFetchTimeoutMs,
+      workerName: "local-source-fetch",
+      config: LOCAL_INTELLIGENCE_CONFIG,
+    }
   );
 
   const collected = [];
@@ -1690,6 +1699,9 @@ async function fetchLocalNews(place) {
       requestCount: intakePlan.requestCount,
       fixedIntakeLimit: intakePlan.fixedIntakeLimit,
       cursorCapable: intakePlan.cursorCapable,
+      sourceFetchConcurrency: intakePlan.sourceFetchConcurrency,
+      sourceFetchTimeoutMs: intakePlan.sourceFetchTimeoutMs,
+      sourceDefaultRateLimitMinutes: intakePlan.sourceDefaultRateLimitMinutes,
       sourceTypes: Array.from(new Set(intakePlan.requests.map((request) => request.sourceType))),
     },
     sourceCount: new Set(summarized.map((item) => item.sourceName)).size,

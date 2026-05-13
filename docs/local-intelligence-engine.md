@@ -8,25 +8,119 @@ Live News currently runs as a Node/Express app from `server.js`.
 - Routing: Express routes plus static files in `public/`.
 - Data layer: JSON files in `data/` plus in-memory caches.
 - Source intake: `rss-parser` for official RSS and public RSS-style feeds.
-- Worker/job model: in-process refresh loop with `setInterval(refreshNewsSafely, ...)`; no separate queue or worker service yet.
+- Job model: in-process refresh loop with `setInterval(refreshNewsSafely, ...)`; no separate queue or worker service yet.
 - Tests: Node script checks under `scripts/`, wired through `npm test`.
 - Deployment assumption: single Node service, compatible with Railway-style `PORT` deployment.
 
-This engine is built to match that stack. It does not require a database, login system, API keys, or a new worker process.
+The first version is designed for the existing stack. It does not require a new database, login system, API key, or worker process.
 
-## Architecture
+## Product Rules
 
-The first production-ready version is centered on `lib/local-intelligence-engine.js`.
+Live News local coverage should continuously organize current public local signals into readable, source-linked local story clusters.
 
-The engine has five jobs:
+Non-negotiable product rules:
 
-1. Build an intake plan from approved public local source definitions.
-2. Normalize public source signals into safe local signal records.
-3. Classify signals by local topic, city relevance, sensitivity, and confidence.
-4. Cluster and deduplicate signals into current local story clusters.
-5. Apply public freshness and SEO rules before anything reaches public pages.
+- No fixed article intake limit for approved public source signals.
+- Intake must use safe pagination or cursor processing where a source supports it.
+- Public website content must never show local story details older than 7 days.
+- Expired story URLs should return `410 Gone` or a minimal expired notice without showing old story details.
+- City and topic pages may remain live, but their story lists must only show stories from the last 7 days.
+- Thin city and topic pages must use `noindex, follow` and must not be included in public sitemaps.
+- Historical story metadata may be retained privately for deduplication, source quality, city intelligence, trend detection, and future relevance.
+- Live News must not republish full articles from other publishers.
+- Public story pages must attribute and link to original sources.
+- The site must work without login.
+- Anonymous personalization must use localStorage only and must gracefully fall back when storage is blocked.
 
-The server remains responsible for fetching feeds and resolving city input. The engine remains responsible for source rules, public-window enforcement, clustering, classification, SEO state, and health reporting.
+## Source Intake Policy
+
+Unlimited intake means Live News does not impose an artificial cap on approved public source signals.
+
+Unlimited intake does not mean:
+
+- Uncontrolled crawling.
+- Scraping private pages.
+- Bypassing paywalls.
+- Ignoring robots.txt.
+- Ignoring source terms.
+- Republishing full copyrighted articles.
+
+Preferred source types:
+
+- RSS/Atom feeds.
+- XML sitemaps.
+- Official APIs.
+- Official government and public agency pages.
+- Approved public pages.
+- User-submitted sources after review.
+- Licensed data providers if added later.
+
+Allowed source intake:
+
+- Official RSS feeds.
+- Public RSS search feeds.
+- Official city, county, and state feeds.
+- Public agency advisories.
+- Public school, transit, weather, court, and civic feeds when permitted.
+- Manual editor-approved public source exports.
+
+Blocked source intake:
+
+- Private accounts.
+- Private messages.
+- Usernames or personal profiles.
+- Copied comments.
+- Paywall bypassing.
+- Full article republication.
+- Scraping against source terms.
+- Any source that requires credentials unless explicitly approved and documented.
+
+Source intake should store only what is needed for classification, deduplication, attribution, summary generation, city/topic intelligence, source quality, and future relevance.
+
+## Configuration
+
+The first version uses the existing repository pattern: configuration comes from environment variables with safe code defaults.
+
+Recommended production values:
+
+```bash
+STORY_PUBLIC_TTL_DAYS=7
+GOOGLE_NEWS_TTL_HOURS=48
+SOURCE_FETCH_CONCURRENCY=5
+SOURCE_FETCH_TIMEOUT_MS=15000
+SOURCE_DEFAULT_RATE_LIMIT_MINUTES=15
+CRAWLER_USER_AGENT="LiveNewsBot/1.0 (+https://newsmorenow.com/contact)"
+BASE_URL="https://newsmorenow.com"
+```
+
+Configuration is validated in `lib/local-intelligence-config.js`.
+
+- Invalid numeric values fall back to safe defaults and return validation warnings.
+- `BASE_URL` must be a valid `http` or `https` URL.
+- `CRAWLER_USER_AGENT` should include a public contact URL.
+- `SOURCE_FETCH_CONCURRENCY` controls safe parallel source fetching.
+- `SOURCE_FETCH_TIMEOUT_MS` prevents source fetches from hanging indefinitely.
+- `SOURCE_DEFAULT_RATE_LIMIT_MINUTES` is the default source-level rate-limit interval when a source does not define one.
+
+## Seven-Day Public Expiration Policy
+
+Public local story details must be current.
+
+- Public story lists only show stories from the last 7 days.
+- City pages only show story clusters from the last 7 days.
+- Topic pages only show story clusters from the last 7 days.
+- Internal search must not expose expired public story details.
+- Article lists must not expose expired public story details.
+- Sitemaps must not include expired story URLs.
+- Expired story URLs return `410 Gone` or a minimal expired notice without old details.
+
+Private retained metadata may include identifiers, source attribution, hashes, timestamps, city/topic labels, and source-quality signals. It must not expose old public story text after the 7-day window.
+
+Engine helpers:
+
+- `isWithinPublicWindow(item)`
+- `filterCurrentPublicStories(items)`
+- `getExpiredStoryResponse(story)`
 
 ## Data Model
 
@@ -49,11 +143,11 @@ Fields:
 - `cursorSupport`
 - `notes`
 
-Only approved public source definitions should be enabled. Sources that require private credentials, paywall bypassing, comment scraping, or private user data must stay disabled.
+Only enabled, approved public source definitions should be used for public intake.
 
 ### LocalSignal
 
-Created from public RSS/search/source output.
+Created from approved public source output.
 
 Fields:
 
@@ -72,11 +166,11 @@ Fields:
 - `classification`
 - `sourceSafety`
 
-Signals may retain metadata privately for deduplication, source quality, city intelligence, trend detection, and future relevance. They must not copy full publisher articles.
+Signals are source-linked facts and metadata. They are not full publisher article copies.
 
 ### LocalStoryCluster
 
-Public pages use clusters, not raw unlimited source dumps.
+Public local pages use clusters instead of raw source dumps.
 
 Fields:
 
@@ -97,136 +191,207 @@ Fields:
 - `expiresAt`
 - `publicStatus`
 
-## Intake Jobs
+### LocalIntelligenceRun
 
-The intake model is cursor-friendly.
+Stored privately in `data/local-intelligence-store.json`.
+
+Fields:
+
+- `id`
+- `place`
+- `createdAt`
+- `publicWindowDays`
+- `signalCount`
+- `publicSignalCount`
+- `expiredSignalCount`
+- `clusterCount`
+- `health`
+- `historicalMetadata`
+
+Historical metadata supports deduplication and coverage intelligence. It must not become public expired story content.
+
+## Job/Worker Flow
+
+The first version runs inside the current server refresh flow and uses a small safe worker abstraction in `lib/local-intelligence-worker.js`. A later version can move the same steps into a queue or separate worker process without changing the product rules.
+
+Flow:
+
+1. Load approved local source registry.
+2. Build an intake plan for the requested city, state, and local query variants.
+3. Process each approved source request.
+4. Follow safe cursor or pagination rules when available.
+5. Normalize source items into `LocalSignal` records.
+6. Classify each signal by city relevance, topic, source safety, and sensitivity.
+7. Deduplicate and cluster related signals.
+8. Filter public output to the 7-day window.
+9. Save private run metadata and historical dedupe metadata.
+10. Return current public clusters to city/topic pages and local APIs.
+
+Worker safety:
+
+- Source fetches run with configured concurrency.
+- Source fetches use configured timeout protection.
+- Worker results are settled so one source failure does not break the whole local page.
+- Current implementation is intentionally simple because the repo does not yet have a queue system.
+
+The intake plan is cursor-friendly:
 
 - `buildLocalIntakePlan(place, queryVariants)` creates approved source requests.
 - Each source may support `nextCursor` later.
-- The current Google News RSS adapter has no cursor, but the engine is designed so future adapters can process pages until no cursor remains.
-- There is no fixed article intake limit. Limits may be used for UI display only, not for source ingestion.
+- The current Google News RSS adapter has no cursor, but future adapters can process pages until no cursor remains.
+- UI display limits may exist, but source ingestion should not use a fixed artificial article cap.
 
-Unlimited intake means Live News does not impose an artificial cap on approved public source signals. It does not mean uncontrolled crawling, private scraping, paywall bypassing, ignoring robots.txt, ignoring source terms, or republishing full copyrighted articles.
+## City/Topic Page Behavior
 
-The engine should prioritize source types in this order:
+City and topic pages are live public discovery pages, but their story lists must stay current.
 
-- RSS/Atom feeds
-- XML sitemaps
-- official APIs
-- official government and public agency pages
-- approved public pages
-- user-submitted sources after review
-- licensed data providers if added later
+City pages should:
 
-Allowed source types include:
+- Resolve the requested city and state.
+- Show only current clusters from the last 7 days.
+- Attribute all source-linked stories.
+- Link to original publishers.
+- Use noindex, follow when thin.
+- Avoid sitemap inclusion when thin or query-driven.
+- Continue working when localStorage is unavailable.
 
-- official RSS feeds
-- public RSS search feeds
-- official city/county/state feeds
-- public agency advisories
-- public school, transit, weather, court, and civic feeds when permitted
-- manual editor-approved public source exports
+Topic pages should:
 
-Blocked intake:
+- Show only current clusters from the last 7 days.
+- Use topic classification from local signals.
+- Avoid showing expired story details.
+- Use noindex, follow when thin.
+- Avoid sitemap inclusion when thin.
 
-- private accounts
-- copied comments
-- usernames or personal profiles
-- private messages
-- paywall bypassing
-- full article republication
-- scraping against source terms
+Thin page criteria should consider:
 
-## Source Text and Public Page Boundaries
+- Current story count.
+- Source diversity.
+- City/topic confidence.
+- Whether the page has enough useful current public coverage.
 
-Live News must not publish full external article text. Source intake should store only what is needed for classification, deduplication, attribution, summary generation, city/topic intelligence, source quality, and future relevance.
+## Anonymous Personalization Design
 
-Public story pages must link to original sources, clearly attribute them, and add Live News context with original Live News writing. They should not copy publisher wording, copy sentence structure, copy public comments, or expose full source article text.
+Live News local personalization must not require login.
 
-Historical source metadata can remain private for deduplication, source quality, city intelligence, trend detection, and future relevance, but expired public story details must not be shown after the 7-day public window.
+Allowed localStorage fields:
 
-## Seven-Day Public Expiration
+- Saved city.
+- Followed topics.
+- Last visit time.
+- Seen story IDs.
+- Dismissed prompts.
 
-Public story details must be current.
+Client behavior:
 
-- Public local city/topic lists only show stories from the last 7 days.
-- Internal search and category/listing pools must not show expired public story details.
-- Expired public story URLs return `410 Gone` or a minimal expired notice without old story details.
-- Historical metadata may remain privately for dedupe and intelligence.
+- Read localStorage only inside safe wrappers.
+- If localStorage is blocked, continue with a non-personalized local page.
+- Do not send private localStorage identifiers to the server as user profiles.
+- Do not store usernames, emails, private messages, personal profiles, or real identities.
+- Seen story IDs may be used locally to reduce repeated cards or mark previously seen stories.
 
-The engine exposes:
+The product should feel personalized without creating account-level tracking.
 
-- `isWithinPublicWindow(item)`
-- `filterCurrentPublicStories(items)`
+## SEO/Indexing Rules
+
+SEO must prioritize current, useful, indexable pages.
+
+Rules:
+
+- Stable public landing pages can be indexable.
+- Thin city/topic pages must use `noindex, follow`.
+- Query-driven city pages should not be listed in the regular XML sitemap.
+- Expired story URLs should return `410 Gone` or a minimal expired notice.
+- Expired story pages should include no old story details.
+- External publisher URLs must not be included as Live News sitemap URLs.
+- Story structured data must use exact Live News story URLs when a story page exists.
+- Trend or source-volume signals may guide ranking but must not add unsupported facts to public copy.
+
+Engine helpers:
+
+- `getCityPageSeoState({ place, clusters })`
 - `getExpiredStoryResponse(story)`
 
-## SEO Rules
+## Sitemap Rules
 
-- `/sitemap.xml` includes only stable indexable pages.
-- `/news-sitemap.xml` includes only internal Live News story pages from the last 48 hours.
-- External publisher URLs are never included in Live News sitemaps.
-- Thin city/topic pages use `noindex, follow` and are not included in public sitemaps.
-- Query-driven city pages are not listed in the regular XML sitemap.
-- Story structured data must use exact Live News story URLs when a story page exists.
+Regular XML sitemap:
 
-The engine exposes:
+- Include only stable indexable Live News pages.
+- Exclude expired stories.
+- Exclude thin city/topic pages.
+- Exclude query-driven local pages.
+- Exclude external publisher URLs.
+
+Google News sitemap:
+
+- Include only Live News story pages.
+- Include only articles created within the last 48 hours.
+- Exclude expired stories.
+- Exclude thin city/topic pages.
+- Exclude external publisher URLs.
+
+Engine helper:
 
 - `isWithinNewsSitemapWindow(story)`
-- `getCityPageSeoState({ place, clusters })`
 
-## Privacy Rules
-
-The public site works without login.
-
-Anonymous personalization may use localStorage only for:
-
-- saved city
-- followed topics
-- last visit time
-- seen story IDs
-- dismissed prompts
-
-If localStorage is unavailable or blocked, the client falls back to a non-personalized experience.
-
-Do not store:
-
-- usernames
-- private messages
-- personal profiles
-- individual identities
-- copied comments
-- real tokens
-- private admin URLs
-
-## Coverage Health
-
-The server exposes local diagnostics through `/api/health`.
-
-Health fields include:
-
-- request count
-- last resolved place
-- source count
-- signal count
-- cluster count
-- expired signal count
-- source safety warnings
-- thin-page SEO state
-- summary health
-
-This is operational visibility, not public user profiling.
-
-## Test Plan
+## Testing Plan
 
 Required checks:
 
-- Source registry loads and blocks disabled/non-public sources.
-- Intake plan is cursor-capable and does not impose a fixed source item limit.
+- Source registry loads approved public sources.
+- Disabled or non-public sources are blocked.
+- Intake plan is cursor-capable.
+- Intake has no fixed artificial article limit.
 - Signals older than 7 days are blocked from public output.
 - Current signals classify into local topics.
-- Similar local signals cluster together with attribution.
+- Similar local signals cluster together.
+- Public clusters preserve source attribution.
 - Expired story URLs are eligible for `410 Gone`.
 - News sitemap stories are limited to 48 hours.
-- Thin city pages return `noindex, follow`.
+- Regular sitemap only includes indexable live pages.
+- Thin city/topic pages return `noindex, follow`.
 - LocalStorage personalization has safe fallback behavior.
+- Public pages do not show full publisher articles.
+- Public pages link to original sources.
 - Existing writing, social, Meta, local-news, search, SEO, and homepage checks still pass.
+
+Primary check script:
+
+- `node scripts/check-local-intelligence-engine.js`
+
+Recommended full verification:
+
+```bash
+npm test
+node scripts/check-writing-intelligence.js
+node scripts/check-social-intelligence.js
+node scripts/check-meta-publishing.js
+node scripts/check-local-intelligence-engine.js
+```
+
+## Privacy and Copyright Guardrails
+
+Privacy guardrails:
+
+- No login required.
+- No private profile building.
+- No usernames.
+- No private messages.
+- No personal profiles.
+- No individual identities.
+- No copied comments.
+- No real tokens in docs, tests, logs, or rendered pages.
+- No private admin URLs in memory records.
+
+Copyright and source guardrails:
+
+- Do not republish full external article text.
+- Do not copy publisher wording or sentence structure.
+- Do not copy public comments.
+- Do not treat comments as verified facts.
+- Store only source-linked metadata needed for classification, deduplication, attribution, summary generation, and private quality signals.
+- Public story pages must link to original sources.
+- Public story pages must add Live News context using original Live News writing.
+- Respect robots.txt, source terms, rate limits, paywalls, and licensing boundaries.
+
+This engine is a local intelligence and source-linking layer, not a full-text republication system.

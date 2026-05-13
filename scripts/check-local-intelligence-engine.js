@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const {
+  LOCAL_INTELLIGENCE_CONFIG,
   NEWS_SITEMAP_WINDOW_HOURS,
   PUBLIC_WINDOW_DAYS,
   buildLocalIntakePlan,
@@ -17,6 +18,11 @@ const {
   processCursorSource,
   readLocalSourceRegistry,
 } = require("../lib/local-intelligence-engine");
+const {
+  DEFAULT_LOCAL_INTELLIGENCE_ENV,
+  buildLocalIntelligenceConfig,
+} = require("../lib/local-intelligence-config");
+const { runLocalWorkerBatch } = require("../lib/local-intelligence-worker");
 
 const root = path.join(__dirname, "..");
 const failures = [];
@@ -49,6 +55,45 @@ expect(intakePlan.requestCount === 2, "Local intake plan should create a request
 expect(intakePlan.fixedIntakeLimit === null, "Local source intake must not impose a fixed article intake limit.");
 expect(intakePlan.requests.every((request) => request.approvedPublicSource === true), "Intake requests should only use approved public sources.");
 expect(intakePlan.requests.some((request) => request.url.includes("news.google.com/rss/search")), "Current v1 intake should use the existing public RSS search adapter.");
+expect(intakePlan.sourceFetchConcurrency === LOCAL_INTELLIGENCE_CONFIG.sourceFetchConcurrency, "Local intake plan should expose configured source fetch concurrency.");
+expect(intakePlan.sourceFetchTimeoutMs === LOCAL_INTELLIGENCE_CONFIG.sourceFetchTimeoutMs, "Local intake plan should expose configured source fetch timeout.");
+expect(intakePlan.sourceDefaultRateLimitMinutes === LOCAL_INTELLIGENCE_CONFIG.sourceDefaultRateLimitMinutes, "Local intake plan should expose configured default source rate limit.");
+expect(intakePlan.crawlerUserAgent === LOCAL_INTELLIGENCE_CONFIG.crawlerUserAgent, "Local intake plan should expose configured crawler user agent.");
+expect(intakePlan.baseUrl === LOCAL_INTELLIGENCE_CONFIG.baseUrl, "Local intake plan should expose configured base URL.");
+expect(intakePlan.requests.every((request) => request.rateLimit.defaultMinimumDelayMinutes >= 1), "Every intake request should include a safe default rate-limit value.");
+
+const configured = buildLocalIntelligenceConfig({
+  STORY_PUBLIC_TTL_DAYS: "7",
+  GOOGLE_NEWS_TTL_HOURS: "48",
+  SOURCE_FETCH_CONCURRENCY: "5",
+  SOURCE_FETCH_TIMEOUT_MS: "15000",
+  SOURCE_DEFAULT_RATE_LIMIT_MINUTES: "15",
+  CRAWLER_USER_AGENT: "LiveNewsBot/1.0 (+https://newsmorenow.com/contact)",
+  BASE_URL: "https://newsmorenow.com",
+});
+expect(configured.storyPublicTtlDays === 7, "STORY_PUBLIC_TTL_DAYS should validate to 7.");
+expect(configured.googleNewsTtlHours === 48, "GOOGLE_NEWS_TTL_HOURS should validate to 48.");
+expect(configured.sourceFetchConcurrency === 5, "SOURCE_FETCH_CONCURRENCY should validate to 5.");
+expect(configured.sourceFetchTimeoutMs === 15000, "SOURCE_FETCH_TIMEOUT_MS should validate to 15000.");
+expect(configured.sourceDefaultRateLimitMinutes === 15, "SOURCE_DEFAULT_RATE_LIMIT_MINUTES should validate to 15.");
+expect(configured.crawlerUserAgent.includes("newsmorenow.com/contact"), "Crawler user agent should use the public contact URL.");
+expect(configured.baseUrl === "https://newsmorenow.com", "BASE_URL should validate to the canonical production URL.");
+
+const invalidConfig = buildLocalIntelligenceConfig({
+  STORY_PUBLIC_TTL_DAYS: "0",
+  GOOGLE_NEWS_TTL_HOURS: "bad",
+  SOURCE_FETCH_CONCURRENCY: "-1",
+  SOURCE_FETCH_TIMEOUT_MS: "20",
+  SOURCE_DEFAULT_RATE_LIMIT_MINUTES: "0",
+  CRAWLER_USER_AGENT: "",
+  BASE_URL: "not a url",
+});
+expect(invalidConfig.storyPublicTtlDays === DEFAULT_LOCAL_INTELLIGENCE_ENV.STORY_PUBLIC_TTL_DAYS, "Invalid story TTL should fall back safely.");
+expect(invalidConfig.googleNewsTtlHours === DEFAULT_LOCAL_INTELLIGENCE_ENV.GOOGLE_NEWS_TTL_HOURS, "Invalid Google News TTL should fall back safely.");
+expect(invalidConfig.sourceFetchConcurrency === DEFAULT_LOCAL_INTELLIGENCE_ENV.SOURCE_FETCH_CONCURRENCY, "Invalid source concurrency should fall back safely.");
+expect(invalidConfig.sourceFetchTimeoutMs === DEFAULT_LOCAL_INTELLIGENCE_ENV.SOURCE_FETCH_TIMEOUT_MS, "Invalid source timeout should fall back safely.");
+expect(invalidConfig.sourceDefaultRateLimitMinutes === DEFAULT_LOCAL_INTELLIGENCE_ENV.SOURCE_DEFAULT_RATE_LIMIT_MINUTES, "Invalid source rate limit should fall back safely.");
+expect(invalidConfig.warnings.length >= 5, "Invalid local intelligence config should return validation warnings.");
 
 const currentSignal = buildLocalSignal(
   {
@@ -145,9 +190,34 @@ processCursorSource(
       nextCursor: cursor === "page-1" ? "page-2" : null,
     };
   }
-).then((cursorResult) => {
+).then(async (cursorResult) => {
   expect(cursorCalls === 2, "Cursor source processing should continue until no cursor remains.");
   expect(cursorResult.signals.length === 2, "Cursor source processing should collect all pages.");
+
+  let activeWorkers = 0;
+  let maxActiveWorkers = 0;
+  const workerResults = await runLocalWorkerBatch(
+    [1, 2, 3, 4],
+    async (task) => {
+      activeWorkers += 1;
+      maxActiveWorkers = Math.max(maxActiveWorkers, activeWorkers);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activeWorkers -= 1;
+      return task * 2;
+    },
+    { concurrency: 2, timeoutMs: 1000 }
+  );
+  expect(maxActiveWorkers <= 2, "Local worker batch should respect configured concurrency.");
+  expect(workerResults.every((result) => result.status === "fulfilled"), "Local worker batch should return settled fulfilled results.");
+  expect(workerResults.map((result) => result.value).join(",") === "2,4,6,8", "Local worker batch should preserve result order.");
+
+  const timeoutResults = await runLocalWorkerBatch(
+    ["slow"],
+    () => new Promise((resolve) => setTimeout(resolve, 30)),
+    { concurrency: 1, timeoutMs: 5 }
+  );
+  expect(timeoutResults[0].status === "rejected", "Local worker batch should reject timed-out tasks safely.");
+  expect(timeoutResults[0].reason.code === "LOCAL_INTELLIGENCE_TIMEOUT", "Timed-out local worker task should expose a safe timeout code.");
 
   const docs = fs.readFileSync(path.join(root, "docs", "local-intelligence-engine.md"), "utf8");
   const serverJs = fs.readFileSync(path.join(root, "server.js"), "utf8");
@@ -155,8 +225,12 @@ processCursorSource(
   const localHtml = fs.readFileSync(path.join(root, "public", "local.html"), "utf8");
 
   expect(docs.includes("Seven-Day Public Expiration"), "Architecture doc should explain 7-day public expiration.");
+  expect(docs.includes("Source Intake Policy"), "Architecture doc should explain local source intake policy.");
+  expect(docs.includes("STORY_PUBLIC_TTL_DAYS"), "Architecture doc should document local intelligence environment configuration.");
   expect(docs.includes("localStorage"), "Architecture doc should explain anonymous localStorage personalization.");
   expect(serverJs.includes("buildLocalIntelligenceRun"), "Server local API should use the Local Intelligence Engine.");
+  expect(serverJs.includes("runLocalWorkerBatch"), "Server local intake should use the safe local worker abstraction.");
+  expect(serverJs.includes("LOCAL_INTELLIGENCE_CONFIG.crawlerUserAgent"), "Server parser should use the configured crawler user agent.");
   expect(serverJs.includes("isWithinNewsSitemapWindow"), "Server news sitemap should use the 48-hour news window.");
   expect(serverJs.includes("getExpiredStoryResponse"), "Server story route should support expired story responses.");
   expect(localJs.includes("safeStorageGet") && localJs.includes("safeStorageSet"), "Local page should gracefully handle blocked localStorage.");
