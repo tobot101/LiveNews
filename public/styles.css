@@ -2029,6 +2029,10 @@ html[data-theme="night"] .entertainment-hub-card {
   border-radius: 16px;
 }
 
+.local-story-card.seen-local-story {
+  border-style: dashed;
+}
+
 .local-story-card-top {
   justify-content: flex-start;
 }

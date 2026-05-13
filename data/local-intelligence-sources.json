@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "live-news-local-intelligence-sources-v1",
+  "updatedAt": "2026-05-12T00:00:00.000Z",
+  "sources": [
+    {
+      "id": "google-news-local-rss-search",
+      "name": "Google News local RSS search",
+      "type": "public_rss_search",
+      "enabled": true,
+      "approvedPublicSource": true,
+      "access": "public-rss",
+      "collectionMethod": "rss_search_query",
+      "requiresCredentials": false,
+      "robotsPolicy": "respect_source_terms_and_public_rss_access",
+      "rateLimit": {
+        "requestsPerRun": "query-variant-count",
+        "minimumDelayMs": 0
+      },
+      "cursorSupport": {
+        "supported": false,
+        "cursorParam": null
+      },
+      "notes": "Used as a public discovery layer. Live News links to original publishers and does not republish full articles."
+    },
+    {
+      "id": "manual-editor-approved-local-export",
+      "name": "Manual editor-approved local public source export",
+      "type": "manual",
+      "enabled": false,
+      "approvedPublicSource": true,
+      "access": "manual-public-export",
+      "collectionMethod": "editor_upload_or_json_export",
+      "requiresCredentials": false,
+      "robotsPolicy": "authorized_public_data_only",
+      "rateLimit": {
+        "requestsPerRun": 0,
+        "minimumDelayMs": 0
+      },
+      "cursorSupport": {
+        "supported": true,
+        "cursorParam": "cursor"
+      },
+      "notes": "Placeholder for future city/county/public-agency sources added only after source review."
+    }
+  ]
+}

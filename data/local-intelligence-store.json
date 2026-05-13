@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "live-news-local-intelligence-store-v1",
+  "updatedAt": null,
+  "privateRetentionPurpose": [
+    "deduplication",
+    "source_quality",
+    "city_intelligence",
+    "trend_detection",
+    "future_relevance"
+  ],
+  "runs": [],
+  "historicalMetadata": []
+}

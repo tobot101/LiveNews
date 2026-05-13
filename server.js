@@ -93,6 +93,16 @@ const {
   resolveLocalPlaceInput,
 } = require("./lib/local-news-helpers");
 const {
+  buildLocalIntakePlan,
+  buildLocalIntelligenceRun,
+  filterCurrentPublicStories,
+  getExpiredStoryResponse,
+  isWithinNewsSitemapWindow,
+  isWithinPublicWindow,
+  readLocalSourceRegistry,
+  saveLocalIntelligenceRun,
+} = require("./lib/local-intelligence-engine");
+const {
   applyCoverageContext,
   applyCoverageContextsToItems,
   applyCoverageContextsToPayload,
@@ -459,6 +469,7 @@ let placesMeta = {
   totalPlaces: 0,
 };
 const localCache = new Map();
+let lastLocalIntelligenceRun = null;
 const articleImageCache = new Map();
 const articleImageMetadataCache = new Map();
 const summaryResearchCache = new Map();
@@ -1464,7 +1475,7 @@ function normalizeItem(source, item, options = {}) {
 
 function normalizeLocalItem(item) {
   const publishedAt = parseDate(item.isoDate || item.pubDate || item.published);
-  if (!publishedAt || !withinMaxAge(publishedAt)) return null;
+  if (!publishedAt || !isWithinPublicWindow({ publishedAt: publishedAt.toISOString() })) return null;
   const link = item.link || item.guid;
   if (!link) return null;
   const parsed = parseSourceFromTitle(item.title || "");
@@ -1604,6 +1615,7 @@ function recordLocalHealth({
   sourceCount = 0,
   summaryHealth = null,
   summaryResearch = null,
+  localIntelligence = null,
   error = null,
 }) {
   localHealthStats = {
@@ -1617,6 +1629,7 @@ function recordLocalHealth({
     lastSummaryHealth: summaryHealth,
     lastSummaryResearch: summaryResearch,
     lastAudienceIntelligence: summaryHealth?.audienceIntelligence || null,
+    lastLocalIntelligence: localIntelligence,
     lastUpdated: new Date().toISOString(),
   };
 }
@@ -1632,11 +1645,10 @@ async function fetchLocalNews(place) {
   }
 
   const variants = buildLocalQueryVariants(city, state, stateNameByCode);
+  const sourceRegistry = readLocalSourceRegistry();
+  const intakePlan = buildLocalIntakePlan(place, variants, sourceRegistry);
   const feeds = await Promise.allSettled(
-    variants.map((query) => {
-      const feedUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-      return parser.parseURL(feedUrl);
-    })
+    intakePlan.requests.map((request) => parser.parseURL(request.url))
   );
 
   const collected = [];
@@ -1648,11 +1660,15 @@ async function fetchLocalNews(place) {
 
   const locallyRelevant = collected.filter((item) => hasLocalRelevance(item, place));
   const deduped = dedupeItems(locallyRelevant);
-  const recent = deduped.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-  const diversified = diversifyBySource(recent, {
-    maxPerSource: LOCAL_SOURCE_CAP,
-    limit: LOCAL_POOL_LIMIT,
+  const localRun = buildLocalIntelligenceRun({
+    place,
+    signals: deduped,
+    registry: sourceRegistry,
   });
+  lastLocalIntelligenceRun = localRun;
+  saveLocalIntelligenceRun(localRun);
+  const recent = localRun.publicStories.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  const diversified = recent;
   const localSummaryResearchStats = createSummaryResearchStats();
   await hydrateSummaryResearch(diversified, {
     cache: summaryResearchCache,
@@ -1670,16 +1686,34 @@ async function fetchLocalNews(place) {
     query: place.display || [city, state].filter(Boolean).join(", "),
     place,
     variants,
+    intakePlan: {
+      requestCount: intakePlan.requestCount,
+      fixedIntakeLimit: intakePlan.fixedIntakeLimit,
+      cursorCapable: intakePlan.cursorCapable,
+      sourceTypes: Array.from(new Set(intakePlan.requests.map((request) => request.sourceType))),
+    },
     sourceCount: new Set(summarized.map((item) => item.sourceName)).size,
     summaryHealth,
     audienceIntelligence: summaryHealth.audienceIntelligence,
     summaryResearch: localSummaryResearchStats,
+    localIntelligence: {
+      schemaVersion: localRun.schemaVersion,
+      publicWindowDays: localRun.publicWindowDays,
+      signalCount: localRun.signals.length,
+      publicSignalCount: localRun.publicSignals.length,
+      expiredSignalCount: localRun.expiredSignals.length,
+      clusterCount: localRun.clusters.length,
+      seo: localRun.seo,
+      health: localRun.health,
+    },
     diagnostics: {
       queryVariants: variants.length,
       feedSuccesses: feeds.filter((result) => result.status === "fulfilled").length,
       feedFailures: feeds.filter((result) => result.status === "rejected").length,
       collectedItems: collected.length,
       dedupedItems: deduped.length,
+      expiredSignals: localRun.expiredSignals.length,
+      localClusters: localRun.clusters.length,
       diversifiedItems: summarized.length,
       summaryResearchReady: localSummaryResearchStats.ready,
       summaryFallbacks: summaryHealth.fallbackCount,
@@ -1813,6 +1847,7 @@ function refreshNewsSafely() {
 }
 
 function buildCurrentNewsPayload() {
+  const currentApprovedStories = filterCurrentPublicStories(listApprovedStories());
   if (!cache.lastUpdated) {
     const fallback = loadFallback();
     return applyEntertainmentClassificationsToPayload(enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
@@ -1835,7 +1870,7 @@ function buildCurrentNewsPayload() {
         },
       },
       ...fallback,
-    }))));
+    })), currentApprovedStories));
   }
 
   return applyEntertainmentClassificationsToPayload(enrichNewsPayloadWithApprovedStories(applyCoverageContextsToPayload(applyLiveNewsSummariesToPayload({
@@ -1854,7 +1889,7 @@ function buildCurrentNewsPayload() {
     sourceErrors: cache.sourceErrors,
     sourceMix: cache.sourceMix,
     configuredSources: cache.configuredSources,
-  }))));
+  })), currentApprovedStories));
 }
 
 function applyEntertainmentClassificationsToItems(items = []) {
@@ -4631,7 +4666,9 @@ ${body}
 }
 
 function renderNewsSitemap() {
-  const stories = listApprovedStories();
+  const stories = filterCurrentPublicStories(listApprovedStories()).filter((story) =>
+    isWithinNewsSitemapWindow(story)
+  );
   if (!stories.length) return "";
   const origin = getCanonicalOrigin();
   const body = stories
@@ -4649,6 +4686,38 @@ function renderNewsSitemap() {
 ${body}
 </urlset>
 `;
+}
+
+function findStoredApprovedStoryBySlug(slug) {
+  const requested = cleanText(slug).toLowerCase();
+  if (!requested) return null;
+  return (readApprovedStore().stories || [])
+    .find((story) => cleanText(story.slug).toLowerCase() === requested && story.status === "approved" && story.public === true) || null;
+}
+
+function renderExpiredStoryPage(story) {
+  const title = "Live News story expired";
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,follow,noarchive" />
+  <title>${escapeHtml(title)}</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="story-page">
+    <article class="story-article">
+      <p class="story-kicker">Expired coverage</p>
+      <h1>${escapeHtml(title)}</h1>
+      <p>This story is no longer shown publicly because Live News only displays current story details from the last 7 days.</p>
+      <p>Use Live News search, category pages, or the original publisher links from current coverage for newer updates.</p>
+      ${story?.originalSourceUrl ? `<p><a class="story-action" href="${escapeHtml(story.originalSourceUrl)}" target="_blank" rel="noopener noreferrer">Open original source</a></p>` : ""}
+    </article>
+  </main>
+</body>
+</html>`;
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -4688,6 +4757,12 @@ app.get("/news-sitemap.xml", (req, res) => {
 });
 
 app.get("/stories/:slug", (req, res) => {
+  const storedStory = findStoredApprovedStoryBySlug(req.params.slug);
+  const expiration = getExpiredStoryResponse(storedStory);
+  if (expiration.expired) {
+    res.setHeader("X-Robots-Tag", "noindex, follow, noarchive");
+    return res.status(expiration.status).send(renderExpiredStoryPage(storedStory));
+  }
   const story = findApprovedStoryBySlug(req.params.slug);
   if (!story) {
     return res.status(404).send(renderStoryNotFoundPage());
@@ -4696,6 +4771,9 @@ app.get("/stories/:slug", (req, res) => {
 });
 
 app.get("/social-cards/:slug.png", (req, res) => {
+  const storedStory = findStoredApprovedStoryBySlug(req.params.slug);
+  const expiration = getExpiredStoryResponse(storedStory);
+  if (expiration.expired) return res.status(expiration.status).type("text/plain").send("Social card expired");
   const story = findApprovedStoryBySlug(req.params.slug);
   if (!story) return res.status(404).type("text/plain").send("Social card not found");
   const exactArticleUrl = absoluteUrl(getPublicBaseUrl(req), story.liveNewsUrl || `/stories/${story.slug}`);
@@ -4727,6 +4805,9 @@ app.get("/local.html", (req, res) => {
 });
 
 app.get("/local", (req, res) => {
+  if (req.query.city || req.query.state) {
+    res.setHeader("X-Robots-Tag", "noindex, follow");
+  }
   res.type("html").send(renderCanonicalStaticPage("local.html", "/local"));
 });
 
@@ -5287,14 +5368,18 @@ app.get("/api/category", async (req, res) => {
 
 app.get("/api/stories", (req, res) => {
   const store = readApprovedStore();
+  const currentStories = filterCurrentPublicStories(listApprovedStories());
   res.json({
     schemaVersion: store.schemaVersion,
     updatedAt: store.updatedAt,
-    stories: getApprovedStorySummaries(),
+    stories: getApprovedStorySummaries(currentStories),
   });
 });
 
 app.get("/api/stories/:slug", (req, res) => {
+  const storedStory = findStoredApprovedStoryBySlug(req.params.slug);
+  const expiration = getExpiredStoryResponse(storedStory);
+  if (expiration.expired) return res.status(expiration.status).json({ error: expiration.message });
   const story = findApprovedStoryBySlug(req.params.slug);
   if (!story) return res.status(404).json({ error: "Story not found" });
   res.json(story);
@@ -5356,6 +5441,7 @@ app.get("/api/local", async (req, res) => {
       sourceCount: payload.sourceCount,
       summaryHealth: payload.summaryHealth,
       summaryResearch: payload.summaryResearch,
+      localIntelligence: payload.localIntelligence,
     });
     res.json(payload);
   } catch (error) {

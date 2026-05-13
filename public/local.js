@@ -9,6 +9,13 @@ const state = {
   feed: [],
   loading: false,
   lastFetched: 0,
+  personalization: {
+    storageAvailable: true,
+    followedTopics: [],
+    seenStoryIds: [],
+    dismissedPrompts: [],
+    lastVisitAt: "",
+  },
 };
 
 const elements = {
@@ -27,6 +34,7 @@ const elements = {
 };
 
 function init() {
+  hydrateAnonymousPersonalization();
   applyTheme();
   bindControls();
   hydrateLimit();
@@ -37,8 +45,59 @@ function init() {
   window.addEventListener("resize", updateBrandShift);
 }
 
+function safeStorageGet(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    state.personalization.storageAvailable = false;
+    return null;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    state.personalization.storageAvailable = true;
+    return true;
+  } catch {
+    state.personalization.storageAvailable = false;
+    return false;
+  }
+}
+
+function parseStoredJson(key, fallback) {
+  const raw = safeStorageGet(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function hydrateAnonymousPersonalization() {
+  state.personalization.followedTopics = parseStoredJson("ln_followed_topics", []);
+  state.personalization.seenStoryIds = parseStoredJson("ln_seen_story_ids", []);
+  state.personalization.dismissedPrompts = parseStoredJson("ln_dismissed_prompts", []);
+  state.personalization.lastVisitAt = safeStorageGet("ln_last_visit_at") || "";
+  safeStorageSet("ln_last_visit_at", new Date().toISOString());
+}
+
+function rememberSeenStories(items = []) {
+  const ids = items.map((item) => item.id || item.storyClusterId || item.link).filter(Boolean);
+  if (!ids.length) return;
+  const merged = Array.from(new Set([...ids, ...(state.personalization.seenStoryIds || [])])).slice(0, 250);
+  state.personalization.seenStoryIds = merged;
+  safeStorageSet("ln_seen_story_ids", JSON.stringify(merged));
+}
+
+function isSeenStory(item) {
+  const key = item?.id || item?.storyClusterId || item?.link;
+  return Boolean(key && state.personalization.seenStoryIds.includes(key));
+}
+
 function hydrateLimit() {
-  const stored = localStorage.getItem("ln_local_limit");
+  const stored = safeStorageGet("ln_local_limit");
   if (stored) {
     state.limit = stored;
   }
@@ -46,7 +105,7 @@ function hydrateLimit() {
 }
 
 function applyTheme() {
-  const stored = localStorage.getItem("ln_mode") || "auto";
+  const stored = safeStorageGet("ln_mode") || "auto";
   const now = new Date();
   const theme = stored === "auto" ? (shouldUseNightMode(now) ? "night" : "day") : stored;
   document.documentElement.setAttribute("data-theme", theme);
@@ -126,7 +185,7 @@ function bindControls() {
       if (!value) return;
       state.limit = value;
       setLimitUI(value);
-      localStorage.setItem("ln_local_limit", value);
+      safeStorageSet("ln_local_limit", value);
       renderLocalFeed();
     });
   }
@@ -137,7 +196,7 @@ function bindControls() {
       if (!target) return;
       const value = target.dataset.mode;
       if (!value) return;
-      localStorage.setItem("ln_mode", value);
+      safeStorageSet("ln_mode", value);
       document.querySelectorAll("[data-mode]").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.mode === value);
       });
@@ -160,7 +219,7 @@ function hydrateFromQuery() {
 function hydrateFromStorage() {
   if (state.place) return;
   if (!personalizationAllowed()) return;
-  const stored = localStorage.getItem("ln_local_place");
+  const stored = safeStorageGet("ln_local_place");
   if (!stored) return;
   try {
     const place = JSON.parse(stored);
@@ -175,7 +234,7 @@ function hydrateFromStorage() {
 function personalizationAllowed() {
   try {
     if (navigator.globalPrivacyControl === true) return false;
-    const raw = localStorage.getItem("ln_consent");
+    const raw = safeStorageGet("ln_consent");
     if (!raw) return false;
     const consent = JSON.parse(raw);
     return Boolean(consent?.personalization);
@@ -289,7 +348,7 @@ function syncResolvedPlace(place) {
     elements.input.value = place.display;
   }
   if (personalizationAllowed()) {
-    localStorage.setItem("ln_local_place", JSON.stringify(place));
+    safeStorageSet("ln_local_place", JSON.stringify(place));
   }
   history.replaceState(null, "", buildLocalPageHref(place));
   renderTopCities();
@@ -327,7 +386,7 @@ function renderTopCities() {
     `;
     link.addEventListener("click", () => {
       if (personalizationAllowed()) {
-        localStorage.setItem("ln_local_place", JSON.stringify(place));
+        safeStorageSet("ln_local_place", JSON.stringify(place));
       }
     });
     elements.topCityGrid.appendChild(link);
@@ -343,7 +402,7 @@ function setPlace(place) {
     elements.input.value = place.display;
   }
   if (personalizationAllowed()) {
-    localStorage.setItem("ln_local_place", JSON.stringify(place));
+    safeStorageSet("ln_local_place", JSON.stringify(place));
   }
   history.replaceState(null, "", buildLocalPageHref(place));
   renderTopCities();
@@ -425,12 +484,14 @@ function renderLocalFeed() {
   if (!limited.length) {
     const empty = document.createElement("div");
     empty.className = "story-card local-story-card empty-card";
-    empty.textContent = "No local stories in the last 48 hours.";
+    empty.textContent = "No local stories in the last 7 days.";
     elements.feedList.appendChild(empty);
     return;
   }
 
+  const priorSeenStoryIds = new Set(state.personalization.seenStoryIds || []);
   const groups = groupFeedByAge(limited);
+  rememberSeenStories(limited);
   groups.forEach((group) => {
     const section = document.createElement("section");
     section.className = "feed-section";
@@ -445,6 +506,9 @@ function renderLocalFeed() {
     group.items.forEach((item) => {
       const card = document.createElement("article");
       card.className = "story-card local-story-card";
+      if (priorSeenStoryIds.has(item.id || item.storyClusterId || item.link)) {
+        card.classList.add("seen-local-story");
+      }
       const published = item.publishedAt ? formatTime(item.publishedAt) : "";
       const dateBadge = getPublishedDateBadge(item);
       const summary = getDisplaySummary(item);
@@ -482,6 +546,7 @@ function groupFeedByAge(items) {
     { label: "Earlier today (3–12h)", min: 3, max: 12, items: [] },
     { label: "Last 24 hours", min: 12, max: 24, items: [] },
     { label: "Yesterday (24–48h)", min: 24, max: 48, items: [] },
+    { label: "This week (2–7d)", min: 48, max: 168, items: [] },
   ];
   const undated = { label: "Undated", items: [] };
 
