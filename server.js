@@ -103,6 +103,13 @@ const {
   readLocalSourceRegistry,
   saveLocalIntelligenceRun,
 } = require("./lib/local-intelligence-engine");
+const {
+  expireOldStories,
+  findStoryClusterBySlug,
+  getExpiredStoryClusterResponse,
+  getLiveStoriesForCity,
+} = require("./lib/local-story-expiration");
+const { slugify: slugifyLocalId } = require("./lib/local-intelligence-models");
 const { runLocalWorkerBatch } = require("./lib/local-intelligence-worker");
 const {
   applyCoverageContext,
@@ -1610,6 +1617,40 @@ function resolveLocalRequestPlace(city, state) {
   });
 }
 
+function getLocalCityIdFromPlace(place = {}) {
+  const citySlug = slugifyLocalId(place.name || place.city || "");
+  const stateAbbr = cleanText(place.state || place.state_abbr || place.stateCode || "").toLowerCase();
+  return [citySlug, stateAbbr].filter(Boolean).join("-");
+}
+
+function toPublicLocalStoryCluster(cluster = {}) {
+  return {
+    id: cluster.id,
+    slug: cluster.slug,
+    headline: cluster.headline,
+    title: cluster.headline,
+    summary: cluster.summary,
+    cityId: cluster.city_id,
+    topic: cluster.primary_topic,
+    confidenceLabel: cluster.confidence_label,
+    urgency: cluster.urgency,
+    sourceCount: cluster.source_count,
+    officialSourceCount: cluster.official_source_count,
+    firstSeenAt: cluster.first_seen_at,
+    lastUpdatedAt: cluster.last_updated_at,
+    publicStartedAt: cluster.public_started_at,
+    expiresAt: cluster.expires_at,
+    publicStatus: cluster.public_status,
+    indexStatus: cluster.index_status,
+  };
+}
+
+function getLiveLocalStoryClustersForPlace(place = {}) {
+  const cityId = getLocalCityIdFromPlace(place);
+  if (!cityId) return [];
+  return getLiveStoriesForCity(cityId).map(toPublicLocalStoryCluster);
+}
+
 function recordLocalHealth({
   query,
   place,
@@ -1853,6 +1894,14 @@ async function refreshNews() {
 }
 
 function refreshNewsSafely() {
+  try {
+    expireOldStories();
+  } catch (error) {
+    cache.sourceErrors = [
+      ...(cache.sourceErrors || []),
+      { source: "local-story-expiration", message: error.message },
+    ];
+  }
   refreshNews().catch((error) => {
     cache.sourceErrors = [{ source: "system", message: error.message }];
   });
@@ -4777,6 +4826,12 @@ app.get("/stories/:slug", (req, res) => {
   }
   const story = findApprovedStoryBySlug(req.params.slug);
   if (!story) {
+    const localCluster = findStoryClusterBySlug(req.params.slug);
+    const clusterExpiration = getExpiredStoryClusterResponse(localCluster);
+    if (clusterExpiration.expired) {
+      res.setHeader("X-Robots-Tag", "noindex, follow, noarchive");
+      return res.status(clusterExpiration.status).send(renderExpiredStoryPage(localCluster));
+    }
     return res.status(404).send(renderStoryNotFoundPage());
   }
   res.send(renderPublicStoryPage(story, { origin: getPublicBaseUrl(req) }));
@@ -5393,7 +5448,14 @@ app.get("/api/stories/:slug", (req, res) => {
   const expiration = getExpiredStoryResponse(storedStory);
   if (expiration.expired) return res.status(expiration.status).json({ error: expiration.message });
   const story = findApprovedStoryBySlug(req.params.slug);
-  if (!story) return res.status(404).json({ error: "Story not found" });
+  if (!story) {
+    const localCluster = findStoryClusterBySlug(req.params.slug);
+    const clusterExpiration = getExpiredStoryClusterResponse(localCluster);
+    if (clusterExpiration.expired) {
+      return res.status(clusterExpiration.status).json({ error: clusterExpiration.message });
+    }
+    return res.status(404).json({ error: "Story not found" });
+  }
   res.json(story);
 });
 
@@ -5436,6 +5498,7 @@ app.get("/api/local", async (req, res) => {
     const payload = {
       updatedAt: new Date().toISOString(),
       items: [],
+      storyClusters: [],
       place,
       query: "",
       variants: [],
@@ -5446,16 +5509,25 @@ app.get("/api/local", async (req, res) => {
   }
   try {
     const payload = await fetchLocalNews(place);
+    const storyClusters = getLiveLocalStoryClustersForPlace(place);
+    const responsePayload = {
+      ...payload,
+      storyClusters,
+      localIntelligence: {
+        ...payload.localIntelligence,
+        liveStoryClusterCount: storyClusters.length,
+      },
+    };
     recordLocalHealth({
-      query: payload.query,
-      place: payload.place,
-      itemCount: payload.items.length,
-      sourceCount: payload.sourceCount,
-      summaryHealth: payload.summaryHealth,
-      summaryResearch: payload.summaryResearch,
-      localIntelligence: payload.localIntelligence,
+      query: responsePayload.query,
+      place: responsePayload.place,
+      itemCount: responsePayload.items.length,
+      sourceCount: responsePayload.sourceCount,
+      summaryHealth: responsePayload.summaryHealth,
+      summaryResearch: responsePayload.summaryResearch,
+      localIntelligence: responsePayload.localIntelligence,
     });
-    res.json(payload);
+    res.json(responsePayload);
   } catch (error) {
     recordLocalHealth({
       query: place.display || city,

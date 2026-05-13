@@ -58,6 +58,18 @@ const {
   getOfficialIncidentReferences,
 } = require("../lib/local-story-clustering");
 const {
+  expireOldStories,
+  findStoryClusterBySlug,
+  getExpiredStoryClusterResponse,
+  getGoogleNewsSitemapStoryClusters,
+  getLiveStoriesForCity,
+  getLiveStoriesForTopic,
+  getPublicSearchableStoryClusters,
+  getPublicStoryWindowState,
+  getRegularSitemapStoryClusters,
+  isPublicStoryLive,
+} = require("../lib/local-story-expiration");
+const {
   normalizeCity,
   normalizeCityTopicCoverage,
   normalizeInputSignal,
@@ -102,6 +114,10 @@ function expect(condition, message) {
 
 function daysAgo(days) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function fixtureDateFrom(now, deltaMs) {
+  return new Date(new Date(now).getTime() + deltaMs).toISOString();
 }
 
 function writeJson(filePath, payload) {
@@ -705,6 +721,87 @@ expect(typeof clusteringService.clusterInputSignal === "function", "Clustering s
 expect(clusterInputSignals([], { paths: clusterFixture.paths }).length === 0, "Batch clustering should safely handle an empty signal list.");
 expect(clusterUnclusteredInputSignals({ paths: clusterFixture.paths, sources: clusteringSources }).length === 0, "Clustered fixture signals should not be processed again as unclustered.");
 
+const expirationFixture = createRegistryFixture();
+const expirationNow = "2026-05-12T12:00:00.000Z";
+const liveWithinGoogleNews = normalizeStoryCluster({
+  id: "cluster-live-24h",
+  city_id: modelCity.id,
+  primary_topic: "traffic",
+  slug: "live-road-closure-24h",
+  headline: "San Diego road closure remains active today",
+  summary: "A current local traffic cluster remains inside the first 48 hours.",
+  confidence_label: "official",
+  urgency: "high",
+  public_started_at: fixtureDateFrom(expirationNow, -24 * 60 * 60 * 1000),
+  expires_at: fixtureDateFrom(expirationNow, 6 * 24 * 60 * 60 * 1000),
+  public_status: "live",
+  index_status: "index",
+  source_count: 2,
+  official_source_count: 1,
+});
+const liveDayFour = normalizeStoryCluster({
+  id: "cluster-live-day-four",
+  city_id: modelCity.id,
+  primary_topic: "schools",
+  slug: "school-board-plan-day-four",
+  headline: "San Diego school board plan remains current this week",
+  summary: "A local schools cluster remains public but is outside Google News eligibility.",
+  confidence_label: "confirmed_multiple_sources",
+  urgency: "normal",
+  public_started_at: fixtureDateFrom(expirationNow, -4 * 24 * 60 * 60 * 1000),
+  expires_at: fixtureDateFrom(expirationNow, 3 * 24 * 60 * 60 * 1000),
+  public_status: "live",
+  index_status: "index",
+  source_count: 2,
+  official_source_count: 0,
+});
+const expiredCluster = normalizeStoryCluster({
+  id: "cluster-expired",
+  city_id: modelCity.id,
+  primary_topic: "community",
+  slug: "expired-community-update",
+  headline: "Older San Diego community update",
+  summary: "This old local cluster should not remain public.",
+  confidence_label: "reported_one_source",
+  urgency: "normal",
+  public_started_at: fixtureDateFrom(expirationNow, -8 * 24 * 60 * 60 * 1000),
+  expires_at: fixtureDateFrom(expirationNow, -1 * 24 * 60 * 60 * 1000),
+  public_status: "live",
+  index_status: "index",
+  source_count: 1,
+});
+writeJson(expirationFixture.paths.storyClusters, {
+  schemaVersion: "live-news-story-clusters-v1",
+  updatedAt: null,
+  story_clusters: [liveWithinGoogleNews, liveDayFour, expiredCluster],
+});
+
+expect(isPublicStoryLive(liveWithinGoogleNews, { now: expirationNow }), "0-48 hour clusters should remain publicly live.");
+expect(getPublicStoryWindowState(liveWithinGoogleNews, { now: expirationNow }).googleNewsEligible, "0-48 hour clusters should be Google News sitemap eligible.");
+expect(getPublicStoryWindowState(liveWithinGoogleNews, { now: expirationNow }).alertEligible, "0-48 hour clusters should be alert/newsletter eligible.");
+expect(isPublicStoryLive(liveDayFour, { now: expirationNow }), "Day 3-7 clusters should remain public.");
+expect(!getPublicStoryWindowState(liveDayFour, { now: expirationNow }).googleNewsEligible, "Day 3-7 clusters should not be Google News sitemap eligible.");
+expect(getPublicStoryWindowState(liveDayFour, { now: expirationNow }).cityTopicEligible, "Day 3-7 clusters should remain city/topic eligible.");
+expect(!isPublicStoryLive(expiredCluster, { now: expirationNow }), "After day 7 clusters should not be public.");
+
+const expirationResult = expireOldStories({ paths: expirationFixture.paths, now: expirationNow });
+expect(expirationResult.expiredCount === 1, "expireOldStories should mark only expired live clusters.");
+const clustersAfterExpiration = readFixtureJson(expirationFixture.paths.storyClusters).story_clusters;
+const expiredAfterJob = clustersAfterExpiration.find((cluster) => cluster.id === "cluster-expired");
+expect(expiredAfterJob.public_status === "expired", "Expired story clusters should be marked expired.");
+expect(expiredAfterJob.index_status === "noindex", "Expired story clusters should be removed from public indexes.");
+expect(
+  readFixtureJson(expirationFixture.paths.storyClusterEvents).story_cluster_events.some((event) => event.story_cluster_id === "cluster-expired" && event.event_type === "expired"),
+  "expireOldStories should create an expired story_cluster_event."
+);
+expect(getLiveStoriesForCity(modelCity.id, { paths: expirationFixture.paths, now: expirationNow }).length === 2, "City pages should only receive live clusters younger than 7 days.");
+expect(getLiveStoriesForTopic(modelCity.id, "traffic", { paths: expirationFixture.paths, now: expirationNow }).length === 1, "Topic pages should only receive live clusters younger than 7 days.");
+expect(!getPublicSearchableStoryClusters({ paths: expirationFixture.paths, now: expirationNow }).some((cluster) => cluster.id === "cluster-expired"), "Public search cluster helper should exclude expired clusters.");
+expect(!getRegularSitemapStoryClusters({ paths: expirationFixture.paths, now: expirationNow }).some((cluster) => cluster.id === "cluster-expired"), "Regular sitemap cluster helper should exclude expired clusters.");
+expect(getGoogleNewsSitemapStoryClusters({ paths: expirationFixture.paths, now: expirationNow }).length === 1, "Google News sitemap helper should only include indexable live clusters from 0-48 hours.");
+expect(findStoryClusterBySlug("expired-community-update", { paths: expirationFixture.paths }).id === "cluster-expired", "Expired clusters should remain privately findable by slug.");
+expect(getExpiredStoryClusterResponse(expiredAfterJob, { now: expirationNow }).status === 410, "Expired local story cluster URLs should return 410.");
+
 const modelTopicCoverage = normalizeCityTopicCoverage({
   city_id: modelCity.id,
   topic: "local_government",
@@ -1071,10 +1168,14 @@ processCursorSource(
   const localHtml = fs.readFileSync(path.join(root, "public", "local.html"), "utf8");
 
   expect(docs.includes("Seven-Day Public Expiration"), "Architecture doc should explain 7-day public expiration.");
+  expect(docs.includes("Story Expiration Job"), "Architecture doc should explain the story expiration job.");
   expect(docs.includes("Source Intake Policy"), "Architecture doc should explain local source intake policy.");
   expect(docs.includes("STORY_PUBLIC_TTL_DAYS"), "Architecture doc should document local intelligence environment configuration.");
   expect(docs.includes("localStorage"), "Architecture doc should explain anonymous localStorage personalization.");
   expect(serverJs.includes("buildLocalIntelligenceRun"), "Server local API should use the Local Intelligence Engine.");
+  expect(serverJs.includes("expireOldStories"), "Server refresh loop should run the local story expiration job.");
+  expect(serverJs.includes("getLiveStoriesForCity"), "Server local API should filter local story clusters through live city helpers.");
+  expect(serverJs.includes("getExpiredStoryClusterResponse"), "Server story route should return expired local cluster responses.");
   expect(serverJs.includes("runLocalWorkerBatch"), "Server local intake should use the safe local worker abstraction.");
   expect(serverJs.includes("LOCAL_INTELLIGENCE_CONFIG.crawlerUserAgent"), "Server parser should use the configured crawler user agent.");
   expect(serverJs.includes("isWithinNewsSitemapWindow"), "Server news sitemap should use the 48-hour news window.");

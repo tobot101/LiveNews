@@ -108,6 +108,9 @@ Configuration is validated in `lib/local-intelligence-config.js`.
 
 Public local story details must be current.
 
+- `0-48 hours`: stories are public, eligible for the Google News sitemap, eligible for city/topic pages, and eligible for alerts or newsletters.
+- `Day 3-7`: stories are public and still eligible for city/topic pages, but are not eligible for the Google News sitemap.
+- `After day 7`: stories are not public, not eligible for city/topic pages, not eligible for internal public search, not eligible for any sitemap, and direct URLs return `410 Gone` or a minimal expired notice.
 - Public story lists only show stories from the last 7 days.
 - City pages only show story clusters from the last 7 days.
 - Topic pages only show story clusters from the last 7 days.
@@ -123,6 +126,10 @@ Engine helpers:
 - `isWithinPublicWindow(item)`
 - `filterCurrentPublicStories(items)`
 - `getExpiredStoryResponse(story)`
+- `isPublicStoryLive(story)`
+- `getLiveStoriesForCity(cityId)`
+- `getLiveStoriesForTopic(cityId, topic)`
+- `expireOldStories()`
 
 ## Data Model
 
@@ -549,6 +556,26 @@ Confidence labels:
 - `community_source`: community/blog source without official or established publisher confirmation.
 - `developing`: story is changing or lacks complete detail.
 - `low_confidence`: weak source or unclear locality; set `noindex` and do not alert.
+
+## Story Expiration Job
+
+The story expiration job lives in `lib/local-story-expiration.js`.
+
+The job keeps public local coverage fresh without deleting private intelligence metadata.
+
+Rules enforced by the job:
+
+- `isPublicStoryLive(story)` returns true only when `public_status` is `live`, `public_started_at` is within the configured 7-day window, and `expires_at` is still in the future.
+- `expireOldStories()` marks clusters older than the public window as `public_status: expired` and `index_status: noindex`.
+- Expiration creates a `story_cluster_events` row with `event_type: expired`.
+- Expired clusters remain in private JSON storage for deduplication, source quality, city intelligence, and future relevance.
+- `getLiveStoriesForCity(cityId)` and `getLiveStoriesForTopic(cityId, topic)` return only live clusters from the last 7 days.
+- `getPublicSearchableStoryClusters()` excludes expired clusters from public internal search.
+- `getRegularSitemapStoryClusters()` excludes expired clusters and only returns indexable live clusters.
+- `getGoogleNewsSitemapStoryClusters()` only returns indexable live clusters inside the configured 48-hour Google News window.
+- Direct expired cluster URLs return `410 Gone` or the minimal expired notice, without old story details.
+
+The Express refresh loop runs the expiration job before the normal news refresh so stale clusters are removed from public eligibility before new responses are built.
 
 ## City/Topic Page Behavior
 
