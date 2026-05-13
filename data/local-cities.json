@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "live-news-local-cities-v1",
+  "updatedAt": "2026-05-12T00:00:00.000Z",
+  "cities": [
+    {
+      "id": "city-san-diego-ca",
+      "name": "San Diego",
+      "slug": "san-diego",
+      "state_name": "California",
+      "state_slug": "california",
+      "state_abbr": "CA",
+      "county_name": "San Diego County",
+      "timezone": "America/Los_Angeles",
+      "latitude": 32.715738,
+      "longitude": -117.161084,
+      "population": null,
+      "coverage_score": 0,
+      "index_status": "watch",
+      "last_fresh_story_at": null,
+      "created_at": "2026-05-12T00:00:00.000Z",
+      "updated_at": "2026-05-12T00:00:00.000Z"
+    },
+    {
+      "id": "city-los-angeles-ca",
+      "name": "Los Angeles",
+      "slug": "los-angeles",
+      "state_name": "California",
+      "state_slug": "california",
+      "state_abbr": "CA",
+      "county_name": "Los Angeles County",
+      "timezone": "America/Los_Angeles",
+      "latitude": 34.052235,
+      "longitude": -118.243683,
+      "population": null,
+      "coverage_score": 0,
+      "index_status": "watch",
+      "last_fresh_story_at": null,
+      "created_at": "2026-05-12T00:00:00.000Z",
+      "updated_at": "2026-05-12T00:00:00.000Z"
+    },
+    {
+      "id": "city-new-york-ny",
+      "name": "New York",
+      "slug": "new-york",
+      "state_name": "New York",
+      "state_slug": "new-york",
+      "state_abbr": "NY",
+      "county_name": "New York County",
+      "timezone": "America/New_York",
+      "latitude": 40.712728,
+      "longitude": -74.006015,
+      "population": null,
+      "coverage_score": 0,
+      "index_status": "watch",
+      "last_fresh_story_at": null,
+      "created_at": "2026-05-12T00:00:00.000Z",
+      "updated_at": "2026-05-12T00:00:00.000Z"
+    }
+  ]
+}

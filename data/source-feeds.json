@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "live-news-source-feeds-v1",
+  "updatedAt": "2026-05-12T00:00:00.000Z",
+  "source_feeds": [
+    {
+      "id": "feed-google-news-local-rss-search",
+      "source_id": "google-news-local-rss-search",
+      "feed_type": "rss",
+      "url": "https://news.google.com/rss/search?q={{query}}&hl=en-US&gl=US&ceid=US:en",
+      "active": true,
+      "fetch_frequency_minutes": 15,
+      "last_fetched_at": null,
+      "next_fetch_at": null,
+      "etag": "",
+      "last_modified_header": "",
+      "created_at": "2026-05-12T00:00:00.000Z",
+      "updated_at": "2026-05-12T00:00:00.000Z"
+    }
+  ]
+}

@@ -124,72 +124,207 @@ Engine helpers:
 
 ## Data Model
 
-### LocalSource
+The repo currently uses JSON files as its data layer. The Local Intelligence Engine models the requested database tables as JSON-backed collections with normalizers and validators in `lib/local-intelligence-models.js`. If Live News later moves to Prisma, Drizzle, or SQL, these schemas should become the migration source of truth.
 
-Stored in `data/local-intelligence-sources.json`.
+### cities
+
+Stored in `data/local-cities.json`.
 
 Fields:
 
 - `id`
 - `name`
-- `type`
-- `enabled`
-- `approvedPublicSource`
-- `access`
-- `collectionMethod`
-- `requiresCredentials`
-- `robotsPolicy`
-- `rateLimit`
-- `cursorSupport`
+- `slug`
+- `state_name`
+- `state_slug`
+- `state_abbr`
+- `county_name`
+- `timezone`
+- `latitude`
+- `longitude`
+- `population`
+- `coverage_score`
+- `index_status`: `watch`, `noindex`, or `index`
+- `last_fresh_story_at`
+- `created_at`
+- `updated_at`
+
+### local_sources
+
+Stored in `data/local-sources.json`.
+
+Fields:
+
+- `id`
+- `name`
+- `slug`
+- `homepage_url`
+- `source_type`: `local_news`, `tv`, `radio`, `official_city`, `official_county`, `police_fire`, `school`, `transit`, `weather`, `event`, `blog`, `community`, `sports`, or `other`
+- `trust_level`: `official`, `established_publisher`, `community`, `blog`, or `unknown`
+- `crawl_status`: `active`, `paused`, `blocked_by_robots`, `failed`, or `pending_review`
+- `robots_checked_at`
+- `last_successful_fetch_at`
+- `last_failed_fetch_at`
+- `created_at`
+- `updated_at`
+
+### source_feeds
+
+Stored in `data/source-feeds.json`.
+
+Fields:
+
+- `id`
+- `source_id`
+- `feed_type`: `rss`, `atom`, `sitemap`, `api`, or `html`
+- `url`
+- `active`
+- `fetch_frequency_minutes`
+- `last_fetched_at`
+- `next_fetch_at`
+- `etag`
+- `last_modified_header`
+- `created_at`
+- `updated_at`
+
+### source_city_coverage
+
+Stored in `data/source-city-coverage.json`.
+
+Fields:
+
+- `source_id`
+- `city_id`
+- `confidence`
+- `coverage_type`: `primary`, `nearby`, `statewide`, or `regional`
+
+### source_fetch_runs
+
+Stored in `data/source-fetch-runs.json`.
+
+Fields:
+
+- `id`
+- `source_feed_id`
+- `started_at`
+- `finished_at`
+- `status`: `success`, `failed`, or `skipped`
+- `status_code`
+- `items_found`
+- `items_new`
+- `error_message`
+
+### input_signals
+
+Stored in `data/input-signals.json`.
+
+Fields:
+
+- `id`
+- `source_id`
+- `source_feed_id`
+- `canonical_url`
+- `original_url`
+- `title`
+- `excerpt`
+- `author`
+- `published_at`
+- `discovered_at`
+- `fetched_at`
+- `content_hash`
+- `url_hash`
+- `raw_source_type`
+- `city_candidates_json`
+- `topic_candidates_json`
+- `entities_json`
+- `language`
+- `signal_status`: `new`, `classified`, `clustered`, `rejected`, or `expired_private`
+- `rejection_reason`
+- `created_at`
+- `updated_at`
+
+### story_clusters
+
+Stored in `data/story-clusters.json`.
+
+Fields:
+
+- `id`
+- `city_id`
+- `primary_topic`
+- `slug`
+- `headline`
+- `summary`
+- `confidence_label`: `official`, `confirmed_multiple_sources`, `reported_one_source`, `community_source`, `developing`, or `low_confidence`
+- `urgency`: `breaking`, `high`, `normal`, or `low`
+- `first_seen_at`
+- `last_updated_at`
+- `public_started_at`
+- `expires_at`
+- `public_status`: `live`, `expired`, `hidden`, or `rejected`
+- `index_status`: `noindex` or `index`
+- `source_count`
+- `official_source_count`
+- `latest_signal_id`
+- `created_at`
+- `updated_at`
+
+### story_cluster_signals
+
+Stored in `data/story-cluster-signals.json`.
+
+Fields:
+
+- `story_cluster_id`
+- `input_signal_id`
+- `source_id`
+- `is_primary`
+- `added_at`
+
+### story_cluster_events
+
+Stored in `data/story-cluster-events.json`.
+
+Fields:
+
+- `id`
+- `story_cluster_id`
+- `event_time`
+- `event_type`: `first_seen`, `source_added`, `official_update`, `summary_updated`, `confidence_changed`, or `expired`
+- `description`
+- `created_at`
+
+### city_topic_coverage
+
+Stored in `data/city-topic-coverage.json`.
+
+Fields:
+
+- `id`
+- `city_id`
+- `topic`
+- `fresh_story_count_24h`
+- `fresh_story_count_7d`
+- `source_count_7d`
+- `official_source_count_7d`
+- `coverage_score`
+- `index_status`: `watch`, `noindex`, or `index`
+- `last_updated_at`
+
+### user_submitted_sources
+
+Stored in `data/user-submitted-sources.json`.
+
+Fields:
+
+- `id`
+- `submitted_url`
+- `submitted_city`
+- `submitted_email_optional`
+- `status`: `pending`, `approved`, or `rejected`
 - `notes`
-
-Only enabled, approved public source definitions should be used for public intake.
-
-### LocalSignal
-
-Created from approved public source output.
-
-Fields:
-
-- `id`
-- `title`
-- `summary`
-- `link`
-- `sourceName`
-- `sourceDomain`
-- `publishedAt`
-- `category`
-- `city`
-- `state`
-- `topic`
-- `topicTags`
-- `classification`
-- `sourceSafety`
-
-Signals are source-linked facts and metadata. They are not full publisher article copies.
-
-### LocalStoryCluster
-
-Public local pages use clusters instead of raw source dumps.
-
-Fields:
-
-- `id`
-- `title`
-- `summary`
-- `link`
-- `publishedAt`
-- `sourceName`
-- `sourceCount`
-- `relatedSources`
-- `supportingLinks`
-- `city`
-- `state`
-- `topic`
-- `topicTags`
-- `localRelevanceScore`
-- `expiresAt`
-- `publicStatus`
+- `created_at`
+- `reviewed_at`
 
 ### LocalIntelligenceRun
 

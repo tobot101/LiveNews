@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "live-news-source-city-coverage-v1",
+  "updatedAt": "2026-05-12T00:00:00.000Z",
+  "source_city_coverage": [
+    {
+      "source_id": "google-news-local-rss-search",
+      "city_id": "city-san-diego-ca",
+      "confidence": 45,
+      "coverage_type": "regional"
+    },
+    {
+      "source_id": "google-news-local-rss-search",
+      "city_id": "city-los-angeles-ca",
+      "confidence": 45,
+      "coverage_type": "regional"
+    },
+    {
+      "source_id": "google-news-local-rss-search",
+      "city_id": "city-new-york-ny",
+      "confidence": 45,
+      "coverage_type": "regional"
+    }
+  ]
+}
