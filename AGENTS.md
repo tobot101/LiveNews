@@ -471,6 +471,54 @@ Keep existing Live News rules:
 - No copied comments.
 - No copied publisher wording.
 
+## Live News Local Intelligence Rules
+
+Unlimited local intake means no artificial cap on approved public source signals.
+
+Unlimited intake does not mean:
+
+- Uncontrolled crawling.
+- Scraping private pages.
+- Bypassing paywalls.
+- Ignoring robots.txt.
+- Ignoring source terms.
+- Republishing full copyrighted articles.
+
+The Local Intelligence Engine should prioritize:
+
+- RSS/Atom feeds.
+- XML sitemaps.
+- Official APIs.
+- Official government and public agency pages.
+- Approved public pages.
+- User-submitted sources after review.
+- Licensed data providers if added later.
+
+Local source intake must store only what is needed for:
+
+- Classification.
+- Deduplication.
+- Attribution.
+- Summary generation.
+- City/topic intelligence.
+- Source quality.
+- Future relevance and trend detection.
+
+Do not publish full external article text.
+Do not store full source article text as preferred writing memory.
+Do not treat public comments as verified facts.
+
+Public story pages must:
+
+- Link to original sources.
+- Attribute the original source clearly.
+- Add Live News context.
+- Use Live News original writing.
+- Avoid copying publisher wording or sentence structure.
+- Avoid showing public story details older than 7 days.
+
+Expired local story metadata may be retained privately for deduplication, source quality, city intelligence, trend detection, and future relevance, but expired public story details must not be shown publicly.
+
 ## Safety Categories Requiring Human Review
 
 Always require human review for:

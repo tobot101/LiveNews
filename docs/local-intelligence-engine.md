@@ -106,6 +106,18 @@ The intake model is cursor-friendly.
 - The current Google News RSS adapter has no cursor, but the engine is designed so future adapters can process pages until no cursor remains.
 - There is no fixed article intake limit. Limits may be used for UI display only, not for source ingestion.
 
+Unlimited intake means Live News does not impose an artificial cap on approved public source signals. It does not mean uncontrolled crawling, private scraping, paywall bypassing, ignoring robots.txt, ignoring source terms, or republishing full copyrighted articles.
+
+The engine should prioritize source types in this order:
+
+- RSS/Atom feeds
+- XML sitemaps
+- official APIs
+- official government and public agency pages
+- approved public pages
+- user-submitted sources after review
+- licensed data providers if added later
+
 Allowed source types include:
 
 - official RSS feeds
@@ -124,6 +136,14 @@ Blocked intake:
 - paywall bypassing
 - full article republication
 - scraping against source terms
+
+## Source Text and Public Page Boundaries
+
+Live News must not publish full external article text. Source intake should store only what is needed for classification, deduplication, attribution, summary generation, city/topic intelligence, source quality, and future relevance.
+
+Public story pages must link to original sources, clearly attribute them, and add Live News context with original Live News writing. They should not copy publisher wording, copy sentence structure, copy public comments, or expose full source article text.
+
+Historical source metadata can remain private for deduplication, source quality, city intelligence, trend detection, and future relevance, but expired public story details must not be shown after the 7-day public window.
 
 ## Seven-Day Public Expiration
 
@@ -210,4 +230,3 @@ Required checks:
 - Thin city pages return `noindex, follow`.
 - LocalStorage personalization has safe fallback behavior.
 - Existing writing, social, Meta, local-news, search, SEO, and homepage checks still pass.
-
