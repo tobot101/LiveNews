@@ -64,14 +64,17 @@ const localCrawlablePages = fs.readFileSync(path.join(root, "lib", "local-crawla
 
 expect(serverJs.includes("resolveLocalRequestPlace"), "Server local API should resolve typed city/state input.");
 expect(serverJs.includes("localHealthStats"), "Server health should include local-news stability diagnostics.");
-expect(serverJs.includes("hydrateSummaryResearch(diversified"), "Local news should run source-page summary research before generating summaries.");
+expect(serverJs.includes("LOCAL_RESPONSE_SUMMARY_RESEARCH_LIMIT"), "Local news should cap slow source-page summary research separately from intake.");
+expect(serverJs.includes("summaryResearchTargets"), "Local news should run source-page summary research on a compact first response batch.");
 expect(serverJs.includes("const summaryHealth = getSummaryHealth(summarized)"), "Local API should return summary health for local stories.");
 expect(serverJs.includes("lastAudienceIntelligence"), "Server health should expose local audience-intelligence diagnostics.");
 expect(serverJs.includes("hasLocalRelevance(item, place)"), "Local feeds should filter weak city matches before summary agents run.");
 expect(serverJs.includes("LOCAL_CITY_ALIASES"), "Local feeds should keep city-specific aliases for teams and neighborhoods.");
 expect(serverJs.includes("live & on demand"), "Local feeds should block event listings that cannot produce useful news summaries.");
 expect(serverJs.includes("getPlaceSearchScore"), "City search should rank major exact city matches before smaller same-name places.");
-expect(serverJs.includes("localArticleFeed = await fetchLocalNews"), "Crawlable city routes should pre-render local article intelligence when available.");
+expect(serverJs.includes("localArticleFeed = getCachedLocalNews(place)"), "Crawlable city routes should render quickly from cached local article intelligence when available.");
+expect(serverJs.includes("refreshLocalNewsInBackground(place)"), "Crawlable city routes should refresh local article intelligence in the background instead of blocking HTML.");
+expect(serverJs.includes("paginateLocalPayload"), "Local API should paginate response items so large local feeds stay responsive.");
 expect(indexHtml.includes("home-search-local-panel"), "Homepage should expose Local News inside the compact Search + Local module.");
 expect(indexHtml.includes('id="topCityGrid"'), "Homepage compact Local News should render city chips.");
 expect(indexHtml.includes('id="localDeepDive" href="/local/cities"'), "Homepage compact Local News should link See more to the full city directory page.");
@@ -88,6 +91,7 @@ expect(localJs.includes("getPublishedDateBadge(item)"), "Dedicated local page sh
 expect(stylesCss.includes(".local-story-card"), "Dedicated local page should style local stories like readable Live News cards.");
 expect(localCrawlablePages.includes("data-local-live-feed"), "Crawlable city pages should mount a live article feed.");
 expect(localCrawlablePages.includes('fetch("/api/local?"'), "Crawlable city pages should load recent local articles from the existing local API.");
+expect(localCrawlablePages.includes('limit: "12"'), "Crawlable city pages should request a compact first batch of local articles.");
 expect(localCrawlablePages.includes("Local Pulse") && localCrawlablePages.includes("clusters.length ?"), "Cluster dashboard sections should only render when cluster data exists.");
 
 if (failures.length) {

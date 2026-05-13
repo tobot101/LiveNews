@@ -174,6 +174,9 @@ const TOP_STORIES_LIMIT = Number(process.env.NEWS_TOP_STORIES_LIMIT || 8);
 const FEED_LIMIT = Number(process.env.NEWS_FEED_LIMIT || 170);
 const LOCAL_POOL_LIMIT = Number(process.env.LOCAL_POOL_LIMIT || 60);
 const LOCAL_SOURCE_CAP = Number(process.env.LOCAL_SOURCE_CAP || 4);
+const LOCAL_RESPONSE_ITEM_LIMIT = Number(process.env.LOCAL_RESPONSE_ITEM_LIMIT || 48);
+const LOCAL_RESPONSE_SUMMARY_RESEARCH_LIMIT = Number(process.env.LOCAL_RESPONSE_SUMMARY_RESEARCH_LIMIT || 8);
+const LOCAL_RESPONSE_SUMMARY_RESEARCH_TIMEOUT_MS = Number(process.env.LOCAL_RESPONSE_SUMMARY_RESEARCH_TIMEOUT_MS || 900);
 const IMAGE_LOOKUP_LIMIT = Number(process.env.IMAGE_LOOKUP_LIMIT || 18);
 const IMAGE_LOOKUP_CONCURRENCY = Number(process.env.IMAGE_LOOKUP_CONCURRENCY || 4);
 const IMAGE_LOOKUP_TIMEOUT_MS = Number(process.env.IMAGE_LOOKUP_TIMEOUT_MS || 1800);
@@ -513,6 +516,7 @@ const majorCitySearchOrder = new Map([
   "oregon/portland",
 ].map((key, index) => [key, index]));
 const localCache = new Map();
+const localRefreshInFlight = new Map();
 let lastLocalIntelligenceRun = null;
 const articleImageCache = new Map();
 const articleImageMetadataCache = new Map();
@@ -1713,6 +1717,73 @@ function getLiveLocalStoryClustersForPlace(place = {}) {
   return getLiveStoriesForCity(cityId).map(toPublicLocalStoryCluster);
 }
 
+function getLocalCacheKey(place = {}) {
+  const city = String(place?.name || "").trim();
+  const state = String(place?.state || "").trim();
+  return `${city}|${state}`.toLowerCase();
+}
+
+function getCachedLocalNews(place = {}) {
+  const cached = localCache.get(getLocalCacheKey(place));
+  if (!cached) return null;
+  const now = Date.now();
+  if (now - cached.fetchedAt > REFRESH_MINUTES * 60 * 1000) return null;
+  return cached.payload;
+}
+
+function fetchLocalNewsOnce(place = {}) {
+  const key = getLocalCacheKey(place);
+  if (!key || key === "|") return Promise.resolve(null);
+  const cached = getCachedLocalNews(place);
+  if (cached) return Promise.resolve(cached);
+  if (localRefreshInFlight.has(key)) return localRefreshInFlight.get(key);
+  const promise = fetchLocalNews(place)
+    .finally(() => {
+      localRefreshInFlight.delete(key);
+    });
+  localRefreshInFlight.set(key, promise);
+  return promise;
+}
+
+function refreshLocalNewsInBackground(place = {}) {
+  fetchLocalNewsOnce(place)
+    .catch((error) => {
+      recordLocalHealth({
+        query: place.display || [place.name, place.state].filter(Boolean).join(", "),
+        place,
+        itemCount: 0,
+        sourceCount: 0,
+        error,
+      });
+    });
+}
+
+function getLocalPagination(req) {
+  const limit = Math.min(Math.max(Number(req.query.limit || LOCAL_RESPONSE_ITEM_LIMIT), 1), 100);
+  const offset = Math.max(Number(req.query.offset || 0), 0);
+  return { limit, offset };
+}
+
+function paginateLocalPayload(payload = {}, pagination = {}) {
+  const limit = Math.min(Math.max(Number(pagination.limit || LOCAL_RESPONSE_ITEM_LIMIT), 1), 100);
+  const offset = Math.max(Number(pagination.offset || 0), 0);
+  const allItems = Array.isArray(payload.items) ? payload.items : [];
+  const items = allItems.slice(offset, offset + limit);
+  const nextOffset = offset + items.length < allItems.length ? offset + items.length : null;
+  return {
+    ...payload,
+    items,
+    totalItems: allItems.length,
+    pagination: {
+      limit,
+      offset,
+      returned: items.length,
+      nextOffset,
+      hasMore: nextOffset !== null,
+    },
+  };
+}
+
 function recordLocalHealth({
   query,
   place,
@@ -1742,7 +1813,7 @@ function recordLocalHealth({
 async function fetchLocalNews(place) {
   const city = String(place?.name || "").trim();
   const state = String(place?.state || "").trim();
-  const key = `${city}|${state}`.toLowerCase();
+  const key = getLocalCacheKey(place);
   const cached = localCache.get(key);
   const now = Date.now();
   if (cached && now - cached.fetchedAt < REFRESH_MINUTES * 60 * 1000) {
@@ -1781,14 +1852,18 @@ async function fetchLocalNews(place) {
   saveLocalIntelligenceRun(localRun);
   const recent = localRun.publicStories.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
   const diversified = recent;
+  const summaryResearchTargets = diversified.slice(0, Math.max(0, LOCAL_RESPONSE_SUMMARY_RESEARCH_LIMIT));
   const localSummaryResearchStats = createSummaryResearchStats();
-  await hydrateSummaryResearch(diversified, {
-    cache: summaryResearchCache,
-    stats: localSummaryResearchStats,
-    limit: diversified.length,
-    concurrency: 3,
-    enableTopicResearch: false,
-  });
+  if (summaryResearchTargets.length) {
+    await hydrateSummaryResearch(summaryResearchTargets, {
+      cache: summaryResearchCache,
+      stats: localSummaryResearchStats,
+      limit: summaryResearchTargets.length,
+      concurrency: 2,
+      timeoutMs: LOCAL_RESPONSE_SUMMARY_RESEARCH_TIMEOUT_MS,
+      enableTopicResearch: false,
+    });
+  }
   const summarized = applyCoverageContextsToItems(applyLiveNewsSummariesToItems(diversified));
   const summaryHealth = getSummaryHealth(summarized);
 
@@ -5015,17 +5090,14 @@ app.get("/local/:stateSlug", (req, res, next) => {
 app.get("/local/:stateSlug/:citySlug", async (req, res, next) => {
   const city = findCityByRoute(req.params.stateSlug, req.params.citySlug);
   if (!city) return next();
-  let localArticleFeed = null;
-  try {
-    localArticleFeed = await fetchLocalNews({
-      name: city.name,
-      state: city.state_abbr,
-      stateName: city.state_name,
-      display: `${city.name}, ${city.state_abbr}`,
-    });
-  } catch {
-    localArticleFeed = null;
-  }
+  const place = {
+    name: city.name,
+    state: city.state_abbr,
+    stateName: city.state_name,
+    display: `${city.name}, ${city.state_abbr}`,
+  };
+  const localArticleFeed = getCachedLocalNews(place);
+  if (!localArticleFeed) refreshLocalNewsInBackground(place);
   return sendLocalCrawlablePage(
     renderLocalCityPage(req.params.stateSlug, req.params.citySlug, { localArticleFeed }),
     res,
@@ -5674,6 +5746,14 @@ app.get("/api/local", async (req, res) => {
     const payload = {
       updatedAt: new Date().toISOString(),
       items: [],
+      totalItems: 0,
+      pagination: {
+        limit: getLocalPagination(req).limit,
+        offset: getLocalPagination(req).offset,
+        returned: 0,
+        nextOffset: null,
+        hasMore: false,
+      },
       storyClusters: [],
       place,
       query: "",
@@ -5684,20 +5764,21 @@ app.get("/api/local", async (req, res) => {
     return res.json(payload);
   }
   try {
-    const payload = await fetchLocalNews(place);
+    const payload = await fetchLocalNewsOnce(place);
+    if (!payload) throw new Error("Unable to resolve local news place.");
     const storyClusters = getLiveLocalStoryClustersForPlace(place);
-    const responsePayload = {
+    const responsePayload = paginateLocalPayload({
       ...payload,
       storyClusters,
       localIntelligence: {
         ...payload.localIntelligence,
         liveStoryClusterCount: storyClusters.length,
       },
-    };
+    }, getLocalPagination(req));
     recordLocalHealth({
       query: responsePayload.query,
       place: responsePayload.place,
-      itemCount: responsePayload.items.length,
+      itemCount: responsePayload.totalItems || responsePayload.items.length,
       sourceCount: responsePayload.sourceCount,
       summaryHealth: responsePayload.summaryHealth,
       summaryResearch: responsePayload.summaryResearch,
@@ -5715,6 +5796,14 @@ app.get("/api/local", async (req, res) => {
     res.json({
       updatedAt: new Date().toISOString(),
       items: [],
+      totalItems: 0,
+      pagination: {
+        limit: getLocalPagination(req).limit,
+        offset: getLocalPagination(req).offset,
+        returned: 0,
+        nextOffset: null,
+        hasMore: false,
+      },
       place,
       error: error.message,
     });
