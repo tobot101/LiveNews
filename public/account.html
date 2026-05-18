@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live News Account</title>
+    <meta name="robots" content="noindex, follow" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Live News home">
+        <img class="brand-mark" src="/brand-mark.png" alt="" aria-hidden="true" />
+        <div class="brand-text">
+          <div class="brand-title">Live News</div>
+          <div class="brand-sub">Anytime &amp; Anywhere</div>
+        </div>
+      </a>
+      <div class="topbar-tools auth-nav">
+        <a class="btn ghost" href="/protected-test">Protected test</a>
+        <a class="btn ghost" href="/login" data-signed-out>Log in</a>
+        <button class="btn ghost" type="button" data-logout data-signed-in hidden>Log out</button>
+      </div>
+    </header>
+
+    <main class="account-page">
+      <section class="panel account-card" id="accountPanel">
+        <p class="story-kicker">Live News account</p>
+        <h1>Account</h1>
+        <p class="panel-note">Membership starts as free. Payment and checkout are intentionally not enabled yet.</p>
+        <div class="account-summary">
+          <div>
+            <span>Email</span>
+            <strong id="accountEmail">Checking...</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="membershipStatus">Checking...</strong>
+          </div>
+          <div>
+            <span>Plan</span>
+            <strong id="membershipPlan">Checking...</strong>
+          </div>
+          <div>
+            <span>Access level</span>
+            <strong id="membershipAccessLevel">Checking...</strong>
+          </div>
+        </div>
+        <p class="account-message" id="accountMessage" aria-live="polite"></p>
+        <div class="account-actions">
+          <a class="btn ghost" href="/signup" data-signed-out>Create account</a>
+          <a class="btn ghost" href="/login" data-signed-out>Log in</a>
+          <button class="btn" type="button" data-logout data-signed-in hidden>Log out</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/auth-ui.js"></script>
+  </body>
+</html>

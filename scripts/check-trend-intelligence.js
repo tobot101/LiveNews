@@ -148,6 +148,90 @@ const siteMetrics = [
 
 const day = rankTopStoryOfDay(stories, trendSignals, siteMetrics, { now });
 const week = rankStoryOfWeek(stories, trendSignals, siteMetrics, { now, daySelection: day });
+const attentionDay = rankTopStoryOfDay(
+  [
+    {
+      id: "fresh-quiet-story",
+      title: "Fresh but quiet city update",
+      liveNewsSummary: "A fresh article is available but has little aggregate traction so far.",
+      category: "National",
+      sourceName: "Live News Test Source",
+      sourceCount: 2,
+      sourceWeight: 1.1,
+      score: 88,
+      publishedAt: "2026-05-10T11:30:00.000Z",
+      approvedStoryUrl: "/stories/fresh-quiet-story-test",
+    },
+    {
+      id: "attention-leader-day",
+      title: "Current article draws the most reader attention today",
+      liveNewsSummary: "A current article has stronger safe aggregate attention from clicks and views.",
+      category: "National",
+      sourceName: "Live News Test Source",
+      sourceCount: 2,
+      sourceWeight: 1.1,
+      score: 86,
+      publishedAt: "2026-05-10T06:00:00.000Z",
+      approvedStoryUrl: "/stories/attention-leader-day-test",
+    },
+  ],
+  [],
+  [
+    {
+      storyId: "attention-leader-day",
+      category: "national",
+      timeframe: "24h",
+      views: 600,
+      linkClicks: 40,
+      engagementVelocity: 5,
+      collectionMethod: "first_party_aggregate_site_performance",
+    },
+  ],
+  { now }
+);
+const attentionWeek = rankStoryOfWeek(
+  [
+    {
+      id: "weekly-quiet-context",
+      title: "School budget attention context update",
+      liveNewsSummary: "The school budget story has useful context but less aggregate traction.",
+      category: "National",
+      sourceName: "Live News Test Source",
+      sourceCount: 2,
+      sourceWeight: 1.1,
+      score: 82,
+      publishedAt: "2026-05-07T09:00:00.000Z",
+      approvedStoryUrl: "/stories/weekly-quiet-context-test",
+    },
+    {
+      id: "weekly-attention-leader",
+      title: "School budget attention draws sustained reader interest",
+      liveNewsSummary: "The school budget story drew stronger sustained reader attention over several days.",
+      category: "National",
+      sourceName: "Live News Test Source",
+      sourceCount: 2,
+      sourceWeight: 1.1,
+      score: 82,
+      publishedAt: "2026-05-08T09:00:00.000Z",
+      approvedStoryUrl: "/stories/weekly-attention-leader-test",
+    },
+  ],
+  [],
+  [
+    {
+      storyId: "weekly-attention-leader",
+      topic: "school budget attention",
+      category: "national",
+      timeframe: "7d",
+      views: 1500,
+      linkClicks: 110,
+      engagementVelocity: 7,
+      sustainedDays: 4,
+      collectionMethod: "first_party_aggregate_site_performance",
+    },
+  ],
+  { now }
+);
 const spikeDay = rankTopStoryOfDay([stories[0], stories[3]], trendSignals, [], { now });
 const unrelatedSustainedMetric = [
   {
@@ -164,6 +248,10 @@ const unrelatedSustainedMetric = [
 const spikeWeekWithUnrelatedMetric = rankStoryOfWeek([stories[0]], [trendSignals[0]], unrelatedSustainedMetric, { now });
 
 expect(spikeDay?.storyId === "viral-day-1", "One-day viral spike should be able to win Top Story of the Day.");
+expect(attentionDay?.storyId === "attention-leader-day", "Top Story of the Day should prefer the current article with the most safe aggregate attention.");
+expect(attentionDay?.attentionScore > 0 && /attention/i.test(attentionDay?.whySelected || ""), "Daily selection should expose and explain the attention signal.");
+expect(attentionWeek?.storyId === "weekly-attention-leader", "Story of the Week should prefer the sustained story with the most safe aggregate attention.");
+expect(attentionWeek?.attentionScore > 0 && /sustained attention/i.test(attentionWeek?.whySelected || ""), "Weekly selection should expose and explain sustained attention.");
 expect(!spikeWeekWithUnrelatedMetric, "One-day spike should not borrow unrelated site metrics to qualify for Story of the Week.");
 expect(week?.storyId !== day?.storyId, "Top Story of the Day and Story of the Week should not select the same article when alternatives exist.");
 expect(week?.storyId !== "viral-day-1", "One-day viral spike should not win Story of the Week by default.");

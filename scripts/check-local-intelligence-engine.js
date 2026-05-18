@@ -91,6 +91,7 @@ const {
   getEligibleLiveCityStories,
   getTopStoryOfDay,
   getTopStoryOfWeek,
+  scoreLocalTopStory,
 } = require("../lib/local-top-stories");
 const {
   normalizeCity,
@@ -1164,6 +1165,25 @@ expect(topStoryOfDay.topStoryLabel === "Top Story of the Day", "Top Story of the
 expect(topStoryOfWeek && topStoryOfWeek.city_id === modelCity.id, "Top Story of the Week should use an eligible live story from the selected city.");
 expect(topStoryOfWeek.id !== topStoryOfDay.id, "Top Story of the Week should use the next best eligible story when the day story is already selected.");
 expect(cityTopStories.day?.id === topStoryOfDay.id && cityTopStories.week?.id === topStoryOfWeek.id, "getCityTopStories should return coordinated day and week selections.");
+const quietBreakingScore = scoreLocalTopStory({
+  ...liveWithinGoogleNews,
+  id: "quiet-breaking-test",
+  urgency: "breaking",
+  views: 0,
+  clicks: 0,
+  saves: 0,
+}, expirationNow);
+const highAttentionScore = scoreLocalTopStory({
+  ...liveDayFour,
+  id: "high-attention-test",
+  urgency: "normal",
+  views: 5000,
+  clicks: 280,
+  shares: 60,
+  saves: 45,
+  commentsCount: 35,
+}, expirationNow);
+expect(highAttentionScore > quietBreakingScore, "Local top-story scoring should prioritize the eligible story receiving the most safe aggregate attention.");
 const citySeoDecision = getCitySeoDecision(modelCity, liveCityClusters, crawlSeoContext, { now: expirationNow });
 expect(citySeoDecision.indexable, "City SEO helper should return indexable when all dynamic city requirements pass.");
 const thinCityEligibility = getCityIndexEligibility({

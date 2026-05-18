@@ -11,10 +11,11 @@
     "agent:approve": "node scripts/approve-draft.js",
     "agent:check": "node scripts/check-article-agents.js",
     "image:check": "node scripts/check-image-quality.js",
-    "test": "node scripts/check-article-agents.js && node scripts/check-story-approval.js && node scripts/check-homepage-structure.js && node scripts/check-search.js && node scripts/check-seo-structure.js && node scripts/check-seo-writing.js && node scripts/check-news-intelligence-layer.js && node scripts/check-trend-intelligence.js && node scripts/check-image-quality.js && node scripts/check-local-news.js && node scripts/check-local-intelligence-engine.js && node scripts/check-local-personalization.js && node scripts/check-live-summaries.js && node scripts/check-writing-intelligence.js && node scripts/check-writing-memory.js && node scripts/check-public-card-writing.js && node scripts/check-entertainment-intelligence.js && node scripts/check-social-publisher.js && node scripts/check-social-intelligence.js && node scripts/check-social-card-generator.js && node scripts/check-social-variant-selection.js && node scripts/check-social-performance.js && node scripts/check-meta-readiness.js && node scripts/check-meta-publishing.js"
+    "test": "node scripts/check-article-agents.js && node scripts/check-story-approval.js && node scripts/check-homepage-structure.js && node scripts/check-search.js && node scripts/check-seo-structure.js && node scripts/check-seo-writing.js && node scripts/check-news-intelligence-layer.js && node scripts/check-trend-intelligence.js && node scripts/check-image-quality.js && node scripts/check-local-news.js && node scripts/check-local-intelligence-engine.js && node scripts/check-local-personalization.js && node scripts/check-membership-foundation.js && node scripts/check-live-summaries.js && node scripts/check-writing-intelligence.js && node scripts/check-writing-memory.js && node scripts/check-public-card-writing.js && node scripts/check-entertainment-intelligence.js && node scripts/check-social-publisher.js && node scripts/check-social-intelligence.js && node scripts/check-social-card-generator.js && node scripts/check-social-variant-selection.js && node scripts/check-social-performance.js && node scripts/check-meta-readiness.js && node scripts/check-meta-publishing.js"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "firebase": "^12.13.0",
     "rss-parser": "^3.13.0"
   }
 }

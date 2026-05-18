@@ -5654,6 +5654,22 @@ app.post("/api/internal/meta/publish/instagram", requireAgentAccess, async (req,
 
 app.use(express.static(path.join(__dirname, "public")));
 
+app.get("/signup", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "signup.html"));
+});
+
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+app.get("/account", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "account.html"));
+});
+
+app.get("/protected-test", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "protected-test.html"));
+});
+
 app.get("/api/news", (req, res) => {
   res.json(buildCurrentNewsPayload());
 });

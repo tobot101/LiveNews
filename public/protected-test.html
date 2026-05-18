@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live News Protected Test</title>
+    <meta name="robots" content="noindex, follow" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Live News home">
+        <img class="brand-mark" src="/brand-mark.png" alt="" aria-hidden="true" />
+        <div class="brand-text">
+          <div class="brand-title">Live News</div>
+          <div class="brand-sub">Anytime &amp; Anywhere</div>
+        </div>
+      </a>
+      <div class="topbar-tools auth-nav">
+        <a class="btn ghost" href="/account">Account</a>
+        <button class="btn ghost" type="button" data-logout data-signed-in hidden>Log out</button>
+      </div>
+    </header>
+
+    <main class="account-page">
+      <section class="panel account-card" id="protectedGate">
+        <p class="story-kicker">Membership access test</p>
+        <h1>Protected page</h1>
+        <p class="panel-note">Allowed statuses: active, trialing, or admin_granted.</p>
+        <p class="account-message" id="protectedMessage" aria-live="polite">Checking access...</p>
+        <div id="protectedAllowed" hidden>
+          <h2>Access allowed</h2>
+          <p>This confirms the reusable membership checker is allowing this account.</p>
+        </div>
+        <div id="protectedBlocked" hidden>
+          <h2>Access blocked</h2>
+          <p id="protectedReason">Membership required.</p>
+          <p class="panel-note">Upgrade messaging can go here later. Stripe and checkout are intentionally not part of Phase 1.</p>
+          <a class="btn ghost" href="/account">View account</a>
+          <a class="btn ghost" href="/login">Log in</a>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/auth-ui.js"></script>
+  </body>
+</html>
