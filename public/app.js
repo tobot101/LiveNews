@@ -489,17 +489,18 @@ function updateBrandShift() {
   if (!brand || !brandTitle) return;
   const topbar = document.querySelector(".topbar");
   const tools = topbar ? topbar.querySelector(".topbar-tools") : null;
-  const limit = tools ? tools.querySelector(".site-search, .compact-local-link, .controls") : null;
-  const brandRect = brand.getBoundingClientRect();
-  const limitRect = limit ? limit.getBoundingClientRect() : null;
-  const containerRect = topbar ? topbar.getBoundingClientRect() : null;
+  const limit = tools
+    ? Array.from(tools.children).find((element) => {
+        const style = window.getComputedStyle(element);
+        return !element.hidden && style.display !== "none" && element.offsetWidth > 0;
+      })
+    : null;
   let maxShift = 0;
   const controlsShareRow =
-    limitRect && Math.abs(limitRect.top - brandRect.top) < Math.max(brandRect.height, 40);
-  if (limitRect && controlsShareRow) {
-    maxShift = Math.max(0, Math.floor(limitRect.left - brandRect.right - 16));
-  } else if (containerRect) {
-    maxShift = Math.max(0, Math.floor(containerRect.right - brandRect.right - 16));
+    limit && Math.abs(limit.offsetTop - brand.offsetTop) < Math.max(brand.offsetHeight, 40);
+  if (limit && controlsShareRow) {
+    const brandRight = brand.offsetLeft + brand.offsetWidth;
+    maxShift = Math.max(0, Math.floor(limit.offsetLeft - brandRight - 24));
   }
   brand.style.setProperty("--brand-shift", `${maxShift}px`);
 }

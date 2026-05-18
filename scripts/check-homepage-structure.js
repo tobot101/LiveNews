@@ -73,6 +73,9 @@ if (categoryPosition === -1) fail("Homepage must include Category Lanes.");
 if (!appJs.includes('["Top Story of the Day", "Top Story of the Week"]')) {
   fail("Homepage should still render both Top Story of the Day and Top Story of the Week labels.");
 }
+if (!appJs.includes("Array.from(tools.children)") || !appJs.includes("limit.offsetLeft - brandRight - 24")) {
+  fail("Homepage brand slide should stop before the first visible topbar control, including Log in.");
+}
 if (!appJs.includes("renderLeadStoryCard") || !appJs.includes("buildDisplaySummaryParagraph(item, 300)")) {
   fail("Homepage lead cards should still render readable summaries with a slightly tighter preview length.");
 }
