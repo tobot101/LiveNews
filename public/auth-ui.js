@@ -1,7 +1,6 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
-  reload,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -183,7 +182,7 @@ function bindVerificationControls() {
         return;
       }
       try {
-        await reload(user);
+        await user.reload();
         await updateEmailVerifiedFlag(user);
         if (user.emailVerified) {
           setMessage(messageId, "Email verified. Your account setup can continue.", "success");
@@ -192,7 +191,7 @@ function bindVerificationControls() {
           }, 500);
           return;
         }
-        setMessage(messageId, "Email is not verified yet. Open the verification email, then check again.", "warning");
+        setMessage(messageId, "Your email is not verified yet. Open the verification email and click the verification link first.", "warning");
       } catch (error) {
         setMessage(messageId, friendlyAuthError(error), "error");
       }

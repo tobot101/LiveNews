@@ -16,6 +16,8 @@ const packageJson = JSON.parse(read("package.json"));
 const firebaseClient = read("public/firebase-client.js");
 const membershipAccess = read("public/membership-access.js");
 const authUi = read("public/auth-ui.js");
+const authActionHtml = read("public/auth-action.html");
+const authActionJs = read("public/auth-action.js");
 const signupHtml = read("public/signup.html");
 const loginHtml = read("public/login.html");
 const accountHtml = read("public/account.html");
@@ -34,6 +36,8 @@ expect(authUi.includes("signOut"), "Logout should use Firebase auth signOut.");
 expect(authUi.includes("sendEmailVerification"), "Signup should send a Firebase email verification email.");
 expect(authUi.includes("sendPasswordResetEmail"), "Login should support Firebase password reset email.");
 expect(authUi.includes("password !== confirmPassword"), "Signup should require matching password confirmation.");
+expect(authUi.includes("await user.reload()"), "Verify-email button should reload the current Firebase user before checking emailVerified.");
+expect(authUi.includes("Your email is not verified yet. Open the verification email and click the verification link first."), "Verify-email button should show the required not-yet-verified message.");
 expect(authUi.includes('doc(db, "users", user.uid)') && authUi.includes('doc(db, "memberships", user.uid)'), "Signup should create user and membership documents by uid.");
 expect(authUi.includes('role: "user"'), "New user document should start with role user.");
 expect(authUi.includes("emailVerified: Boolean(user.emailVerified)"), "User records should track Firebase email verification state.");
@@ -52,9 +56,15 @@ expect(loginHtml.includes('id="loginForm"') && loginHtml.includes('type="email"'
 expect(loginHtml.includes("Forgot password?") && loginHtml.includes('id="passwordResetForm"'), "Login page should include a forgot-password reset email form.");
 expect(accountHtml.includes("membershipStatus") && accountHtml.includes("membershipPlan") && accountHtml.includes("membershipAccessLevel"), "Account page should show membership status, plan, and access level.");
 expect(accountHtml.includes("accountEmailVerified") && accountHtml.includes("accountVerificationPanel"), "Account page should show email verification status and verification actions.");
+expect(authActionHtml.includes("authActionTitle") && authActionHtml.includes("Continue to Live News") && authActionHtml.includes("Send a new verification email"), "Custom auth action page should include success and resend UI.");
+expect(authActionJs.includes("new URLSearchParams(window.location.search)") && authActionJs.includes('params.get("mode")') && authActionJs.includes('params.get("oobCode")'), "Custom auth action handler should read mode and oobCode URL parameters.");
+expect(authActionJs.includes('params.get("continueUrl")') && authActionJs.includes('params.get("lang")'), "Custom auth action handler should read continueUrl and lang URL parameters.");
+expect(authActionJs.includes('mode !== "verifyEmail"') && authActionJs.includes("applyActionCode(auth, oobCode)"), "Custom auth action handler should apply verifyEmail action codes.");
+expect(authActionJs.includes("Your email is verified.") && authActionJs.includes("This verification link is expired or invalid."), "Custom auth action handler should show required success and invalid-link messages.");
+expect(authActionJs.includes("sendEmailVerification(user)"), "Invalid verification page should support sending a new verification email.");
 expect(protectedHtml.includes("Allowed statuses: active, trialing, or admin_granted") && protectedHtml.includes("protectedBlocked"), "Protected test page should display allowed statuses and a blocked state.");
 
-expect(serverJs.includes('app.get("/signup"') && serverJs.includes('app.get("/login"') && serverJs.includes('app.get("/account"') && serverJs.includes('app.get("/protected-test"'), "Server should expose clean membership routes.");
+expect(serverJs.includes('app.get("/signup"') && serverJs.includes('app.get("/login"') && serverJs.includes('app.get("/account"') && serverJs.includes('app.get("/auth/action"') && serverJs.includes('app.get("/protected-test"'), "Server should expose clean membership routes.");
 expect(indexHtml.includes('href="/login"') && indexHtml.includes('href="/account"'), "Homepage should expose simple login and account links.");
 
 expect(!authUi.includes("checkout") && !authUi.includes("createCheckout") && !authUi.includes("Stripe("), "Phase 1 should not add checkout or Stripe logic.");

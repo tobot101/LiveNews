@@ -5666,6 +5666,10 @@ app.get("/account", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "account.html"));
 });
 
+app.get("/auth/action", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "auth-action.html"));
+});
+
 app.get("/protected-test", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "protected-test.html"));
 });
