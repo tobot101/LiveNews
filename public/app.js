@@ -489,6 +489,15 @@ function updateBrandShift() {
   if (!brand || !brandTitle) return;
   const topbar = document.querySelector(".topbar");
   const tools = topbar ? topbar.querySelector(".topbar-tools") : null;
+  const getLeftWithinTopbar = (element) => {
+    let left = 0;
+    let node = element;
+    while (node && node !== topbar) {
+      left += node.offsetLeft || 0;
+      node = node.offsetParent;
+    }
+    return left;
+  };
   const limit = tools
     ? Array.from(tools.children).find((element) => {
         const style = window.getComputedStyle(element);
@@ -497,10 +506,11 @@ function updateBrandShift() {
     : null;
   let maxShift = 0;
   const controlsShareRow =
-    limit && Math.abs(limit.offsetTop - brand.offsetTop) < Math.max(brand.offsetHeight, 40);
+    limit && Math.abs(getLeftWithinTopbar(limit) - getLeftWithinTopbar(brand)) > brand.offsetWidth;
   if (limit && controlsShareRow) {
-    const brandRight = brand.offsetLeft + brand.offsetWidth;
-    maxShift = Math.max(0, Math.floor(limit.offsetLeft - brandRight - 24));
+    const brandRight = getLeftWithinTopbar(brand) + brand.offsetWidth;
+    const limitLeft = getLeftWithinTopbar(limit);
+    maxShift = Math.max(0, Math.floor(limitLeft - brandRight - 18));
   }
   brand.style.setProperty("--brand-shift", `${maxShift}px`);
 }
