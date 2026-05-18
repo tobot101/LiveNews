@@ -24,6 +24,7 @@ const accountHtml = read("public/account.html");
 const protectedHtml = read("public/protected-test.html");
 const serverJs = read("server.js");
 const indexHtml = read("public/index.html");
+const stylesCss = read("public/styles.css");
 
 expect(Boolean(packageJson.dependencies?.firebase), "Firebase should be installed as a dependency.");
 expect(firebaseClient.includes("initializeApp") && firebaseClient.includes("getAuth") && firebaseClient.includes("getFirestore"), "Firebase client should initialize app, auth, and Firestore.");
@@ -36,6 +37,7 @@ expect(authUi.includes("signOut"), "Logout should use Firebase auth signOut.");
 expect(authUi.includes("sendEmailVerification"), "Signup should send a Firebase email verification email.");
 expect(authUi.includes("sendPasswordResetEmail"), "Login should support Firebase password reset email.");
 expect(authUi.includes("password !== confirmPassword"), "Signup should require matching password confirmation.");
+expect(authUi.includes("function updateBrandShift()") && authUi.includes('brand.style.setProperty("--brand-shift"'), "Auth pages should constrain the sliding brand before it reaches login/account controls.");
 expect(authUi.includes("const currentUser = auth.currentUser") && authUi.includes("await reload(currentUser)"), "Verify-email button should reload auth.currentUser before checking emailVerified.");
 expect(authUi.includes('window.location.href = "/login"'), "Verify-email button should send signed-out users to /login.");
 expect(authUi.includes('window.location.href = "/account?verified=1"'), "Verified users should be redirected to /account?verified=1.");
@@ -67,10 +69,12 @@ expect(authActionJs.includes('mode !== "verifyEmail"') && authActionJs.includes(
 expect(authActionJs.includes("Your email is verified.") && authActionJs.includes("This verification link is expired or invalid."), "Custom auth action handler should show required success and invalid-link messages.");
 expect(authActionJs.includes("sendEmailVerification(user)"), "Invalid verification page should support sending a new verification email.");
 expect(!authActionJs.includes("syncVerifiedUserFlag") && !authActionJs.includes("emailVerified: Boolean"), "Auth action handler should not write emailVerified to Firestore.");
+expect(authActionJs.includes("function updateBrandShift()") && authActionJs.includes('brand.style.setProperty("--brand-shift"'), "Auth action page should constrain the sliding brand before it reaches login/account controls.");
 expect(protectedHtml.includes("Allowed statuses: active, trialing, or admin_granted") && protectedHtml.includes("protectedBlocked"), "Protected test page should display allowed statuses and a blocked state.");
 
 expect(serverJs.includes('app.get("/signup"') && serverJs.includes('app.get("/login"') && serverJs.includes('app.get("/account"') && serverJs.includes('app.get("/auth/action"') && serverJs.includes('app.get("/protected-test"'), "Server should expose clean membership routes.");
 expect(indexHtml.includes('href="/login"') && indexHtml.includes('href="/account"'), "Homepage should expose simple login and account links.");
+expect(stylesCss.includes("overflow-x: clip") && stylesCss.includes("z-index: 2"), "Topbar should prevent animated brand overflow and keep controls above the brand.");
 
 expect(!authUi.includes("checkout") && !authUi.includes("createCheckout") && !authUi.includes("Stripe("), "Phase 1 should not add checkout or Stripe logic.");
 expect(!authUi.includes('status: "active"') && !authUi.includes('status: "trialing"') && !authUi.includes('status: "admin_granted"'), "Frontend should not grant paid/admin membership statuses.");

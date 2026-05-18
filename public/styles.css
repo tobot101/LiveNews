@@ -185,7 +185,8 @@ input:focus-visible {
   padding: 16px 32px;
   background: var(--topbar-bg);
   border-bottom: 1px solid var(--topbar-border);
-  position: static;
+  position: relative;
+  overflow-x: clip;
 }
 
 .topbar-tools {
@@ -195,6 +196,8 @@ input:focus-visible {
   gap: 14px;
   min-width: 0;
   flex: 1;
+  position: relative;
+  z-index: 2;
 }
 
 .sr-only {
@@ -357,10 +360,13 @@ input:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  flex: 0 0 auto;
   color: var(--brand-base);
   text-shadow: 0 2px 12px var(--brand-glow);
   animation: brandSlide 11.5s ease-in-out infinite, brandHue 13s linear infinite;
   will-change: transform, filter, color;
+  position: relative;
+  z-index: 1;
 }
 
 .brand-mark {

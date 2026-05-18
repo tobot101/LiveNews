@@ -32,6 +32,22 @@ function setMessage(id, text, tone = "") {
   element.className = `account-message${tone ? ` ${tone}` : ""}`;
 }
 
+function updateBrandShift() {
+  const brand = document.querySelector(".brand");
+  const topbar = document.querySelector(".topbar");
+  if (!brand || !topbar) return;
+  const tools = topbar.querySelector(".topbar-tools");
+  const brandRect = brand.getBoundingClientRect();
+  const toolsRect = tools ? tools.getBoundingClientRect() : null;
+  let maxShift = 0;
+  const toolsShareRow =
+    toolsRect && Math.abs(toolsRect.top - brandRect.top) < Math.max(brandRect.height, 40);
+  if (toolsRect && toolsShareRow) {
+    maxShift = Math.max(0, Math.floor(toolsRect.left - brandRect.right - 20));
+  }
+  brand.style.setProperty("--brand-shift", `${maxShift}px`);
+}
+
 function friendlyAuthError(error) {
   const code = String(error?.code || "");
   if (code === "auth/email-already-in-use") return "That email already has a Live News account.";
@@ -257,8 +273,11 @@ function updateAuthLinks(user) {
   document.querySelectorAll("[data-signed-out]").forEach((element) => {
     element.hidden = Boolean(user);
   });
+  window.requestAnimationFrame(updateBrandShift);
 }
 
+updateBrandShift();
+window.addEventListener("resize", updateBrandShift);
 bindSignupForm();
 bindLoginForm();
 bindPasswordReset();
