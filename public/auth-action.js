@@ -1,14 +1,11 @@
 import {
   applyActionCode,
   onAuthStateChanged,
+  reload,
   sendEmailVerification,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
   auth,
-  db,
-  doc,
-  serverTimestamp,
-  setDoc,
 } from "./firebase-client.js";
 
 function byId(id) {
@@ -30,14 +27,6 @@ function setStatus(text, tone = "") {
   if (!element) return;
   element.textContent = text || "";
   element.className = `account-message${tone ? ` ${tone}` : ""}`;
-}
-
-async function syncVerifiedUserFlag(user) {
-  if (!user) return;
-  await setDoc(doc(db, "users", user.uid), {
-    emailVerified: Boolean(user.emailVerified),
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
 }
 
 function showSuccess() {
@@ -92,8 +81,7 @@ async function handleActionCode() {
     await applyActionCode(auth, oobCode);
     const user = auth.currentUser;
     if (user) {
-      await user.reload();
-      await syncVerifiedUserFlag(user);
+      await reload(user);
     }
     showSuccess();
   } catch {

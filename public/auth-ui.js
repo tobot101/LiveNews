@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reload,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -41,15 +42,6 @@ function friendlyAuthError(error) {
   return error?.message || "Something went wrong. Please try again.";
 }
 
-async function updateEmailVerifiedFlag(user) {
-  if (!user) return false;
-  await setDoc(doc(db, "users", user.uid), {
-    emailVerified: Boolean(user.emailVerified),
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
-  return Boolean(user.emailVerified);
-}
-
 async function sendVerificationForCurrentUser(messageId = "authMessage") {
   const user = auth.currentUser;
   if (!user) {
@@ -67,7 +59,6 @@ async function createAccountDocuments(user) {
     email: user.email || "",
     displayName: user.displayName || "",
     photoURL: user.photoURL || "",
-    emailVerified: Boolean(user.emailVerified),
     role: "user",
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -176,19 +167,15 @@ function bindVerificationControls() {
   document.querySelectorAll("[data-check-email-verification]").forEach((button) => {
     button.addEventListener("click", async () => {
       const messageId = button.getAttribute("data-message-target") || "authMessage";
-      const user = auth.currentUser;
-      if (!user) {
-        setMessage(messageId, "Log in first, then check verification.", "warning");
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        window.location.href = "/login";
         return;
       }
       try {
-        await user.reload();
-        await updateEmailVerifiedFlag(user);
-        if (user.emailVerified) {
-          setMessage(messageId, "Email verified. Your account setup can continue.", "success");
-          window.setTimeout(() => {
-            window.location.href = "/account";
-          }, 500);
+        await reload(currentUser);
+        if (currentUser.emailVerified) {
+          window.location.href = "/account?verified=1";
           return;
         }
         setMessage(messageId, "Your email is not verified yet. Open the verification email and click the verification link first.", "warning");
@@ -224,11 +211,20 @@ function renderAccount(user, membershipResult) {
 
 async function initAccountPage(user) {
   if (!byId("accountPanel")) return;
+  const verifiedBanner = byId("accountVerifiedBanner");
+  if (verifiedBanner) {
+    const params = new URLSearchParams(window.location.search);
+    verifiedBanner.hidden = params.get("verified") !== "1";
+  }
   if (!user) {
     setMessage("accountMessage", "Log in to view your Live News account.", "warning");
     return;
   }
-  await updateEmailVerifiedFlag(user);
+  try {
+    await reload(user);
+  } catch {
+    // Account rendering should still work if Auth reload is temporarily unavailable.
+  }
   const verificationPanel = byId("accountVerificationPanel");
   if (verificationPanel) verificationPanel.hidden = Boolean(user.emailVerified);
   const membershipResult = await loadMembership(user.uid);

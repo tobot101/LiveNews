@@ -2959,6 +2959,12 @@ html[data-theme="night"] .category-entertainment-controls {
   font-size: 24px;
 }
 
+.account-success-banner {
+  border-color: color-mix(in srgb, var(--success), var(--border) 55%);
+  background: color-mix(in srgb, var(--success), var(--surface) 88%);
+  color: var(--success);
+}
+
 .account-link-button {
   width: fit-content;
 }

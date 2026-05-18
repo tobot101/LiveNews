@@ -34,6 +34,9 @@
         <p class="story-kicker">Live News account</p>
         <h1>Account</h1>
         <p class="panel-note">Membership starts as free. Payment and checkout are intentionally not enabled yet.</p>
+        <div class="account-verification-panel account-success-banner" id="accountVerifiedBanner" hidden>
+          <strong>Your email is verified.</strong>
+        </div>
         <div class="account-summary">
           <div>
             <span>Email</span>
@@ -66,6 +69,7 @@
         </div>
         <p class="account-message" id="accountMessage" aria-live="polite"></p>
         <div class="account-actions">
+          <a class="btn" href="/">Continue to Live News</a>
           <a class="btn ghost" href="/signup" data-signed-out>Create account</a>
           <a class="btn ghost" href="/login" data-signed-out>Log in</a>
           <button class="btn" type="button" data-logout data-signed-in hidden>Log out</button>
