@@ -32,8 +32,9 @@
         </div>
       </a>
       <div class="topbar-tools">
-        <a class="btn ghost" href="/login">Log in</a>
-        <a class="btn ghost" href="/account">Account</a>
+        <a class="btn ghost" href="/login" data-header-auth="signed-out" hidden>Log in</a>
+        <a class="btn ghost" href="/signup" data-header-auth="signed-out" hidden>Create account</a>
+        <a class="btn ghost" href="/account" data-header-auth="signed-in" hidden>My Account</a>
         <div class="controls">
           <div class="control" aria-label="Theme">
             <span class="control-label">Mode</span>
@@ -122,6 +123,7 @@
     <script src="public-writing.js?v=20260510-safe-writing"></script>
     <script src="live-news-prefs.js?v=20260513-local-prefs"></script>
     <script src="top-cities.js"></script>
+    <script type="module" src="/header-auth.js"></script>
     <script src="local.js"></script>
   </body>
 </html>

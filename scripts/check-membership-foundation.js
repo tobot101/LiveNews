@@ -14,6 +14,7 @@ function expect(condition, message) {
 
 const packageJson = JSON.parse(read("package.json"));
 const firebaseClient = read("public/firebase-client.js");
+const headerAuthJs = read("public/header-auth.js");
 const membershipAccess = read("public/membership-access.js");
 const authUi = read("public/auth-ui.js");
 const authActionHtml = read("public/auth-action.html");
@@ -21,6 +22,9 @@ const authActionJs = read("public/auth-action.js");
 const signupHtml = read("public/signup.html");
 const loginHtml = read("public/login.html");
 const accountHtml = read("public/account.html");
+const categoryHtml = read("public/category.html");
+const searchHtml = read("public/search.html");
+const localHtml = read("public/local.html");
 const protectedHtml = read("public/protected-test.html");
 const serverJs = read("server.js");
 const indexHtml = read("public/index.html");
@@ -30,6 +34,10 @@ expect(Boolean(packageJson.dependencies?.firebase), "Firebase should be installe
 expect(firebaseClient.includes("initializeApp") && firebaseClient.includes("getAuth") && firebaseClient.includes("getFirestore"), "Firebase client should initialize app, auth, and Firestore.");
 expect(firebaseClient.includes("isAnalyticsSupported()"), "Firebase Analytics should only initialize after browser support is checked.");
 expect(firebaseClient.includes("live-news-membership"), "Firebase client should use the Live News membership Firebase project config.");
+expect(headerAuthJs.includes("onAuthStateChanged") && headerAuthJs.includes("auth"), "Header auth navigation should use Firebase Auth state.");
+expect(headerAuthJs.includes("[data-header-auth='signed-in']") && headerAuthJs.includes("[data-header-auth='signed-out']"), "Header auth navigation should toggle signed-in and signed-out buttons.");
+expect(headerAuthJs.includes("element.hidden = true"), "Header auth buttons should stay hidden until Firebase auth state is known.");
+expect(headerAuthJs.includes("window.dispatchEvent(new Event(\"resize\"))"), "Header auth navigation should trigger a header resize pass after auth buttons render.");
 
 expect(authUi.includes("createUserWithEmailAndPassword"), "Signup should use Firebase email/password auth.");
 expect(authUi.includes("signInWithEmailAndPassword"), "Login should use Firebase email/password auth.");
@@ -73,7 +81,23 @@ expect(authActionJs.includes("function updateBrandShift()") && authActionJs.incl
 expect(protectedHtml.includes("Allowed statuses: active, trialing, or admin_granted") && protectedHtml.includes("protectedBlocked"), "Protected test page should display allowed statuses and a blocked state.");
 
 expect(serverJs.includes('app.get("/signup"') && serverJs.includes('app.get("/login"') && serverJs.includes('app.get("/account"') && serverJs.includes('app.get("/auth/action"') && serverJs.includes('app.get("/protected-test"'), "Server should expose clean membership routes.");
-expect(indexHtml.includes('href="/login"') && indexHtml.includes('href="/account"'), "Homepage should expose simple login and account links.");
+[
+  indexHtml,
+  categoryHtml,
+  searchHtml,
+  localHtml,
+  loginHtml,
+  signupHtml,
+  authActionHtml,
+  accountHtml,
+  protectedHtml,
+].forEach((html, index) => {
+  expect(html.includes('data-header-auth="signed-out" hidden'), `Header ${index + 1} should hide logged-out auth buttons until Firebase state is known.`);
+  expect(html.includes('data-header-auth="signed-in" hidden') && html.includes(">My Account</a>"), `Header ${index + 1} should include a signed-in My Account button hidden by default.`);
+  expect(html.includes(">Create account</a>"), `Header ${index + 1} should include a logged-out Create account button.`);
+  expect(html.includes("header-auth.js"), `Header ${index + 1} should load the shared Firebase header auth module.`);
+});
+expect(indexHtml.includes('href="/login"') && indexHtml.includes('href="/signup"') && indexHtml.includes('href="/account"'), "Homepage should expose Firebase-controlled login, signup, and account links.");
 expect(stylesCss.includes("overflow-x: clip") && stylesCss.includes("z-index: 2"), "Topbar should prevent animated brand overflow and keep controls above the brand.");
 
 expect(!authUi.includes("checkout") && !authUi.includes("createCheckout") && !authUi.includes("Stripe("), "Phase 1 should not add checkout or Stripe logic.");

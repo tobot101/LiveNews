@@ -23,8 +23,9 @@
         </div>
       </a>
       <div class="topbar-tools auth-nav">
-        <a class="btn ghost" href="/login">Log in</a>
-        <a class="btn ghost" href="/account">Account</a>
+        <a class="btn ghost" href="/login" data-header-auth="signed-out" hidden>Log in</a>
+        <a class="btn ghost" href="/signup" data-header-auth="signed-out" hidden>Create account</a>
+        <a class="btn ghost" href="/account" data-header-auth="signed-in" hidden>My Account</a>
       </div>
     </header>
 
@@ -57,6 +58,7 @@
       </section>
     </main>
 
+    <script type="module" src="/header-auth.js"></script>
     <script type="module" src="/auth-ui.js"></script>
   </body>
 </html>
