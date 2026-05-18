@@ -38,8 +38,20 @@
           <input id="signupEmail" type="email" autocomplete="email" required />
           <label for="signupPassword">Password</label>
           <input id="signupPassword" type="password" autocomplete="new-password" minlength="6" required />
+          <label for="signupPasswordConfirm">Confirm password</label>
+          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" minlength="6" required />
           <button class="btn" type="submit">Create account</button>
         </form>
+        <div class="account-verification-panel" id="emailVerificationPanel" hidden>
+          <h2>Verify your email</h2>
+          <p class="panel-note">
+            Live News sent a Firebase verification email. Open the link in your inbox, then return here and confirm.
+          </p>
+          <div class="account-actions">
+            <button class="btn" type="button" data-check-email-verification data-message-target="authMessage">I verified my email</button>
+            <button class="btn ghost" type="button" data-resend-verification data-message-target="authMessage">Resend verification email</button>
+          </div>
+        </div>
         <p class="account-message" id="authMessage" aria-live="polite"></p>
         <p class="panel-note">Already have an account? <a href="/login">Log in</a>.</p>
       </section>

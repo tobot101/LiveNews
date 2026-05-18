@@ -41,6 +41,17 @@
           <button class="btn" type="submit">Log in</button>
         </form>
         <p class="account-message" id="authMessage" aria-live="polite"></p>
+        <button class="btn ghost account-link-button" type="button" id="forgotPasswordToggle">Forgot password?</button>
+        <div class="account-verification-panel" id="forgotPasswordPanel" hidden>
+          <h2>Reset your password</h2>
+          <p class="panel-note">Enter your email and Live News will send a Firebase password reset email.</p>
+          <form class="account-form" id="passwordResetForm">
+            <label for="resetEmail">Email</label>
+            <input id="resetEmail" type="email" autocomplete="email" />
+            <button class="btn" type="submit">Send reset email</button>
+          </form>
+          <p class="account-message" id="resetMessage" aria-live="polite"></p>
+        </div>
         <p class="panel-note">Need an account? <a href="/signup">Create one</a>.</p>
       </section>
     </main>

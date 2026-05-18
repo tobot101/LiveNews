@@ -31,8 +31,12 @@ expect(firebaseClient.includes("live-news-membership"), "Firebase client should 
 expect(authUi.includes("createUserWithEmailAndPassword"), "Signup should use Firebase email/password auth.");
 expect(authUi.includes("signInWithEmailAndPassword"), "Login should use Firebase email/password auth.");
 expect(authUi.includes("signOut"), "Logout should use Firebase auth signOut.");
+expect(authUi.includes("sendEmailVerification"), "Signup should send a Firebase email verification email.");
+expect(authUi.includes("sendPasswordResetEmail"), "Login should support Firebase password reset email.");
+expect(authUi.includes("password !== confirmPassword"), "Signup should require matching password confirmation.");
 expect(authUi.includes('doc(db, "users", user.uid)') && authUi.includes('doc(db, "memberships", user.uid)'), "Signup should create user and membership documents by uid.");
 expect(authUi.includes('role: "user"'), "New user document should start with role user.");
+expect(authUi.includes("emailVerified: Boolean(user.emailVerified)"), "User records should track Firebase email verification state.");
 expect(authUi.includes('status: "free"') && authUi.includes('plan: "free"') && authUi.includes("accessLevel: 0"), "New membership should start as free with access level 0.");
 expect(authUi.includes("stripeCustomerId: null") && authUi.includes("stripeSubscriptionId: null"), "Membership record should reserve Stripe fields without adding payment logic.");
 
@@ -42,8 +46,12 @@ expect(membershipAccess.includes('doc(db, "memberships", uid)'), "Membership che
 expect(membershipAccess.includes("missing-membership"), "Membership checker should handle a missing membership document.");
 
 expect(signupHtml.includes('id="signupForm"') && signupHtml.includes('type="email"') && signupHtml.includes('type="password"'), "Signup page should include an email/password form.");
+expect(signupHtml.includes('id="signupPasswordConfirm"'), "Signup page should include a confirm password field.");
+expect(signupHtml.includes("I verified my email") && signupHtml.includes("Resend verification email"), "Signup page should include email verification actions.");
 expect(loginHtml.includes('id="loginForm"') && loginHtml.includes('type="email"') && loginHtml.includes('type="password"'), "Login page should include an email/password form.");
+expect(loginHtml.includes("Forgot password?") && loginHtml.includes('id="passwordResetForm"'), "Login page should include a forgot-password reset email form.");
 expect(accountHtml.includes("membershipStatus") && accountHtml.includes("membershipPlan") && accountHtml.includes("membershipAccessLevel"), "Account page should show membership status, plan, and access level.");
+expect(accountHtml.includes("accountEmailVerified") && accountHtml.includes("accountVerificationPanel"), "Account page should show email verification status and verification actions.");
 expect(protectedHtml.includes("Allowed statuses: active, trialing, or admin_granted") && protectedHtml.includes("protectedBlocked"), "Protected test page should display allowed statuses and a blocked state.");
 
 expect(serverJs.includes('app.get("/signup"') && serverJs.includes('app.get("/login"') && serverJs.includes('app.get("/account"') && serverJs.includes('app.get("/protected-test"'), "Server should expose clean membership routes.");

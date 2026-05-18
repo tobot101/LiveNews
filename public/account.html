@@ -40,6 +40,10 @@
             <strong id="accountEmail">Checking...</strong>
           </div>
           <div>
+            <span>Email verification</span>
+            <strong id="accountEmailVerified">Checking...</strong>
+          </div>
+          <div>
             <span>Status</span>
             <strong id="membershipStatus">Checking...</strong>
           </div>
@@ -50,6 +54,14 @@
           <div>
             <span>Access level</span>
             <strong id="membershipAccessLevel">Checking...</strong>
+          </div>
+        </div>
+        <div class="account-verification-panel" id="accountVerificationPanel" hidden>
+          <h2>Email verification needed</h2>
+          <p class="panel-note">Please verify your email before using future member features.</p>
+          <div class="account-actions">
+            <button class="btn" type="button" data-check-email-verification data-message-target="accountMessage">I verified my email</button>
+            <button class="btn ghost" type="button" data-resend-verification data-message-target="accountMessage">Resend verification email</button>
           </div>
         </div>
         <p class="account-message" id="accountMessage" aria-live="polite"></p>

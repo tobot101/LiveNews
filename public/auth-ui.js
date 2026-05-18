@@ -1,6 +1,9 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
@@ -39,6 +42,25 @@ function friendlyAuthError(error) {
   return error?.message || "Something went wrong. Please try again.";
 }
 
+async function updateEmailVerifiedFlag(user) {
+  if (!user) return false;
+  await setDoc(doc(db, "users", user.uid), {
+    emailVerified: Boolean(user.emailVerified),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+  return Boolean(user.emailVerified);
+}
+
+async function sendVerificationForCurrentUser(messageId = "authMessage") {
+  const user = auth.currentUser;
+  if (!user) {
+    setMessage(messageId, "Log in first so Live News can send a verification email.", "warning");
+    return;
+  }
+  await sendEmailVerification(user);
+  setMessage(messageId, "Verification email sent. Check your inbox, then come back and confirm verification.", "success");
+}
+
 async function createAccountDocuments(user) {
   const timestamp = serverTimestamp();
   await setDoc(doc(db, "users", user.uid), {
@@ -46,6 +68,7 @@ async function createAccountDocuments(user) {
     email: user.email || "",
     displayName: user.displayName || "",
     photoURL: user.photoURL || "",
+    emailVerified: Boolean(user.emailVerified),
     role: "user",
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -74,13 +97,17 @@ function bindSignupForm() {
     setMessage("authMessage", "Creating your account...");
     const email = String(byId("signupEmail")?.value || "").trim();
     const password = String(byId("signupPassword")?.value || "");
+    const confirmPassword = String(byId("signupPasswordConfirm")?.value || "");
+    if (password !== confirmPassword) {
+      setMessage("authMessage", "Passwords do not match. Please type the same password twice.", "error");
+      return;
+    }
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await createAccountDocuments(credential.user);
-      setMessage("authMessage", "Account created. You are starting on the free plan.", "success");
-      window.setTimeout(() => {
-        window.location.href = "/account";
-      }, 600);
+      await sendVerificationForCurrentUser("authMessage");
+      const panel = byId("emailVerificationPanel");
+      if (panel) panel.hidden = false;
     } catch (error) {
       setMessage("authMessage", friendlyAuthError(error), "error");
     }
@@ -107,6 +134,72 @@ function bindLoginForm() {
   });
 }
 
+function bindPasswordReset() {
+  const toggle = byId("forgotPasswordToggle");
+  const panel = byId("forgotPasswordPanel");
+  const form = byId("passwordResetForm");
+  if (toggle && panel) {
+    toggle.addEventListener("click", () => {
+      panel.hidden = !panel.hidden;
+      const resetEmail = byId("resetEmail");
+      const loginEmail = String(byId("loginEmail")?.value || "").trim();
+      if (resetEmail && loginEmail && !resetEmail.value) resetEmail.value = loginEmail;
+    });
+  }
+  if (!form) return;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = String(byId("resetEmail")?.value || byId("loginEmail")?.value || "").trim();
+    if (!email) {
+      setMessage("resetMessage", "Enter your email so Live News can send the reset link.", "warning");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setMessage("resetMessage", "Password reset email sent. Check your inbox.", "success");
+    } catch (error) {
+      setMessage("resetMessage", friendlyAuthError(error), "error");
+    }
+  });
+}
+
+function bindVerificationControls() {
+  const resendButtons = document.querySelectorAll("[data-resend-verification]");
+  resendButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await sendVerificationForCurrentUser(button.getAttribute("data-message-target") || "authMessage");
+      } catch (error) {
+        setMessage(button.getAttribute("data-message-target") || "authMessage", friendlyAuthError(error), "error");
+      }
+    });
+  });
+  document.querySelectorAll("[data-check-email-verification]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const messageId = button.getAttribute("data-message-target") || "authMessage";
+      const user = auth.currentUser;
+      if (!user) {
+        setMessage(messageId, "Log in first, then check verification.", "warning");
+        return;
+      }
+      try {
+        await reload(user);
+        await updateEmailVerifiedFlag(user);
+        if (user.emailVerified) {
+          setMessage(messageId, "Email verified. Your account setup can continue.", "success");
+          window.setTimeout(() => {
+            window.location.href = "/account";
+          }, 500);
+          return;
+        }
+        setMessage(messageId, "Email is not verified yet. Open the verification email, then check again.", "warning");
+      } catch (error) {
+        setMessage(messageId, friendlyAuthError(error), "error");
+      }
+    });
+  });
+}
+
 function bindLogoutButtons() {
   document.querySelectorAll("[data-logout]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -118,6 +211,7 @@ function bindLogoutButtons() {
 
 function renderAccount(user, membershipResult) {
   setText("accountEmail", user?.email || "Not signed in");
+  setText("accountEmailVerified", user?.emailVerified ? "Verified" : "Not verified");
   const membership = membershipResult?.data || null;
   setText("membershipStatus", membership?.status || "missing membership document");
   setText("membershipPlan", membership?.plan || "none");
@@ -135,6 +229,9 @@ async function initAccountPage(user) {
     setMessage("accountMessage", "Log in to view your Live News account.", "warning");
     return;
   }
+  await updateEmailVerifiedFlag(user);
+  const verificationPanel = byId("accountVerificationPanel");
+  if (verificationPanel) verificationPanel.hidden = Boolean(user.emailVerified);
   const membershipResult = await loadMembership(user.uid);
   renderAccount(user, membershipResult);
 }
@@ -169,7 +266,9 @@ function updateAuthLinks(user) {
 
 bindSignupForm();
 bindLoginForm();
+bindPasswordReset();
 bindLogoutButtons();
+bindVerificationControls();
 
 onAuthStateChanged(auth, async (user) => {
   updateAuthLinks(user);
